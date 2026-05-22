@@ -34,42 +34,42 @@ export default function PricingPackages({
   const packages = [
     {
       id: 'free',
-      name: 'العضوية التأسيسية (مجاناً)',
+      name: 'العضوية التأسيسية المجانية 🟢',
       price: 'مجاناً للأبد',
       icon: Zap,
-      color: 'text-emerald-400',
-      iconBg: 'bg-emerald-950/30 border-emerald-500/20',
+      color: 'text-emerald-300',
+      iconBg: 'bg-gradient-to-tr from-emerald-950 to-emerald-900 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]',
       badge: 'انطلاقة واثقة',
-      badgeStyle: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+      badgeStyle: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]',
       features: [
         'نشر إعلانات بدون حدود وبسرعة',
         'دعم فني عادي على مدار الساعة',
         'ظهور كعرض افتراضي أنيق',
         'حضور مميز في بوابات سوق سند',
       ],
-      cardStyle: 'border-emerald-500/10 bg-gradient-to-b from-[#06100c] via-[#030705] to-[#010201] shadow-[0_12px_30px_rgba(16,185,129,0.03)] hover:shadow-[0_15px_35px_rgba(16,185,129,0.06)]',
-      priceStyle: 'text-emerald-400 font-extrabold text-[#10B981]',
-      buttonStyle: 'bg-emerald-950/20 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-950/40 hover:text-emerald-300 cursor-pointer'
+      cardStyle: 'border-2 border-emerald-500/40 bg-gradient-to-b from-[#0a2318] via-[#030d09] to-[#010302] shadow-[0_12px_35px_rgba(16,185,129,0.12)] hover:shadow-[0_20px_45px_rgba(16,185,129,0.25)]',
+      priceStyle: 'text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200 font-extrabold',
+      buttonStyle: 'bg-emerald-950/45 text-emerald-300 border border-emerald-500/45 hover:bg-emerald-950/75 hover:text-emerald-200 cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.15)]'
     },
     {
       id: 'bronze',
-      name: 'الباقة البرونزية المميزة',
+      name: 'الباقة البرونزية الفضية 🥈',
       price: '30 د.ت / شهر',
-      icon: Star,
-      color: 'text-amber-500',
-      iconBg: 'bg-amber-950/30 border-amber-500/20',
-      badge: 'الخيار المستقل الناجح',
-      badgeStyle: 'bg-amber-600/10 text-amber-500 border border-amber-500/20',
+      icon: Crown,
+      color: 'text-slate-100 drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]',
+      iconBg: 'bg-gradient-to-tr from-slate-700 to-slate-900 border-slate-400/50 shadow-[0_0_15px_rgba(148,163,184,0.4)]',
+      badge: 'التاج الفضي المميز 👑',
+      badgeStyle: 'bg-slate-700/30 text-slate-100 border border-slate-400/40 shadow-[0_0_12px_rgba(148,163,184,0.2)]',
       features: [
         'نشر إعلانات بدون حدود وسرعة تفعيل',
         '2 إعلانات ممولة شهرياً في الصدارة',
-        'شارة برونزية ثلاثية الأبعاد بجوار الاسم',
+        'شارة برونزية فضية ثلاثية الأبعاد 👑',
         'إنشاء بوسترات فنية مميزة للعروض',
         'دعم عبر البريد الإلكتروني ذو أولوية',
       ],
-      cardStyle: 'border-amber-600/20 bg-gradient-to-b from-[#140f06] via-[#070502] to-[#010101] shadow-[0_12px_30px_rgba(245,158,11,0.03)] hover:shadow-[0_15px_35px_rgba(245,158,11,0.06)]',
-      priceStyle: 'text-amber-500 font-extrabold',
-      buttonStyle: 'bg-amber-950/40 text-[#f59e0b] border border-amber-500/20 hover:bg-amber-900/40 hover:text-amber-305 cursor-pointer'
+      cardStyle: 'border-2 border-slate-400/50 bg-gradient-to-b from-[#18202c] via-[#0b1016] to-[#030406] shadow-[0_12px_35px_rgba(148,163,184,0.12)] hover:shadow-[0_20px_45px_rgba(148,163,184,0.25)]',
+      priceStyle: 'text-transparent bg-clip-text bg-gradient-to-r from-slate-200 via-white to-slate-400 font-black',
+      buttonStyle: 'bg-slate-900/60 text-slate-100 border border-slate-400/45 hover:bg-slate-800/80 cursor-pointer shadow-[0_0_12px_rgba(148,163,184,0.15)]'
     },
     {
       id: 'vip',
@@ -96,18 +96,18 @@ export default function PricingPackages({
 
   return (
     <>
-    <div className="py-12" dir="rtl">
-      <div className="text-center mb-12 px-4 space-y-3">
-        <div className="inline-flex items-center gap-1.5 bg-[#D4AF37]/10 text-[#D4AF37] px-4 py-1.5 rounded-full text-xs font-bold border border-[#D4AF37]/20">
+    <div id="pricing-packages" className="py-2 pb-16 scroll-mt-24" dir="rtl">
+      <div className="text-center mb-10 px-4 space-y-4">
+        <div className="inline-flex items-center gap-1.5 bg-[#D4AF37]/10 text-[#D4AF37] px-5 py-2 rounded-full text-xs font-bold border border-[#D4AF37]/20 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
            <Sparkles className="w-4 h-4 animate-pulse-slow" />
            باقات الارتقاء والتميز
         </div>
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-black font-display text-white tracking-tight">باقات التميز من سوق سند</h2>
-        <p className="text-gray-400 text-xs sm:text-sm max-w-md mx-auto leading-relaxed">اختر المستوى الملكي الذي يضمن انتشار عروضك التجارية والعقارية بلمسة مخملية تميز خدماتك.</p>
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-black font-display text-white tracking-tight drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">باقات التميز من سوق سند</h2>
+        <p className="text-gray-400 text-xs sm:text-sm max-w-lg mx-auto leading-relaxed opacity-80">اختر المستوى الملكي الذي يضمن انتشار عروضك التجارية والعقارية بلمسة مخملية تميز خدماتك وتجعل حضورك في طليعة السوق.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 max-w-5xl mx-auto items-stretch">
-        {packages.map((pkg) => {
+        {packages.map((pkg, index) => {
           if (pkg.id === 'vip') {
             // VIP Card Wrapper with a beautifully decorated gold shiny gradient border and layout
             return (
@@ -122,19 +122,21 @@ export default function PricingPackages({
                 </div>
 
                 {/* Inner Card Section */}
-                <div className="bg-gradient-to-b from-[#0f0c05] via-[#050505] to-[#010101] rounded-[1.85rem] p-7 flex flex-col flex-1 h-full">
-                  <div className="flex justify-between items-start mb-6">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${pkg.iconBg}`}>
-                      <pkg.icon className={`w-6 h-6 ${pkg.color} animate-pulse-slow`} />
+                <div className="bg-gradient-to-b from-[#0f0c05] via-[#050505] to-[#010101] rounded-[1.85rem] p-5 flex flex-col flex-1 h-full shadow-inner">
+                  <div className="flex justify-between items-start mb-5">
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border shadow-[0_0_20px_rgba(212,175,55,0.2)] ${pkg.iconBg}`}>
+                      <pkg.icon className={`w-5 h-5 ${pkg.color} animate-pulse-slow`} />
                     </div>
                     {pkg.badge && (
-                      <span className={`text-[10px] py-1 px-3 rounded-full font-bold ${pkg.badgeStyle}`}>
+                      <span className={`text-[10px] py-1 px-3 rounded-full font-bold shadow-[0_0_10px_rgba(212,175,55,0.1)] ${pkg.badgeStyle}`}>
                         {pkg.badge}
                       </span>
                     )}
                   </div>
 
-                  <h3 className="text-2xl font-black text-white mb-2 font-display">{pkg.name}</h3>
+                  <h3 className="text-2xl font-black text-white mb-2 font-display drop-shadow-[0_0_25px_rgba(212,175,55,0.85)] text-shadow-gold">
+                    {pkg.name}
+                  </h3>
                   <p className={`text-2xl font-black mb-6 ${pkg.priceStyle}`}>
                     {pkg.price}
                   </p>
@@ -162,22 +164,39 @@ export default function PricingPackages({
           // Non-VIP Package Cards with elegant, 3D premium border and design
           const isFree = pkg.id === 'free';
           const outerRingColor = isFree 
-            ? 'from-emerald-950/40 via-emerald-800/20 to-emerald-950/25' 
-            : 'from-amber-900/40 via-amber-700/20 to-amber-950/25';
+            ? 'from-emerald-500/50 via-teal-500/30 to-emerald-600/50 shadow-[0_0_20px_rgba(16,185,129,0.2)]' 
+            : 'from-slate-400/50 via-slate-200/40 to-slate-500/50 shadow-[0_0_20px_rgba(148,163,184,0.2)]';
           const glowShadowClass = isFree
-            ? 'hover:shadow-[0_20px_45px_rgba(16,185,129,0.08)]'
-            : 'hover:shadow-[0_20px_45px_rgba(245,158,11,0.08)]';
+            ? 'hover:shadow-[0_20px_45px_rgba(16,185,129,0.35)] hover:border-emerald-400/60'
+            : 'hover:shadow-[0_20px_45px_rgba(148,163,184,0.35)] hover:border-slate-300/60';
           
           return (
             <div 
               key={pkg.id}
-              className={`relative rounded-[2rem] p-[2px] bg-gradient-to-tr ${outerRingColor} flex flex-col max-w-sm mx-auto w-full transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1.5 ${glowShadowClass}`}
+              id={pkg.id === 'free' ? 'free-package' : undefined}
+              className={`relative rounded-[2rem] p-[2.5px] bg-gradient-to-tr ${outerRingColor} flex flex-col max-w-sm mx-auto w-full transition-all duration-500 hover:scale-[1.05] hover:-translate-y-2 scroll-mt-28 ${glowShadowClass}`}
               style={{ transformStyle: 'preserve-3d', perspective: '1000px' }}
             >
+              {/* Silver Crown Floating Tag for Bronze package */}
+              {pkg.id === 'bronze' && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-slate-300 via-white to-slate-400 text-slate-950 font-black text-[10px] sm:text-xs px-4 py-1.5 rounded-full shadow-2xl border border-white flex items-center gap-1.5 z-20 animate-pulse">
+                  <Crown className="w-3.5 h-3.5 text-slate-900 fill-slate-700" />
+                  التاج الفضي المميز ✦
+                </div>
+              )}
+
+              {/* Free Branding Floating Tag */}
+              {pkg.id === 'free' && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 text-emerald-950 font-black text-[11px] sm:text-[13px] px-5 py-2 rounded-full shadow-2xl border border-emerald-200 flex items-center gap-1.5 z-20">
+                  <Zap className="w-4 h-4 fill-emerald-900" />
+                  الباقة المجانية ✧
+                </div>
+              )}
+
               {/* Inner container to capture the 3D block model feel */}
-              <div className={`rounded-[1.85rem] p-7 flex flex-col flex-1 h-full w-full ${pkg.cardStyle}`}>
-                <div className="flex justify-between items-start mb-6">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${pkg.iconBg}`}>
+              <div className={`rounded-[1.85rem] p-5 flex flex-col flex-1 h-full w-full ${pkg.cardStyle}`}>
+                <div className="flex justify-between items-start mb-4">
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border ${pkg.iconBg}`}>
                     <pkg.icon className={`w-5 h-5 ${pkg.color}`} />
                   </div>
                   {pkg.badge && (
@@ -187,7 +206,9 @@ export default function PricingPackages({
                   )}
                 </div>
 
-                <h3 className="text-xl font-bold text-white mb-2 font-display">{pkg.name}</h3>
+                <h3 className={`text-xl font-bold text-white mb-2 font-display ${pkg.id === 'free' ? 'drop-shadow-[0_0_20px_rgba(16,185,129,0.9)]' : 'drop-shadow-[0_0_20px_rgba(148,163,184,0.9)]'}`}>
+                  {pkg.name}
+                </h3>
                 <p className={`text-xl font-black mb-6 ${pkg.priceStyle}`}>
                   {pkg.price}
                 </p>
@@ -195,7 +216,7 @@ export default function PricingPackages({
                 <ul className="mb-8 space-y-3.5 flex-1 text-right">
                   {pkg.features.map((feature, idx) => (
                     <li key={`${pkg.id}-${idx}`} className="flex items-start gap-2.5 text-xs sm:text-sm text-gray-300">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${isFree ? 'text-emerald-400' : 'text-amber-500'}`} />
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${isFree ? 'text-emerald-400' : 'text-slate-300'}`} />
                       <span>{feature}</span>
                     </li>
                   ))}

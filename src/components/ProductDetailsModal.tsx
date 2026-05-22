@@ -1,27 +1,87 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown, Eye, Heart } from 'lucide-react';
 import { Product } from '../types';
+import { triggerPushNotification, requestPushPermission } from '../lib/pushNotifications';
 
-export default function ProductDetailsModal({ onClose, product, currentUserPhone, isAdmin, onDelete, onEdit }: { onClose: () => void, product: Product, currentUserPhone?: string | null, isAdmin?: boolean, onDelete?: () => void, onEdit?: (product: Product) => void }) {
+export default function ProductDetailsModal({ 
+  onClose, 
+  product, 
+  currentUserPhone, 
+  isAdmin, 
+  onDelete, 
+  onEdit,
+  onUpdateComments,
+  onAddNotification,
+  isFavorite,
+  onToggleFavorite
+}: { 
+  key?: React.Key, 
+  onClose: () => void, 
+  product: Product, 
+  currentUserPhone?: string | null, 
+  isAdmin?: boolean, 
+  onDelete?: () => void, 
+  onEdit?: (product: Product) => void,
+  onUpdateComments?: (productId: string, comments: any[]) => void,
+  onAddNotification?: (phone: string, message: string) => void,
+  isFavorite?: boolean,
+  onToggleFavorite?: (e: React.MouseEvent) => void
+}) {
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState(product.comments || [
-    { id: 'c1', userId: 'u1', userName: 'أحمد', text: 'هل السعر قابل للنقاش؟', createdAt: 'منذ ساعتين' }
-  ]);
+  const [comments, setComments] = useState(product.comments || []);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [showHeart, setShowHeart] = useState(false);
+  const clickBuffer = React.useRef<number>(0);
+  const [permissionStatus, setPermissionStatus] = useState<string>(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
+  );
+
+  const handleImageDoubleClick = (e: React.MouseEvent) => {
+    if (!onToggleFavorite) return;
+    
+    const now = Date.now();
+    if (now - clickBuffer.current < 400) {
+      setShowHeart(true);
+      setTimeout(() => setShowHeart(false), 900);
+      if (!isFavorite) {
+        onToggleFavorite(e);
+      }
+      clickBuffer.current = 0;
+    } else {
+      clickBuffer.current = now;
+    }
+  };
+
+  const handleRequestPermission = async () => {
+    const res = await requestPushPermission();
+    setPermissionStatus(res);
+  };
 
   const handleAddComment = () => {
     if (!commentText.trim()) return;
-    setComments([
-        ...comments, 
-        { id: Date.now().toString(), userId: currentUserPhone || 'me', userName: currentUserPhone ? currentUserPhone : 'أنا', text: commentText, createdAt: 'الآن' }
-    ]);
+    const newComment = { 
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9), 
+      userId: currentUserPhone || 'me', 
+      userName: currentUserPhone ? currentUserPhone : 'أنا', 
+      text: commentText, 
+      createdAt: 'الآن' 
+    };
+    const newComments = [...comments, newComment];
+    setComments(newComments);
     setCommentText('');
+    if (onUpdateComments) {
+      onUpdateComments(product.id, newComments);
+    }
   };
 
   const handleDeleteComment = (commentId: string) => {
-    setComments(comments.filter(c => c.id !== commentId));
-  }
+    const newComments = comments.filter(c => c.id !== commentId);
+    setComments(newComments);
+    if (onUpdateComments) {
+      onUpdateComments(product.id, newComments);
+    }
+  };
 
   const isOwner = currentUserPhone && (currentUserPhone === '92942482' || currentUserPhone === product.sellerId);
 
@@ -37,12 +97,32 @@ export default function ProductDetailsModal({ onClose, product, currentUserPhone
         {/* Full Viewport Story Block */}
         <div className="relative h-[100dvh] w-full flex flex-col justify-end p-6 overflow-hidden shrink-0">
           {/* Main Image */}
-          <img 
-            src={product.imageUrls[0] || 'https://via.placeholder.com/400'} 
-            alt={product.title} 
-            className="absolute inset-0 w-full h-full object-cover object-center select-none pointer-events-none block brightness-110 contrast-105 saturate-110" 
-            referrerPolicy="no-referrer" 
-          />
+          <div 
+            onClick={handleImageDoubleClick}
+            className="absolute inset-0 w-full h-full cursor-pointer overflow-hidden"
+          >
+            <img 
+              src={product.imageUrls[0] || 'https://via.placeholder.com/400'} 
+              alt={product.title} 
+              className="w-full h-full object-cover object-center select-none pointer-events-none block brightness-110 contrast-105 saturate-110" 
+              referrerPolicy="no-referrer" 
+            />
+            
+            {/* Heart Animation Overlay */}
+            <AnimatePresence>
+              {showHeart && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: [0, 1.2, 1], opacity: [0, 1, 0] }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ duration: 0.8, times: [0, 0.4, 1] }}
+                  className="absolute inset-0 flex items-center justify-center z-40 pointer-events-none"
+                >
+                  <Heart className="w-28 h-28 text-red-500 fill-red-500 drop-shadow-[0_0_30px_rgba(239,68,68,1)]" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           {/* Subtle Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
           <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
@@ -114,6 +194,27 @@ export default function ProductDetailsModal({ onClose, product, currentUserPhone
                  <Tag className="w-3.5 h-3.5 text-teal-400" /> 
                  <span>قسم {product.category}</span>
               </span>
+              <span className="flex items-center gap-1.5 text-xs text-gray-300 bg-gray-900 border border-gray-800 px-3.5 py-2 rounded-full font-medium">
+                 <Eye className="w-3.5 h-3.5 text-blue-400" /> 
+                 <span>{product.views || 0} مشاهدة</span>
+              </span>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite && onToggleFavorite(e);
+                }}
+                className={`flex items-center gap-2 text-xs px-4 py-2.5 rounded-full font-bold transition-all active:scale-90 border shadow-sm ${
+                  isFavorite 
+                    ? 'bg-red-500/20 text-red-300 border-red-500/40 shadow-[0_0_20px_rgba(239,68,68,0.25)]' 
+                    : 'bg-gray-900/80 text-gray-300 border-gray-800 hover:border-red-500/40 hover:bg-gray-800'
+                }`}
+              >
+                 <motion.div animate={isFavorite ? { scale: [1, 1.4, 1] } : {}}>
+                   <Heart className={`w-4 h-4 transition-colors ${isFavorite ? 'text-red-500 fill-red-500' : 'text-red-400 fill-transparent'}`} /> 
+                 </motion.div>
+                 <span>{product.likes || 0} إعجاب</span>
+                 {isFavorite && <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full mr-1">تم!</span>}
+              </button>
            </div>
 
            {/* Description with high readability card */}
@@ -161,7 +262,10 @@ export default function ProductDetailsModal({ onClose, product, currentUserPhone
               </div>
            </div>
 
-           {/* Interactive Comments system */}
+
+
+
+            {/* Interactive Comments system */}
            <div className="pt-2 border-t border-gray-900 space-y-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <MessageCircle className="w-5 h-5 text-gray-500" />
@@ -170,7 +274,7 @@ export default function ProductDetailsModal({ onClose, product, currentUserPhone
               
               <div className="space-y-3 font-sans text-xs">
                  {comments.length > 0 ? (
-                    comments.map(c => {
+                    comments.map((c, index) => {
                         const canDelete = isAdmin || currentUserPhone === '92942482' || currentUserPhone === c.userId || currentUserPhone === product.sellerId;
                         return (
                         <div key={c.id} className="bg-gray-950 border border-gray-900 rounded-2xl p-4 space-y-2 text-right">

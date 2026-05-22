@@ -1,38 +1,20 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { X, Grid, Shirt, User, Baby, Star, Car, Smartphone, Home, Coffee, PawPrint, Package } from 'lucide-react';
+import { X, Grid, Shirt, User, Baby, Star, Car, Smartphone, Home, Coffee, PawPrint, Package, Droplets } from 'lucide-react';
 
 interface SidebarProps {
-  categories: string[];
   selectedCategory: string;
   setSelectedCategory: (cat: string) => void;
   onClose: () => void;
 }
 
-export default function Sidebar({ categories, selectedCategory, setSelectedCategory, onClose }: SidebarProps) {
+export default function Sidebar({ selectedCategory, setSelectedCategory, onClose }: SidebarProps) {
   React.useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = 'auto';
     };
   }, []);
-
-  const getIcon = (cat: string) => {
-      switch (cat) {
-          case 'ملابس رجال': return <Shirt className="w-5 h-5 text-[#D4AF37]" />;
-          case 'ملابس نساء': return <User className="w-5 h-5 text-[#D4AF37]" />;
-          case 'ملابس اطفال': return <Baby className="w-5 h-5 text-[#D4AF37]" />;
-          case 'ماكياج و اكسسوارات': return <Star className="w-5 h-5 text-[#D4AF37]" />;
-          case 'سيارات و دراجات': return <Car className="w-5 h-5 text-[#D4AF37]" />;
-          case 'عقارات': return <Home className="w-5 h-5 text-[#D4AF37]" />;
-          case 'إلكترونيات': return <Smartphone className="w-5 h-5 text-[#D4AF37]" />;
-          case 'أثاث': return <Package className="w-5 h-5 text-[#D4AF37]" />;
-          case 'أدوات منزلية': return <Coffee className="w-5 h-5 text-[#D4AF37]" />;
-          case 'حيوانات': return <PawPrint className="w-5 h-5 text-[#D4AF37]" />;
-          case 'الكل': return <Grid className="w-5 h-5 text-[#D4AF37]" />;
-          default: return <Package className="w-5 h-5 text-[#D4AF37]" />;
-      }
-  };
 
   return (
     <motion.div
@@ -58,39 +40,65 @@ export default function Sidebar({ categories, selectedCategory, setSelectedCateg
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-            <h3 className="text-[#D4AF37] font-bold mb-6 text-sm">الأقسام الرئيسية</h3>
+            <h3 className="text-gray-500 font-black mb-6 text-[11px] uppercase tracking-widest flex items-center gap-2">
+               <Grid className="w-3.5 h-3.5 text-[#D4AF37]" />
+               تصفح الأقسام الملكية
+            </h3>
             
-            <div className="space-y-4">
-                <button
-                    onClick={() => { setSelectedCategory('الكل'); onClose(); }}
-                    className={`w-full flex items-center justify-between p-4 rounded-3xl transition-all ${
-                        selectedCategory === 'الكل'
-                        ? 'bg-[#1a1a1a] border border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.2)]'
-                        : 'bg-[#0a0a0a] border border-gray-800 hover:border-gray-700'
-                    }`}
-                >
-                    <span className="font-bold text-lg text-white">جميع الإعلانات</span>
-                    <div className="w-12 h-12 rounded-2xl bg-[#111] flex items-center justify-center border border-gray-800">
-                        {getIcon('الكل')}
-                    </div>
-                </button>
+            <div className="grid grid-cols-1 gap-3 perspective-1000">
+                {[
+                   { name: 'الكل', icon: Grid, color: 'emerald' },
+                   { name: 'ملابس رجال', icon: Shirt, color: 'blue' },
+                   { name: 'ملابس نساء', icon: User, color: 'rose' },
+                   { name: 'ملابس اطفال', icon: Baby, color: 'orange' },
+                   { name: 'ماكياج و اكسسوارات', icon: Star, color: 'purple' },
+                   { name: 'عطورات', icon: Droplets, color: 'rose' },
+                   { name: 'سيارات و دراجات', icon: Car, color: 'amber' },
+                   { name: 'عقارات', icon: Home, color: 'cyan' },
+                   { name: 'إلكترونيات', icon: Smartphone, color: 'indigo' },
+                   { name: 'أثاث', icon: Package, color: 'lime' },
+                   { name: 'أدوات منزلية', icon: Coffee, color: 'teal' },
+                   { name: 'حيوانات', icon: PawPrint, color: 'yellow' }
+                ].map((catObj) => {
+                    const IconComp = catObj.icon;
+                    const isSelected = selectedCategory === catObj.name;
+                    
+                    const colorMap: Record<string, any> = {
+                      emerald: { text: 'text-emerald-400', border: 'border-emerald-500/20', bg: 'bg-emerald-500/5', shadow: 'shadow-emerald-500/10', active: 'bg-emerald-500 text-black border-emerald-400 shadow-emerald-500/40' },
+                      blue: { text: 'text-blue-400', border: 'border-blue-500/20', bg: 'bg-blue-500/5', shadow: 'shadow-blue-500/10', active: 'bg-blue-500 text-black border-blue-400 shadow-blue-500/40' },
+                      rose: { text: 'text-rose-400', border: 'border-rose-500/20', bg: 'bg-rose-500/5', shadow: 'shadow-rose-500/10', active: 'bg-rose-500 text-black border-rose-400 shadow-rose-500/40' },
+                      orange: { text: 'text-orange-400', border: 'border-orange-500/20', bg: 'bg-orange-500/5', shadow: 'shadow-orange-500/10', active: 'bg-orange-500 text-black border-orange-400 shadow-orange-500/40' },
+                      purple: { text: 'text-purple-400', border: 'border-purple-500/20', bg: 'bg-purple-500/5', shadow: 'shadow-purple-500/10', active: 'bg-purple-500 text-black border-purple-400 shadow-purple-500/40' },
+                      amber: { text: 'text-amber-400', border: 'border-amber-500/20', bg: 'bg-amber-500/5', shadow: 'shadow-amber-500/10', active: 'bg-amber-500 text-black border-amber-400 shadow-amber-500/40' },
+                      cyan: { text: 'text-cyan-400', border: 'border-cyan-500/20', bg: 'bg-cyan-500/5', shadow: 'shadow-cyan-500/10', active: 'bg-cyan-500 text-black border-cyan-400 shadow-cyan-500/40' },
+                      indigo: { text: 'text-indigo-400', border: 'border-indigo-500/20', bg: 'bg-indigo-500/5', shadow: 'shadow-indigo-500/10', active: 'bg-indigo-500 text-black border-indigo-400 shadow-indigo-500/40' },
+                      lime: { text: 'text-lime-400', border: 'border-lime-500/20', bg: 'bg-lime-500/5', shadow: 'shadow-lime-500/10', active: 'bg-lime-500 text-black border-lime-400 shadow-lime-500/40' },
+                      teal: { text: 'text-teal-400', border: 'border-teal-500/20', bg: 'bg-teal-500/5', shadow: 'shadow-teal-500/10', active: 'bg-teal-500 text-black border-teal-400 shadow-teal-500/40' },
+                      yellow: { text: 'text-yellow-400', border: 'border-yellow-500/20', bg: 'bg-yellow-500/5', shadow: 'shadow-yellow-500/10', active: 'bg-yellow-500 text-black border-yellow-400 shadow-yellow-500/40' }
+                    };
+                    
+                    const c = colorMap[catObj.color] || colorMap.emerald;
 
-                {categories.filter(c => c !== 'الكل').map(cat => (
-                    <button
-                        key={cat}
-                        onClick={() => { setSelectedCategory(cat); onClose(); }}
-                        className={`w-full flex items-center justify-between p-4 rounded-3xl transition-all ${
-                            selectedCategory === cat
-                            ? 'bg-[#1a1a1a] border border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.2)]'
-                            : 'bg-[#0a0a0a] border border-gray-800 hover:border-gray-700'
-                        }`}
-                    >
-                        <span className="font-bold text-lg text-white">{cat}</span>
-                        <div className="w-12 h-12 rounded-2xl bg-[#111] flex items-center justify-center border border-gray-800">
-                             {getIcon(cat)}
-                        </div>
-                    </button>
-                ))}
+                    return (
+                        <motion.button
+                            key={catObj.name}
+                            onClick={() => { setSelectedCategory(catObj.name); onClose(); }}
+                            whileHover={{ x: -4, scale: 1.01 }}
+                            whileTap={{ scale: 0.98 }}
+                            className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all border-b-2 ${
+                                isSelected
+                                ? `${c.active} border-b-black/10`
+                                : `bg-gray-950/40 border border-gray-800 ${c.border} ${c.shadow} border-b-gray-800/60 hover:border-[#D4AF37]/30`
+                            }`}
+                        >
+                            <span className={`font-bold text-[13px] ${isSelected ? 'text-black' : 'text-gray-200'}`}>{catObj.name}</span>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${isSelected ? 'bg-black/10 border-black/10' : 'bg-gray-950 border-gray-800'}`}>
+                                <IconComp className={`w-3.5 h-3.5 ${isSelected ? 'text-black' : c.text}`} />
+                            </div>
+                        </motion.button>
+                    );
+                })}
+
             </div>
             <div className="mt-8 text-center text-xs text-gray-600">
                SANAD SOUK PLATINUM EDITION

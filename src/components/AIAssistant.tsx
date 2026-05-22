@@ -74,7 +74,7 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
-        {messages.map((msg) => (
+        {messages.map((msg, index) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div 
               className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${

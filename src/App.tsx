@@ -5,17 +5,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X } from 'lucide-react';
+import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets } from 'lucide-react';
 import { Product, Story } from './types';
 import { safeStorage } from './lib/safeStorage';
-import SplashScreen from './components/SplashScreen';
 import CursorGlow from './components/CursorGlow';
 import VipStoriesRow from './components/VipStoriesRow';
+import BroadcastMarquee, { BroadcastMessage } from './components/BroadcastMarquee';
 import ListingCard from './components/ListingCard';
 import AIAssistant from './components/AIAssistant';
 import AdminPanel from './components/AdminPanel';
 import AuthModal from './components/AuthModal';
+import WelcomeSplashModal from './components/WelcomeSplashModal';
 import AddProductModal from './components/AddProductModal';
+import PublishingTransition from './components/PublishingTransition';
 import ProductDetailsModal from './components/ProductDetailsModal';
 import ProfileModal from './components/ProfileModal';
 import Sidebar from './components/Sidebar';
@@ -44,10 +46,8 @@ const DUMMY_PRODUCTS: Product[] = [
     plan: 'vip',
     isVip: true,
     status: 'active',
-    comments: [
-      { id: 'c1', userId: 'u100', userName: 'أحمد بن صالح', text: 'سلام، هل السعر قابل للنقاش قليلاً؟', createdAt: 'منذ ساعة' },
-      { id: 'c2', userId: 'me', userName: 'سامي بن علي', text: 'أهلاً بك أحمد، نعم يمكنك الاتصال بي لمناقشة التفاصيل عبر الرقم المرفق.', createdAt: 'منذ نصف ساعة' }
-    ]
+    comments: [],
+    likes: 12
   },
   {
     id: 'p2',
@@ -64,7 +64,8 @@ const DUMMY_PRODUCTS: Product[] = [
     plan: 'vip',
     isVip: true,
     status: 'active',
-    comments: []
+    comments: [],
+    likes: 85
   },
   {
     id: 'p3',
@@ -81,9 +82,8 @@ const DUMMY_PRODUCTS: Product[] = [
     plan: 'bronze',
     isVip: false,
     status: 'active',
-    comments: [
-      { id: 'cx1', userId: 'u200', userName: 'رانية', text: 'رائعة جداً، هل الضمان ساري المفعول في تونس؟', createdAt: 'منذ ساعة' }
-    ]
+    comments: [],
+    likes: 42
   },
   {
     id: 'p4',
@@ -100,7 +100,8 @@ const DUMMY_PRODUCTS: Product[] = [
     plan: 'free',
     isVip: false,
     status: 'active',
-    comments: []
+    comments: [],
+    likes: 15
   }
 ];
 
@@ -138,7 +139,14 @@ export default function App() {
 
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = safeStorage.getItem('sanad_products');
-    return saved ? JSON.parse(saved) : DUMMY_PRODUCTS;
+    const initialRaw = saved ? JSON.parse(saved) : DUMMY_PRODUCTS;
+    // Ensure all products have the required stat properties as numbers
+    return initialRaw.map((p: Product) => ({
+      ...p,
+      likes: typeof p.likes === 'number' ? Math.max(0, p.likes) : (p.likes || 0),
+      views: typeof p.views === 'number' ? Math.max(0, p.views) : (p.views || 0),
+      comments: Array.isArray(p.comments) ? p.comments : []
+    }));
   });
   const [systemUsers, setSystemUsers] = useState<any[]>(() => {
     const saved = safeStorage.getItem('sanad_system_users');
@@ -163,6 +171,10 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showWelcomeSplash, setShowWelcomeSplash] = useState(false);
+  const [loggedUserObj, setLoggedUserObj] = useState<any>(null);
+  const [isPublishingTransition, setIsPublishingTransition] = useState(false);
+  const [transitionPlan, setTransitionPlan] = useState<'free' | 'bronze' | 'vip'>('free');
 
   const [currentUserPlan, setCurrentUserPlan] = useState<'free' | 'bronze' | 'vip'>(() => {
     const saved = safeStorage.getItem('sanad_current_user_plan');
@@ -171,18 +183,71 @@ export default function App() {
   const [currentUserPhone, setCurrentUserPhone] = useState<string | null>(() => {
     return safeStorage.getItem('sanad_current_user_phone');
   });
-  const [showSplash, setShowSplash] = useState(true);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    const saved = safeStorage.getItem('sanad_favorites');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [recentlyViewed, setRecentlyViewed] = useState<string[]>(() => {
+    const saved = safeStorage.getItem('sanad_recently_viewed');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
-  const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'warning' | 'error'} | null>(null);
+  
+  // Automatically update the region filter if the search query is a known region (full or partial match)
+  useEffect(() => {
+     const q = searchQuery.trim().toLowerCase();
+     if (q) {
+        const match = REGIONS.find(r => r !== 'الكل' && (r.toLowerCase().includes(q) || q.includes(r.toLowerCase())));
+        if (match) {
+           setSelectedRegion(match);
+           // Scroll to the selected region in the regionsContainer to center it perfectly
+           setTimeout(() => {
+              const selectedButton = regionRefs.current[match];
+              if (selectedButton) {
+                  selectedButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+              }
+           }, 50);
+        }
+     } else {
+        setSelectedRegion('الكل');
+     }
+  }, [searchQuery]);
+  
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [broadcastQueue, setBroadcastQueue] = useState<BroadcastMessage[]>([]);
 
-  const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
-      setToast({ message, type });
-      setTimeout(() => setToast(null), 4000);
+  const triggerBroadcast = (sellerName: string, location: string, title: string, plan: 'vip' | 'bronze' | 'free', avatar?: string) => {
+    const newMessage: BroadcastMessage = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      sellerName,
+      location,
+      title,
+      plan,
+      avatar
+    };
+    setBroadcastQueue(prev => [...prev, newMessage]);
   };
+
+  // Broadcast system is ready for user triggers on submission only
+
+  // History tracker
+  useEffect(() => {
+      if (selectedProduct) {
+          setRecentlyViewed(prev => [selectedProduct.id, ...prev.filter(id => id !== selectedProduct.id)].slice(0, 5));
+      }
+  }, [selectedProduct]);
 
   // Sync state to safeStorage
   useEffect(() => {
     safeStorage.setItem('sanad_products', JSON.stringify(products));
+    const ids = products.map(p => p.id);
+    const uniqueIds = new Set(ids);
+    if (ids.length !== uniqueIds.size) {
+      console.error('Duplicate product IDs found! Cleaning...');
+      setProducts(prev => Array.from(new Map(prev.map(p => [p.id, p])).values()));
+    }
   }, [products]);
 
   useEffect(() => {
@@ -200,6 +265,14 @@ export default function App() {
   useEffect(() => {
     safeStorage.setItem('sanad_user_notifications', JSON.stringify(userNotifications));
   }, [userNotifications]);
+
+  useEffect(() => {
+    safeStorage.setItem('sanad_favorites', JSON.stringify(favorites));
+  }, [favorites]);
+
+  useEffect(() => {
+    safeStorage.setItem('sanad_recently_viewed', JSON.stringify(recentlyViewed));
+  }, [recentlyViewed]);
 
   useEffect(() => {
     safeStorage.setItem('sanad_current_user_plan', currentUserPlan);
@@ -245,6 +318,12 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'warning' | 'error'} | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
+      setToast({ message, type });
+      setTimeout(() => setToast(null), 4000);
+  };
 
   useEffect(() => {
     if (currentUserPhone) {
@@ -253,12 +332,13 @@ export default function App() {
       safeStorage.removeItem('sanad_current_user_phone');
     }
   }, [currentUserPhone]);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('الكل');
   const [selectedRegion, setSelectedRegion] = useState('الكل');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+  const regionsContainerRef = useRef<HTMLDivElement>(null);
+  const regionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const touchStartY = useRef(0);
 
   // Handle Haptic Pull to Refresh
@@ -297,13 +377,16 @@ export default function App() {
     }
   }, [currentUserPhone, systemUsers]);
 
-  const handleAuth = (isLogin: boolean, phone: string, name: string) => {
+  const handleAuth = (isLogin: boolean, phone: string, name: string, password?: string) => {
       if (isLogin) {
           const user = systemUsers.find(u => u.phone === phone);
-          if (user) {
+          // For demo, if user doesn't have password set yet, allow entry or check if provided matches
+          if (user && (!user.password || user.password === password)) {
               setCurrentUserPhone(phone);
               setCurrentUserPlan(user.plan);
               setShowAuth(false);
+              setLoggedUserObj(user);
+              setShowWelcomeSplash(true);
               return true;
           }
           return false;
@@ -311,29 +394,107 @@ export default function App() {
           const existing = systemUsers.find(u => u.phone === phone);
           if (existing) return false;
           
-          const newUser = { id: phone, name, phone, plan: 'free' };
+          const newUser = { id: phone, name, phone, plan: 'free', avatar: null, password };
           setSystemUsers([...systemUsers, newUser]);
           setCurrentUserPhone(phone);
           setCurrentUserPlan('free');
           setShowAuth(false);
+          setLoggedUserObj(newUser);
+          setShowWelcomeSplash(true);
           return true;
       }
   };
 
   const handleAddProduct = (newProduct: Product) => {
-    setProducts([newProduct, ...products]);
-    setShowAddProduct(false);
-    setNotificationsCount(prev => prev + 1); // Add notification when new ad is created
+    // Ensure comments, views and likes are initialized for new products
+    const adWithStats = { ...newProduct, comments: [], views: 0, likes: 0 };
+
+    // 1. Activate the majestic full-screen luxury transition scene matching the user's plan
+    setTransitionPlan(currentUserPlan);
+    setIsPublishingTransition(true);
+
+    // 2. Small delay to let the overlay fully render/cover the viewport
+    setTimeout(() => {
+      // 3. Update products and clear all filters silently behind the scenes
+      setProducts([adWithStats, ...products]);
+      setShowAddProduct(false);
+      setSelectedCategory('الكل');
+      setSelectedRegion('الكل');
+      setSearchQuery('');
+
+      // 4. Reset the scroll instantly to (0,0) - NO browser stutter or white screen as the overlay covers it!
+      window.scrollTo({ top: 0 });
+
+      // 5. Broadcast newly published product in immediate TikTok-Universe luxury ticker style!
+      triggerBroadcast(
+        newProduct.sellerName || 'مستعمل متميز', 
+        newProduct.location || 'تونس', 
+        newProduct.title, 
+        newProduct.plan || 'free', 
+        newProduct.sellerAvatar
+      );
+
+      // 6. Add REAL dynamic action-oriented notifications for both the publisher and the admin
+      const notifyUsers = new Set<string>();
+      if (currentUserPhone) notifyUsers.add(currentUserPhone);
+      notifyUsers.add('92942482'); // target admin as well
+      
+      const newNotifications = Array.from(notifyUsers).map(phone => ({
+        id: String(Date.now()) + '-' + phone + '-' + Math.random().toString(36).substr(2, 5),
+        userPhone: phone,
+        message: `📢 تم نشر إعلان جديد بنجاح: "${newProduct.title}" تفاصيل العرض ووصف المنتج متوفرة الآن! كتب بواسطة: ${newProduct.sellerName || 'مستعمل متميز'} (${newProduct.sellerId || 'بدون هاتف'}). اضغط هنا للمعاينة والموافقة الفورية.`,
+        read: false,
+        createdAt: new Date().toISOString(),
+        productId: newProduct.id
+      }));
+
+      setUserNotifications(prev => [...newNotifications, ...prev]);
+
+      // 7. Launch celebratory confetti burst
+      confetti({
+          particleCount: 155,
+          spread: 85,
+          origin: { y: 0.55 },
+          colors: ['#D4AF37', '#10B981', '#ffffff']
+      });
+
+      // 8. Show modern floating success toast
+      showToast('تم نشر إعلانك وبث الإشعار وحفظ تفاصيله للمعاينة!', 'success');
+
+      // 9. Gracefully fade out the luxury transition overlay after all rendering is finalized
+      setTimeout(() => {
+        setIsPublishingTransition(false);
+      }, 1100);
+
+    }, 380);
+  };
+
+  const toggleFavorite = (productId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const isAdding = !favorites.includes(productId);
     
-    // Celebrations
-    confetti({
-        particleCount: 150,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ['#D4AF37', '#10B981', '#ffffff']
-    });
-    
-    showToast('تم نشر إعلانك بنجاح!', 'success');
+    setFavorites(prev => 
+      isAdding 
+        ? [...prev, productId]
+        : prev.filter(id => id !== productId)
+    );
+
+    // Update the real likes count on the product
+    setProducts(prev => prev.map(p => 
+      p.id === productId 
+        ? { ...p, likes: Math.max(0, (p.likes || 0) + (isAdding ? 1 : -1)) } 
+        : p
+    ));
+
+    // Also update selectedProduct if it's currently open to ensure immediate modal update
+    if (selectedProduct && selectedProduct.id === productId) {
+        setSelectedProduct(prev => prev ? { 
+            ...prev, 
+            likes: Math.max(0, (prev.likes || 0) + (isAdding ? 1 : -1)) 
+        } : null);
+    }
+
+    showToast(isAdding ? 'تم الإعجاب بالمنتج' : 'تمت إزالة الإعجاب', 'info');
   };
 
   const handleSubscriptionRequest = (plan: string) => {
@@ -342,7 +503,7 @@ export default function App() {
         return;
     }
     const newReq = {
-        id: Date.now().toString(),
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         user: `User ${currentUserPhone}`,
         phone: currentUserPhone,
         plan,
@@ -356,11 +517,17 @@ export default function App() {
   const filteredProducts = products.filter(p => {
       const matchCat = selectedCategory === 'الكل' || p.category === selectedCategory;
       const matchReg = selectedRegion === 'الكل' || p.location.includes(selectedRegion);
-      const matchSearch = !searchQuery.trim() || 
-         p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-         p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-         p.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-         p.category.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const q = searchQuery.trim().toLowerCase();
+      const isSearchingRegion = q && REGIONS.some(r => r !== 'الكل' && (r.toLowerCase().includes(q) || q.includes(r.toLowerCase())));
+      
+      const matchSearch = isSearchingRegion
+         ? true 
+         : (!searchQuery.trim() || 
+            p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            p.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            p.category.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchCat && matchReg && matchSearch;
   });
 
@@ -399,6 +566,23 @@ export default function App() {
        };
     });
 
+  const currentUserStats = {
+    active: products.filter(p => p.sellerId === currentUserPhone && p.status === 'active').length,
+    views: products.filter(p => p.sellerId === currentUserPhone).reduce((sum, p) => sum + (p.views || 0), 0),
+    sold: products.filter(p => p.sellerId === currentUserPhone && p.status === 'sold').length
+  };
+
+  const handleProductClick = (product: Product) => {
+    // Determine the updated product with incremented views
+    const updatedProduct = { ...product, views: (product.views || 0) + 1 };
+    
+    // Set the selected product for the modal with the latest stats
+    setSelectedProduct(updatedProduct);
+    
+    // Update the main products list
+    setProducts(prev => prev.map(p => p.id === product.id ? updatedProduct : p));
+  };
+
   const EmptyState = ({ icon: Icon, title, desc }: { icon: any, title: string, desc: string }) => (
     <div className="bg-gray-900/40 border border-[#1f2937]/50 rounded-2xl p-6 py-16 flex flex-col items-center justify-center text-center max-w-xs sm:max-w-sm mx-auto w-full">
       <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center mb-6 border border-gray-800">
@@ -409,12 +593,18 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-[#020806] text-white" dir="rtl">
+    <div className="min-h-screen bg-premium-dark text-white relative overflow-hidden" dir="rtl">
+      {/* Premium Atmospheric Effects */}
+      <div className="bg-premium-glow" />
+      
+      {/* Ambient background decorative elements */}
+      <div className="fixed top-[-10%] left-[-5%] w-[40vw] h-[40vw] bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none opacity-40" />
+      <div className="fixed bottom-[-10%] right-[-5%] w-[50vw] h-[50vw] bg-[#D4AF37]/5 rounded-full blur-[150px] pointer-events-none opacity-50" />
+
       <CursorGlow />
-      <SplashScreen show={showSplash} onFinish={() => setShowSplash(false)} />
 
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#020806]/80 backdrop-blur-xl border-b border-gray-800">
+      <header className="z-40 bg-[#020806]/80 backdrop-blur-xl border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
@@ -465,29 +655,27 @@ export default function App() {
                   onClick={(e) => { 
                     e.preventDefault(); 
                     e.stopPropagation(); 
-                    if (currentUserPhone === '92942482') {
-                      setShowAdmin(true); 
-                    } else {
-                      setShowNotificationsModal(true);
-                    }
+                    setShowNotificationsModal(true);
                   }} 
                   className="relative w-10 h-10 rounded-full border border-gray-700 bg-[#050505] flex items-center justify-center hover:border-[#D4AF37] transition-colors"
                   title="الإشعارات"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 hover:text-white"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                  {currentUserPhone === '92942482' ? (
-                    notificationsCount > 0 && <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-[#020806]"></span>
-                  ) : (
-                    userNotifications.filter(n => n.userPhone === currentUserPhone && !n.read).length > 0 && <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-600 rounded-full ring-2 ring-[#020806] animate-pulse"></span>
-                  )}
+                  {(() => {
+                    const unreadCount = userNotifications.filter(n => n.userPhone === currentUserPhone && !n.read).length + 
+                       (currentUserPhone === '92942482' ? notificationsCount : 0);
+                    return unreadCount > 0 ? (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 text-[10px] text-white font-extrabold flex items-center justify-center rounded-full ring-2 ring-[#020806] shadow-lg animate-pulse font-sans">
+                        {unreadCount}
+                      </span>
+                    ) : null;
+                  })()}
                 </button>
               )}
               
-              <div className="flex items-center gap-2">
-                {!currentUserPhone && <span className="hidden md:inline text-xs font-bold text-gray-300 cursor-pointer hover:text-[#D4AF37] transition-colors" onClick={() => setShowAuth(true)}>تسجيل الدخول</span>}
-                <button 
-                  type="button"
-                  onClick={(e) => { 
+              <div 
+                className="flex items-center gap-2 cursor-pointer group"
+                onClick={(e) => { 
                     e.preventDefault(); 
                     e.stopPropagation(); 
                     if (currentUserPhone) { 
@@ -495,13 +683,17 @@ export default function App() {
                     } else { 
                       setShowAuth(true); 
                     } 
-                  }} 
-                  className="w-10 h-10 rounded-full border border-gray-700 bg-[#050505] flex items-center justify-center hover:border-[#D4AF37] transition-colors overflow-hidden"
+                }} 
+              >
+                {!currentUserPhone && <span className="text-sm font-bold text-gray-300 group-hover:text-[#D4AF37] transition-colors whitespace-nowrap">تسجيل الدخول</span>}
+                <button 
+                  type="button"
+                  className="w-10 h-10 rounded-full border border-gray-700 bg-[#050505] flex items-center justify-center group-hover:border-[#D4AF37] transition-colors overflow-hidden"
                 >
                   {currentUserObj?.avatar ? (
                     <img src={currentUserObj.avatar} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
-                    <User className="w-5 h-5 text-gray-400" />
+                    <User className="w-5 h-5 text-gray-400 group-hover:text-[#D4AF37] transition-colors" />
                   )}
                 </button>
               </div>
@@ -509,14 +701,14 @@ export default function App() {
           </div>
         </div>
       </header>
-
+      
       {/* Main Content */}
       <main 
         ref={mainRef}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10"
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-1 sm:pt-2 pb-28 md:pb-8 relative z-10"
       >
         {isRefreshing && (
            <div className="flex justify-center mb-6">
@@ -526,44 +718,176 @@ export default function App() {
 
         <VipStoriesRow stories={stories} onStoryClick={(id) => {
             const prod = products.find(p => p.id === id);
-            if (prod) setSelectedProduct(prod);
+            if (prod) handleProductClick(prod);
         }} />
 
+        <BroadcastMarquee 
+           queue={broadcastQueue} 
+           onDismiss={(id) => setBroadcastQueue(prev => prev.filter(m => m.id !== id))} 
+        />
+
         {/* Intro Section */}
-        <div className="mb-10 text-center mx-auto space-y-4 max-w-lg mt-2 px-2">
-           <div className="inline-flex items-center gap-2 bg-[#10B981]/10 text-[#10B981] px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold border border-[#10B981]/20">
-              <ShieldCheck className="w-4 h-4" />
-              المنصة الأولى للتميز
+        <div className="mb-6 text-center mx-auto space-y-3 max-w-4xl mt-1 px-2 relative">
+           {/* Futuristic Radial decorative flows in the background */}
+           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-gradient-to-tr from-[#D4AF37]/5 via-[#10B981]/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+           {/* Personalized Greeting banner if logged in */}
+           {currentUserPhone ? (
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.95 }}
+               animate={{ opacity: 1, scale: 1 }}
+               className="inline-flex items-center gap-3 bg-gradient-to-r from-gray-950 via-[#0a0f0d] to-gray-950 px-5 py-2 rounded-2xl border border-gray-800/80 shadow-inner text-right mb-2"
+             >
+               <div className="relative w-8 h-8 rounded-full overflow-hidden border border-[#D4AF37]/40 ring-2 ring-[#D4AF37]/10 bg-gray-900 shrink-0">
+                 {currentUserObj?.avatar ? (
+                   <img src={currentUserObj.avatar} alt="Profile" className="w-full h-full object-cover" />
+                 ) : (
+                   <User className="w-4 h-4 text-gray-400 absolute inset-0 m-auto" />
+                 )}
+                 <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#10B981] rounded-full border border-black" />
+               </div>
+               <div>
+                  <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">لوحة النخبة الرقمية</div>
+                  <div className="text-xs sm:text-sm text-gray-200 font-bold">
+                     مرحباً بك، <span className="text-[#D4AF37] font-extrabold">{currentUserObj?.name || 'عضو سوق سند'}</span>
+                  </div>
+               </div>
+             </motion.div>
+           ) : (
+             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 mb-2">
+                <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">منصة تونس الأولى للعروض الملكية</span>
+             </div>
+           )}
+
+           <div className="max-w-xl mx-auto">
+             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black font-display leading-tight text-white mb-2 tracking-tight">
+                سوق سند: <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-yellow-200 to-[#F3E5AB]">فضاؤكم للبيع والتميز</span> في تونس
+             </h1>
+             <p className="text-gray-400 text-[10px] sm:text-xs px-6 leading-relaxed max-w-lg mx-auto mb-1 opacity-90">
+                نحن لسنا مجرد وسيط، نحن نمنح إعلاناتك الهوية الملكية والضمانة الرقمية التي تستحقها، لتصل لزبائنك بكامل الدقة والشفافية.
+             </p>
            </div>
-           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-display leading-tight text-white mb-2">
-              سوق سند: <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB]">فضاؤكم للبيع والتميز</span> في تونس
-           </h1>
-           <p className="text-gray-400 text-xs sm:text-sm px-2">
-              نحن لسنا مجرد وسيط، نحن نمنح إعلاناتك الهوية الملكية التي تستحقها، لتصل لزبائنك بدقة واحترافية عالية.
-           </p>
-           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4 w-full max-w-sm mx-auto px-2">
-              <button 
-                onClick={() => currentUserPhone ? setShowAddProduct(true) : setShowAuth(true)} 
-                className="w-full sm:w-auto flex-1 px-5 py-3 bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black font-extrabold rounded-xl shadow-md shadow-[#D4AF37]/15 hover:opacity-90 active:scale-98 transition-all text-sm sm:text-base"
-              >
-                 ابدأ البيع الآن
-              </button>
+ 
+           <div className="flex flex-col items-center justify-center relative z-10 -mt-1">
               <button 
                 onClick={() => {
                   const targetEl = document.getElementById('listings-head');
                   if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
                 }} 
-                className="w-full sm:w-auto flex-1 px-5 py-3 bg-black/50 text-white font-bold rounded-xl border border-gray-800 hover:border-gray-500 active:scale-98 transition-all text-sm sm:text-base"
+                className="relative overflow-hidden px-6 py-3 bg-gradient-to-br from-[#FFD700] via-[#D4AF37] to-[#B8860B] text-neutral-950 font-black rounded-lg border-2 border-red-600 shadow-[0_0_15px_rgba(255,215,0,0.3)] hover:shadow-[0_0_25px_rgba(255,215,0,0.5)] transition-all duration-300 cursor-pointer flex items-center justify-center gap-3 group w-fit"
               >
-                 تصفح العروض
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none" />
+                <Grid className="w-4 h-4 text-neutral-950 stroke-[2px] group-hover:scale-110 transition-transform" />
+                  <span className="text-sm tracking-wide">تصفح عروض السوق</span>
+                  <ChevronDown className="w-4 h-4 text-neutral-950 stroke-[2px] group-hover:translate-y-0.5 transition-all duration-300" />
               </button>
+           </div>
+�
+           {/* Live Counters Block for Trust & Beauty */}
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-10 max-w-4xl mx-auto md:perspective-1000">
+              {[
+                { label: 'عروض حصرية VIP', value: `${vipProducts.length} إعلان ملكي`, color: 'text-[#D4AF37]', border: 'border-[#D4AF37]/20', bg: 'from-[#0f0c05] to-[#010101]', icon: Crown },
+                { label: 'بائعون متميزون', value: `${systemUsers.length} عضو مسجل`, color: 'text-[#10B981]', border: 'border-emerald-500/10', bg: 'from-[#06100c] to-[#010101]', icon: ShieldCheck },
+                { label: 'إجمالي العروض بالسوق', value: `${products.length} إعلان متاح`, color: 'text-blue-400', border: 'border-blue-500/10', bg: 'from-[#050f14] to-[#010101]', icon: Sparkles },
+                { label: 'ولايات تونسية نشطة', value: `${new Set(products.map(p => p.location).filter(Boolean)).size} ولاية متواجدة`, color: 'text-amber-500', border: 'border-amber-500/15', bg: 'from-[#140f06] to-[#010101]', icon: Globe }
+              ].map((stat, idx) => {
+                const StatIcon = stat.icon;
+
+                // Determine custom premium 3D styles based on idx
+                const style = [
+                  {
+                    color: 'text-amber-400',
+                    border: 'border-amber-500/35 border-b-4 border-b-amber-500/60 hover:border-amber-400/50',
+                    bg: 'from-amber-950/30 via-neutral-950 to-neutral-950',
+                    shadow: 'shadow-[0_10px_25px_-5px_rgba(245,158,11,0.15),0_8px_10px_-6px_rgba(245,158,11,0.15)] hover:shadow-[0_20px_35px_-5px_rgba(245,158,11,0.3)]',
+                    iconBg: 'bg-gradient-to-br from-amber-400 to-yellow-600 shadow-[0_4px_12px_rgba(245,158,11,0.45)]',
+                    glowColor: 'bg-amber-500/10'
+                  },
+                  {
+                    color: 'text-emerald-400',
+                    border: 'border-emerald-500/35 border-b-4 border-b-emerald-500/60 hover:border-emerald-400/50',
+                    bg: 'from-emerald-950/30 via-neutral-950 to-neutral-950',
+                    shadow: 'shadow-[0_10px_25px_-5px_rgba(16,185,129,0.15),0_8px_10px_-6px_rgba(16,185,129,0.15)] hover:shadow-[0_20px_35px_-5px_rgba(16,185,129,0.3)]',
+                    iconBg: 'bg-gradient-to-br from-emerald-400 to-teal-600 shadow-[0_4px_12px_rgba(16,185,129,0.45)]',
+                    glowColor: 'bg-emerald-500/10'
+                  },
+                  {
+                    color: 'text-blue-400',
+                    border: 'border-blue-500/35 border-b-4 border-b-blue-500/60 hover:border-blue-400/50',
+                    bg: 'from-blue-950/30 via-neutral-950 to-neutral-950',
+                    shadow: 'shadow-[0_10px_25px_-5px_rgba(59,130,246,0.15),0_8px_10px_-6px_rgba(59,130,246,0.15)] hover:shadow-[0_20px_35px_-5px_rgba(59,130,246,0.3)]',
+                    iconBg: 'bg-gradient-to-br from-blue-400 to-indigo-600 shadow-[0_4px_12px_rgba(59,130,246,0.45)]',
+                    glowColor: 'bg-blue-500/10'
+                  },
+                  {
+                    color: 'text-purple-400',
+                    border: 'border-purple-500/35 border-b-4 border-b-purple-500/60 hover:border-purple-400/50',
+                    bg: 'from-purple-950/30 via-neutral-950 to-neutral-950',
+                    shadow: 'shadow-[0_10px_25px_-5px_rgba(168,85,247,0.15),0_8px_10px_-6px_rgba(168,85,247,0.15)] hover:shadow-[0_20px_35px_-5px_rgba(168,85,247,0.3)]',
+                    iconBg: 'bg-gradient-to-br from-purple-400 to-fuchsia-600 shadow-[0_4px_12px_rgba(168,85,247,0.45)]',
+                    glowColor: 'bg-purple-500/10'
+                  }
+                 ][idx] || {
+                   color: stat.color,
+                   border: stat.border,
+                   bg: stat.bg,
+                   shadow: 'shadow-lg',
+                   iconBg: 'bg-white/5',
+                   glowColor: 'bg-white/5'
+                 };
+
+                 return (
+                   <motion.div
+                     key={idx}
+                     initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                     animate={{ opacity: 1, scale: 1, y: 0 }}
+                     transition={{ delay: idx * 0.08, type: 'spring', stiffness: 200, damping: 15 }}
+                     whileHover={{ 
+                       scale: 1.05, 
+                       y: -6,
+                       rotateX: 4,
+                       rotateY: -4,
+                       transition: { duration: 0.15 }
+                     }}
+                     whileTap={{ scale: 0.98, y: -2 }}
+                     className={`bg-gradient-to-b ${style.bg} border ${style.border} ${style.shadow} rounded-3xl p-5 flex flex-col items-center justify-center text-center relative overflow-hidden transition-all duration-300 group cursor-pointer`}
+                     style={{ transformStyle: 'preserve-3d' }}
+                   >
+                     {/* Dynamic Ambient Blur Core Glows */}
+                     <div className={`absolute -top-12 -right-12 w-28 h-28 ${style.glowColor} rounded-full blur-2xl pointer-events-none group-hover:scale-130 transition-transform duration-500`} />
+                     <div className={`absolute -bottom-12 -left-12 w-28 h-28 ${style.glowColor} rounded-full blur-2xl pointer-events-none`} />
+                     
+                     {/* 3D Floating Shiny Colored Icon container */}
+                     <div 
+                       className={`w-12 h-12 rounded-2xl ${style.iconBg} flex items-center justify-center mb-3.5 group-hover:scale-115 group-hover:rotate-6 transition-all duration-300 text-black`}
+                       style={{ transform: 'translateZ(20px)' }}
+                     >
+                       <StatIcon className="w-5 h-5 stroke-[2.5]" />
+                     </div>
+                     
+                     <span 
+                       className="text-xs text-gray-400 font-bold mb-1.5 select-none tracking-wide"
+                       style={{ transform: 'translateZ(10px)' }}
+                     >
+                       {stat.label}
+                     </span>
+                     <span 
+                       className={`text-sm sm:text-base font-black ${style.color} tracking-tight font-sans`}
+                       style={{ transform: 'translateZ(15px)' }}
+                     >
+                       {stat.value}
+                     </span>
+                   </motion.div>
+                 );
+               })}
            </div>
         </div>
 
         {/* Filters */}
         <div className="space-y-6 mb-12 relative z-10">
            {/* Mobile Search Bar inside Filters */}
-           <div className="md:hidden flex flex-col gap-2">
+           <div className="md:hidden flex flex-col gap-2 relative">
               <span className="text-xs font-bold text-gray-500 mr-2">البحث الذكي</span>
               <div className="relative w-full">
                 <input
@@ -585,19 +909,21 @@ export default function App() {
                   </button>
                 )}
               </div>
+              {/* Autocomplete dropdown removed so states selector is fully visible and clean */}
            </div>
 
            {/* Regions Selector */}
            <div className="flex flex-col gap-2">
               <span className="text-xs font-bold text-gray-500 mr-2">تصفية حسب الولاية</span>
-              <div className="flex items-center gap-3 overflow-x-auto pb-3 scrollbar-hide">
+              <div className="flex items-center gap-3 overflow-x-auto pb-3 scrollbar-hide" ref={regionsContainerRef}>
                  <div className="p-2.5 bg-gray-900 rounded-xl border border-gray-800 shrink-0">
                     <Globe className="w-4 h-4 text-[#10B981]" />
                  </div>
-                 {REGIONS.map(reg => (
+                 {REGIONS.map((reg, index) => (
                     <button
                        type="button"
                        key={reg}
+                       ref={(el) => (regionRefs.current[reg] = el)}
                        onClick={() => setSelectedRegion(reg)}
                        className={`whitespace-nowrap px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                           selectedRegion === reg 
@@ -612,72 +938,135 @@ export default function App() {
            </div>
 
            {/* Hot Luxury Categories Divider & Slider */}
-           <div className="flex flex-col gap-2 border-t border-gray-800/40 pt-4">
-              <span className="text-xs font-bold text-gray-500 mr-2">تصفية حسب صنف المنتجات</span>
-              <div className="flex items-center gap-3 overflow-x-auto pb-3 scrollbar-hide">
-                 <button
-                    type="button"
-                    onClick={() => setSelectedCategory('الكل')}
-                    className={`whitespace-nowrap px-5 py-2.5 rounded-2xl text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
-                       selectedCategory === 'الكل'
-                          ? 'bg-[#1a1a1a] text-[#D4AF37] border border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.15)] font-bold scale-102'
-                          : 'bg-[#050505] text-gray-400 border border-gray-800 hover:border-gray-600'
-                    }`}
-                 >
-                    <Grid className="w-4 h-4" />
-                    <span>الكل</span>
-                 </button>
-
-                 {CATEGORIES.filter(c => c !== 'الكل').map(cat => {
-                    const catIcons: Record<string, any> = {
-                      'ملابس رجال': Shirt,
-                      'ملابس نساء': User,
-                      'ملابس اطفال': Baby,
-                      'ماكياج و اكسسوارات': Star,
-                      'سيارات و دراجات': Car,
-                      'عقارات': Home,
-                      'إلكترونيات': Smartphone,
-                      'أثاث': Package,
-                      'أدوات منزلية': Coffee,
-                      'حيوانات': PawPrint,
+           <div className="flex flex-col gap-3 border-t border-gray-800/40 pt-5">
+              <div className="flex items-center justify-between px-2">
+                 <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    تصنيفات السوق الملكية
+                 </span>
+                 <span className="text-[10px] text-gray-600 font-mono">SANAD LUXURY SELECTION</span>
+              </div>
+              <div className="flex items-center gap-3 overflow-x-auto pb-5 pt-1 px-1 scrollbar-hide mask-fade-edges">
+                 {[
+                   { name: 'الكل', icon: Grid, color: 'emerald' },
+                   { name: 'ملابس رجال', icon: Shirt, color: 'blue' },
+                   { name: 'ملابس نساء', icon: User, color: 'rose' },
+                   { name: 'ملابس اطفال', icon: Baby, color: 'orange' },
+                   { name: 'ماكياج و اكسسوارات', icon: Star, color: 'purple' },
+                   { name: 'عطورات', icon: Droplets, color: 'rose' },
+                   { name: 'سيارات و دراجات', icon: Car, color: 'amber' },
+                   { name: 'عقارات', icon: Home, color: 'cyan' },
+                   { name: 'إلكترونيات', icon: Smartphone, color: 'indigo' },
+                   { name: 'أثاث', icon: Package, color: 'lime' },
+                   { name: 'أدوات منزلية', icon: Coffee, color: 'teal' },
+                   { name: 'حيوانات', icon: PawPrint, color: 'yellow' }
+                 ].map((catObj, index) => {
+                    const IconComp = catObj.icon;
+                    const isSelected = selectedCategory === catObj.name;
+                    
+                    const colorMap: Record<string, any> = {
+                      emerald: { text: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'from-emerald-500/10', glow: 'shadow-emerald-500/10', depth: 'border-b-emerald-500/40', active: 'bg-emerald-500 text-black border-emerald-400 shadow-emerald-500/30' },
+                      blue: { text: 'text-blue-400', border: 'border-blue-500/30', bg: 'from-blue-500/10', glow: 'shadow-blue-500/10', depth: 'border-b-blue-500/40', active: 'bg-blue-500 text-black border-blue-400 shadow-blue-500/30' },
+                      rose: { text: 'text-rose-400', border: 'border-rose-500/30', bg: 'from-rose-500/10', glow: 'shadow-rose-500/10', depth: 'border-b-rose-500/40', active: 'bg-rose-500 text-black border-rose-400 shadow-rose-500/30' },
+                      orange: { text: 'text-orange-400', border: 'border-orange-500/30', bg: 'from-orange-500/10', glow: 'shadow-orange-500/10', depth: 'border-b-orange-500/40', active: 'bg-orange-500 text-black border-orange-400 shadow-orange-500/30' },
+                      purple: { text: 'text-purple-400', border: 'border-purple-500/30', bg: 'from-purple-500/10', glow: 'shadow-purple-500/10', depth: 'border-b-purple-500/40', active: 'bg-purple-500 text-black border-purple-400 shadow-purple-500/30' },
+                      amber: { text: 'text-amber-400', border: 'border-amber-500/30', bg: 'from-amber-500/10', glow: 'shadow-amber-500/10', depth: 'border-b-amber-500/40', active: 'bg-amber-500 text-black border-amber-400 shadow-amber-500/30' },
+                      cyan: { text: 'text-cyan-400', border: 'border-cyan-500/30', bg: 'from-cyan-500/10', glow: 'shadow-cyan-500/10', depth: 'border-b-cyan-500/40', active: 'bg-cyan-500 text-black border-cyan-400 shadow-cyan-500/30' },
+                      indigo: { text: 'text-indigo-400', border: 'border-indigo-500/30', bg: 'from-indigo-500/10', glow: 'shadow-indigo-500/10', depth: 'border-b-indigo-500/40', active: 'bg-indigo-500 text-black border-indigo-400 shadow-indigo-500/30' },
+                      lime: { text: 'text-lime-400', border: 'border-lime-500/30', bg: 'from-lime-500/10', glow: 'shadow-lime-500/10', depth: 'border-b-lime-500/40', active: 'bg-lime-500 text-black border-lime-400 shadow-lime-500/30' },
+                      teal: { text: 'text-teal-400', border: 'border-teal-500/30', bg: 'from-teal-500/10', glow: 'shadow-teal-500/10', depth: 'border-b-teal-500/40', active: 'bg-teal-500 text-black border-teal-400 shadow-teal-500/30' },
+                      yellow: { text: 'text-yellow-400', border: 'border-yellow-500/30', bg: 'from-yellow-500/10', glow: 'shadow-yellow-500/10', depth: 'border-b-yellow-500/40', active: 'bg-yellow-500 text-black border-yellow-400 shadow-yellow-500/30' }
                     };
-                    const IconComp = catIcons[cat] || Package;
-                    const isSelected = selectedCategory === cat;
+                    
+                    const c = colorMap[catObj.color] || colorMap.emerald;
 
                     return (
-                       <button
+                       <motion.button
                           type="button"
-                          key={cat}
-                          onClick={() => setSelectedCategory(cat)}
-                          className={`whitespace-nowrap px-5 py-2.5 rounded-2xl text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
+                          key={`${catObj.name}-${index}`}
+                          onClick={() => setSelectedCategory(catObj.name)}
+                          whileHover={{ scale: 1.05, y: -1 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`whitespace-nowrap px-3 py-1 rounded-lg text-[10px] font-black transition-all duration-300 flex items-center gap-1.5 border-t border-x ${
                              isSelected
-                                ? 'bg-[#1a1a1a] text-[#D4AF37] border border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.15)] font-bold scale-102'
-                                : 'bg-[#050505] text-gray-400 border border-gray-800 hover:border-gray-600'
+                                ? `${c.active} border-b-0`
+                                : `bg-gradient-to-b ${c.bg} to-[#030303] ${c.text} ${c.border} ${c.depth} ${c.glow} hover:border-[#D4AF37]/40`
                           }`}
+                          style={{ 
+                             transformStyle: 'preserve-3d',
+                             perspective: '500px'
+                          }}
                        >
-                          <IconComp className={`w-4 h-4 ${isSelected ? 'text-[#D4AF37]' : 'text-gray-500'}`} />
-                          <span>{cat}</span>
-                       </button>
+                          <div className={`p-0.5 rounded-md ${isSelected ? 'bg-black/10' : 'bg-black/30'} border border-white/5`}>
+                             <IconComp className={`w-3 h-3 ${isSelected ? 'text-black' : c.text}`} />
+                          </div>
+                          <span className="tracking-tighter">{catObj.name}</span>
+                       </motion.button>
                     );
                  })}
+
               </div>
            </div>
         </div>
         
+        {/* Display Settings Toolbar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-r from-gray-950 via-black to-gray-950 border border-gray-900 rounded-3xl p-5 mb-10 z-10 relative">
+           <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#D4AF37] animate-pulse" />
+              <span className="text-gray-400 text-sm">تم العثور على <strong className="text-white font-black font-sans mx-1">{filteredProducts.length}</strong> عرض متاح في السوق</span>
+           </div>
+           <div className="flex items-center gap-2 bg-[#050505] p-1 rounded-2xl border border-gray-800 w-full sm:w-auto justify-center">
+              <button
+                 type="button"
+                 onClick={() => setViewMode('list')}
+                 className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    viewMode === 'list'
+                       ? 'bg-[#1a1a1a] text-[#D4AF37] border border-[#D4AF37]/25 shadow-md font-bold scale-102'
+                       : 'text-gray-400 hover:text-white'
+                 }`}
+              >
+                 <List className="w-4 h-4" />
+                 <span>عرض القائمة</span>
+              </button>
+              <button
+                 type="button"
+                 onClick={() => setViewMode('grid')}
+                 className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    viewMode === 'grid'
+                       ? 'bg-[#1a1a1a] text-[#D4AF37] border border-[#D4AF37]/25 shadow-md font-bold scale-102'
+                       : 'text-gray-400 hover:text-white'
+                 }`}
+              >
+                 <Grid className="w-4 h-4" />
+                 <span>عرض الشبكة</span>
+              </button>
+           </div>
+        </div>
+
         {/* Section VIP */}
-        <div className="mb-12" id="listings-head">
-            <div className="flex flex-col items-center text-center justify-center gap-2 mb-6 px-4">
-              <Crown className="w-6 h-6 sm:w-8 sm:h-8 text-[#D4AF37] shrink-0" />
+        <div className="mb-16" id="listings-head">
+            <div className="flex flex-col items-center text-center justify-center gap-3 mb-10 px-4">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#D4AF37]/20 to-transparent flex items-center justify-center border border-[#D4AF37]/30 shadow-[0_0_20px_rgba(212,175,55,0.1)]">
+                <Crown className="w-8 h-8 text-[#D4AF37]" />
+              </div>
               <div>
-                 <h2 className="text-xl sm:text-2xl md:text-3xl font-bold font-display text-white text-center">قسم النخبة VIP</h2>
-                 <p className="text-xs sm:text-sm text-gray-400 text-center px-4 max-w-md mx-auto">أرقى العروض والسلع الحصرية في تونس</p>
+                 <h2 className="text-3xl font-bold font-display text-white mb-2 tracking-tight">النخبة الملكية <span className="text-[#D4AF37]">VIP</span></h2>
+                 <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">أرقى العروض والسلع الحصرية في تونس</p>
               </div>
             </div>
             {vipProducts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-6 max-w-4xl mx-auto' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8'}>
                 <AnimatePresence mode="popLayout">
-                  {vipProducts.map(product => (
-                     <ListingCard key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
+                  {vipProducts.map((product, index) => (
+                     <ListingCard 
+                      key={`vip-${product.id}-${index}`} 
+                      product={product} 
+                      onClick={() => handleProductClick(product)} 
+                      searchQuery={searchQuery} 
+                      isFavorite={favorites.includes(product.id)}
+                      onToggleFavorite={(e) => toggleFavorite(product.id, e)}
+                      viewMode={viewMode}
+                     />
                   ))}
                 </AnimatePresence>
               </div>
@@ -687,19 +1076,29 @@ export default function App() {
         </div>
 
         {/* Section Bronze */}
-        <div className="mb-12">
-            <div className="flex flex-col items-center text-center justify-center gap-2 mb-6 px-4">
-              <Star className="w-6 h-6 sm:w-8 sm:h-8 text-[#d97706] shrink-0" />
+        <div className="mb-16">
+            <div className="flex flex-col items-center text-center justify-center gap-3 mb-10 px-4">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#d97706]/20 to-transparent flex items-center justify-center border border-[#d97706]/30 shadow-[0_0_20px_rgba(217,119,6,0.1)]">
+                <Star className="w-8 h-8 text-[#d97706]" />
+              </div>
               <div>
-                 <h2 className="text-xl sm:text-2xl md:text-3xl font-bold font-display text-[#d97706] text-center">عروض التميز البرونزية</h2>
-                 <p className="text-xs sm:text-sm text-gray-400 text-center px-4 max-w-md mx-auto">اختياراتنا المميزة لبائعين موثوقين</p>
+                 <h2 className="text-3xl font-bold font-display text-white mb-2 tracking-tight">عروض التميز <span className="text-[#d97706]">البرونزية</span></h2>
+                 <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">اختياراتنا المميزة لبائعين موثوقين</p>
               </div>
             </div>
             {bronzeProducts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-6 max-w-4xl mx-auto' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8'}>
                 <AnimatePresence mode="popLayout">
-                  {bronzeProducts.map(product => (
-                     <ListingCard key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
+                  {bronzeProducts.map((product, index) => (
+                     <ListingCard 
+                      key={`bronze-${product.id}-${index}`} 
+                      product={product} 
+                      onClick={() => handleProductClick(product)} 
+                      searchQuery={searchQuery} 
+                      isFavorite={favorites.includes(product.id)}
+                      onToggleFavorite={(e) => toggleFavorite(product.id, e)}
+                      viewMode={viewMode}
+                     />
                   ))}
                 </AnimatePresence>
               </div>
@@ -709,19 +1108,29 @@ export default function App() {
         </div>
 
         {/* Section General */}
-        <div className="mb-12">
-            <div className="flex flex-col items-center text-center justify-center gap-2 mb-6 px-4">
-              <ShoppingBag className="w-6 h-6 sm:w-8 sm:h-8 text-[#10B981] shrink-0" />
+        <div className="mb-8">
+            <div className="flex flex-col items-center text-center justify-center gap-3 mb-10 px-4">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#10B981]/20 to-transparent flex items-center justify-center border border-[#10B981]/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+                 <ShoppingBag className="w-8 h-8 text-[#10B981]" />
+              </div>
               <div>
-                 <h2 className="text-xl sm:text-2xl md:text-3xl font-bold font-display text-[#10B981] text-center">القائمة العامة</h2>
-                 <p className="text-xs sm:text-sm text-gray-400 text-center px-4 max-w-md mx-auto">عروض سوقنا المتنوعة لكل الفئات</p>
+                 <h2 className="text-3xl font-bold font-display text-white mb-2 tracking-tight">القائمة العامة</h2>
+                 <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">عروض سوقنا المتنوعة لكل الفئات</p>
               </div>
             </div>
             {generalProducts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-6 max-w-4xl mx-auto' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8'}>
                 <AnimatePresence mode="popLayout">
-                  {generalProducts.map(product => (
-                     <ListingCard key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
+                  {generalProducts.map((product, index) => (
+                     <ListingCard 
+                      key={`general-${product.id}-${index}`} 
+                      product={product} 
+                      onClick={() => handleProductClick(product)} 
+                      searchQuery={searchQuery} 
+                      isFavorite={favorites.includes(product.id)}
+                      onToggleFavorite={(e) => toggleFavorite(product.id, e)}
+                      viewMode={viewMode}
+                     />
                   ))}
                 </AnimatePresence>
               </div>
@@ -729,6 +1138,19 @@ export default function App() {
               <EmptyState icon={ShoppingBag} title="لا توجد عروض" desc="لا توجد عروض حالياً في هذا القسم" />
             )}
         </div>
+        
+        {recentlyViewed.length > 0 && (
+          <div className="mb-8">
+              <h3 className="text-xl font-bold text-white mb-6 mr-4">شوهد مؤخراً</h3>
+              <div className="flex gap-4 overflow-x-auto pb-4 px-4 scrollbar-hide">
+                  {recentlyViewed.map((id, index) => {
+                        const p = products.find(prod => prod.id === id);
+                        if (!p) return null;
+                        return <div key={`recent-${p.id}-${index}`} className="cursor-pointer shrink-0 transition-transform hover:scale-105" onClick={() => handleProductClick(p)}><img src={p.imageUrls[0]} className="w-20 h-20 rounded-2xl object-cover border border-gray-800" /></div>;
+                  })}
+              </div>
+          </div>
+        )}
 
         {/* Pricing Packages */}
         <PricingPackages 
@@ -745,6 +1167,7 @@ export default function App() {
       <AnimatePresence>
          {showAIChat && (
             <motion.div 
+               key="aichat"
                initial={{ opacity: 0, y: 50 }}
                animate={{ opacity: 1, y: 0 }}
                exit={{ opacity: 0, y: 50 }}
@@ -757,8 +1180,12 @@ export default function App() {
       </AnimatePresence>
       
       <AnimatePresence>
-         {showSidebar && <Sidebar categories={CATEGORIES} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} onClose={() => setShowSidebar(false)} />}
+         {showSidebar && <Sidebar 
+            selectedCategory={selectedCategory} 
+            setSelectedCategory={setSelectedCategory} 
+            onClose={() => setShowSidebar(false)} />}
          {showAdmin && <AdminPanel 
+            key="admin"
             onClose={() => setShowAdmin(false)}
             systemUsers={systemUsers}
             setSystemUsers={setSystemUsers}
@@ -766,7 +1193,7 @@ export default function App() {
             setSystemRequests={setSystemRequests}
             onAddUserNotification={(phone: string, msg: string) => {
                const newNotif = {
-                  id: String(Date.now()),
+                  id: String(Date.now()) + Math.random().toString(36).substr(2, 9),
                   userPhone: phone,
                   message: msg,
                   read: false,
@@ -779,12 +1206,24 @@ export default function App() {
             notificationsCount={notificationsCount}
             setNotificationsCount={setNotificationsCount}
          />}
-         {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
+         {showAuth && <AuthModal key="auth" onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
+         {showWelcomeSplash && loggedUserObj && (
+            <WelcomeSplashModal 
+               key="welcome-splash" 
+               user={loggedUserObj} 
+               onClose={() => {
+                  setShowWelcomeSplash(false);
+                  setLoggedUserObj(null);
+               }} 
+            />
+         )}
          {showProfile && <ProfileModal 
+            key="profile"
             onClose={() => setShowProfile(false)} 
             phone={currentUserPhone ?? undefined} 
             currentUserPlan={currentUserPlan}
             pendingPlan={pendingRequest?.plan}
+            stats={currentUserStats}
             currentUser={systemUsers.find(u => u.phone === currentUserPhone)}
             onSaveProfile={(name, avatar) => {
                 setSystemUsers(users => users.map(u => u.phone === currentUserPhone ? { ...u, name, avatar } : u));
@@ -793,30 +1232,50 @@ export default function App() {
             onOpenAdmin={currentUserPhone === '92942482' ? () => { setShowAdmin(true); setShowProfile(false); } : undefined} 
             onLogout={() => { setCurrentUserPhone(null); setCurrentUserPlan('free'); }} 
          />}
-         {showAddProduct && <AddProductModal onClose={() => { setShowAddProduct(false); setEditingProduct(null); }} onAdd={(p) => handleAddProduct({...p, plan: currentUserPlan })} onEdit={(p) => {
+         {showAddProduct && <AddProductModal key="addproduct" onClose={() => { setShowAddProduct(false); setEditingProduct(null); }} onAdd={(p) => handleAddProduct({...p, plan: currentUserPlan })} onEdit={(p) => {
               setProducts(products.map(prod => prod.id === p.id ? p : prod));
               setShowAddProduct(false);
               setEditingProduct(null);
               showToast('تم تحديث الإعلان بنجاح', 'success');
           }} currentUserPhone={currentUserPhone} currentUser={systemUsers.find(u => u.phone === currentUserPhone)} initialProduct={editingProduct} />}
-         {selectedProduct && <ProductDetailsModal product={selectedProduct} onClose={() => setSelectedProduct(null)} currentUserPhone={currentUserPhone} isAdmin={currentUserPhone === '92942482'} onDelete={() => {
+         {selectedProduct && <ProductDetailsModal 
+           key={`details-${selectedProduct.id}`} 
+           product={products.find(p => p.id === selectedProduct.id) || selectedProduct} 
+           isFavorite={favorites.includes(selectedProduct.id)}
+           onToggleFavorite={(e) => toggleFavorite(selectedProduct.id, e)}
+           onClose={() => setSelectedProduct(null)} 
+           currentUserPhone={currentUserPhone} 
+           isAdmin={currentUserPhone === '92942482'} 
+           onDelete={() => {
              setProducts(products.filter(p => p.id !== selectedProduct.id));
              setSelectedProduct(null);
              showToast('تم حذف الإعلان بنجاح', 'success');
          }} onEdit={(product) => {
              setEditingProduct(product);
              setShowAddProduct(true);
+         }} onUpdateComments={(productId, updatedComments) => {
+             setProducts(prev => prev.map(p => p.id === productId ? { ...p, comments: updatedComments } : p));
+             setSelectedProduct(prev => prev && prev.id === productId ? { ...prev, comments: updatedComments } : prev);
+         }} onAddNotification={(phone, message) => {
+             const newNotif = {
+                id: String(Date.now()) + Math.random().toString(36).substr(2, 9),
+                userPhone: phone,
+                message: message,
+                read: false,
+                createdAt: new Date().toISOString()
+             };
+             setUserNotifications(prev => [newNotif, ...prev]);
+             showToast('تنبيه: تم تلقي تعليق جديد على إعلانك! 🔔', 'success');
          }} />}
          {/* Notifications Modal for Regular Users */}
          {showNotificationsModal && (
             <motion.div 
+               key="notifications"
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                exit={{ opacity: 0 }}
                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
                onClick={() => {
-                  // Mark all notifications for this user as read when closing
-                  setUserNotifications(prev => prev.map(n => n.userPhone === currentUserPhone ? { ...n, read: true } : n));
                   setShowNotificationsModal(false);
                }}
             >
@@ -837,9 +1296,19 @@ export default function App() {
                         </div>
                         <h3 className="text-lg font-black font-display text-white">إشعارات الحساب</h3>
                      </div>
+                     {currentUserPhone === '92942482' && (
+                        <button 
+                           onClick={() => {
+                              setShowNotificationsModal(false);
+                              setShowAdmin(true);
+                           }}
+                           className="text-[10px] sm:text-xs font-bold text-[#D4AF37] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 px-3 py-1.5 rounded-xl border border-[#D4AF37]/20 transition-all cursor-pointer"
+                        >
+                           لوحة الإدارة 🛡️ ({notificationsCount})
+                        </button>
+                     )}
                      <button 
                         onClick={() => {
-                           setUserNotifications(prev => prev.map(n => n.userPhone === currentUserPhone ? { ...n, read: true } : n));
                            setShowNotificationsModal(false);
                         }}
                         className="p-2 bg-gray-900 hover:bg-gray-800 rounded-full border border-gray-800 text-gray-400 hover:text-white transition-all cursor-pointer"
@@ -852,21 +1321,51 @@ export default function App() {
                      {userNotifications.filter(n => n.userPhone === currentUserPhone).length > 0 ? (
                         userNotifications
                           .filter(n => n.userPhone === currentUserPhone)
-                          .map((n) => (
+                          .map((n, index) => (
                              <div 
-                                key={n.id} 
-                                className={`p-4 rounded-2xl border ${!n.read ? 'border-[#D4AF37]/30 bg-[#D4AF37]/5' : 'border-gray-950 bg-black/40'} transition-all`}
+                                key={`${n.id}-${index}`} 
+                                onClick={() => {
+                                   setUserNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, read: true } : notif));
+                                   if (n.productId) {
+                                      const p = products.find(prod => prod.id === n.productId);
+                                      if (p) {
+                                         handleProductClick(p);
+                                         setShowNotificationsModal(false);
+                                      }
+                                   }
+                                }}
+                                className={`p-4 rounded-2xl border cursor-pointer hover:bg-white/5 ${!n.read ? 'border-[#D4AF37]/30 bg-[#D4AF37]/5' : 'border-gray-950 bg-black/40'} transition-all`}
                              >
-                                <div className="flex items-start gap-3">
-                                   <div className="w-8 h-8 rounded-full bg-red-600/10 border border-[#D4AF37]/10 flex items-center justify-center shrink-0 mt-0.5 animate-pulse">
-                                      <span className="w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+                                <div className="flex items-start justify-between gap-3">
+                                   <div className="flex items-start gap-3 flex-1">
+                                      {!n.read ? (
+                                         <div className="w-8 h-8 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0 mt-0.5 animate-pulse">
+                                            <span className="w-2 h-2 bg-red-600 rounded-full"></span>
+                                         </div>
+                                      ) : (
+                                         <div className="w-8 h-8 rounded-full bg-[#10B981]/10 border border-[#10B981]/20 flex items-center justify-center shrink-0 mt-0.5 text-[#10B981]">
+                                            <span className="text-xs font-black">✓</span>
+                                         </div>
+                                      )}
+                                      <div className="space-y-1 flex-1 text-right">
+                                         <p className="text-white text-sm font-bold leading-relaxed">{n.message}</p>
+                                         <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                                            {new Date(n.createdAt).toLocaleDateString('ar-TN', { hour: '2-digit', minute: '2-digit' })}
+                                         </p>
+                                      </div>
                                    </div>
-                                   <div className="space-y-1 flex-1 text-right">
-                                      <p className="text-white text-sm font-bold leading-relaxed">{n.message}</p>
-                                      <p className="text-[10px] text-gray-400 font-mono mt-0.5">
-                                         {new Date(n.createdAt).toLocaleDateString('ar-TN', { hour: '2-digit', minute: '2-digit' })}
-                                      </p>
-                                   </div>
+                                   <button
+                                      type="button"
+                                      title="حذف هذا الإشعار"
+                                      onClick={(e) => {
+                                         e.preventDefault();
+                                         e.stopPropagation();
+                                         setUserNotifications(prev => prev.filter(notif => notif.id !== n.id));
+                                      }}
+                                      className="p-1.5 self-center text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all cursor-pointer shrink-0"
+                                   >
+                                      <Trash2 className="w-4 h-4" />
+                                   </button>
                                 </div>
                              </div>
                           ))
@@ -890,33 +1389,131 @@ export default function App() {
                </motion.div>
             </motion.div>
          )}
-
-         <Toast toast={toast} onClose={() => setToast(null)} />
       </AnimatePresence>
-
+      
+      <AnimatePresence>
+         {isPublishingTransition && <PublishingTransition plan={transitionPlan} />}
+      </AnimatePresence>
+      
+      <Toast toast={toast} onClose={() => setToast(null)} />
+      
       {/* AI Assistant Chat Trigger with Ambient Halo - Positoned bottom-right with attractive cyber gradients */}
-      <div className="fixed bottom-6 right-6 z-40">
-         <div className="absolute inset-0 bg-gradient-to-tr from-[#9333EA] via-[#EC4899] to-[#3B82F6] rounded-full blur-xl opacity-50 animate-pulse pointer-events-none" />
+      <div className="fixed bottom-24 md:bottom-8 right-6 z-40 animate-float-dance">
+         <div className="absolute inset-0 bg-gradient-to-tr from-[#9333EA] via-[#EC4899] to-[#3B82F6] rounded-full blur-xl opacity-40 animate-pulse pointer-events-none" />
          <button 
             type="button"
             onClick={() => setShowAIChat(!showAIChat)} 
-            className="relative p-4 bg-gradient-to-tr from-[#8B5CF6] via-[#D946EF] to-[#0EA5E9] text-white rounded-full shadow-[0_0_25px_rgba(139,92,246,0.3)] hover:scale-110 active:scale-95 hover:rotate-6 transition-all duration-300 group"
+            className="relative p-3 bg-gradient-to-tr from-[#8B5CF6] via-[#D946EF] to-[#0EA5E9] text-white rounded-2xl shadow-[0_8px_30px_rgba(139,92,246,0.4)] border border-white/20 hover:scale-110 active:scale-95 transition-all duration-300 group"
             title="مساعد سند الذكي"
          >
-            <BrainCircuit className="w-8 h-8 text-white group-hover:scale-110 transition-transform duration-300" />
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <BrainCircuit className="w-6 h-6 text-white group-hover:scale-110 transition-transform duration-300" />
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10B981] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-[#10B981]"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10B981]"></span>
             </span>
          </button>
       </div>
 
       {/* WhatsApp Trigger - Swapped to bottom-left */}
-      <a href="https://wa.me/21692942482" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 left-6 z-40 p-4 bg-[#25D366] text-white rounded-full shadow-[0_0_20px_rgba(37,211,102,0.4)] hover:scale-110 transition-transform">
-         <svg viewBox="0 0 24 24" className="w-8 h-8 fill-current">
+      <a 
+        href="https://wa.me/21692942482" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="fixed bottom-24 md:bottom-8 left-6 z-40 p-3 bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white rounded-2xl shadow-[0_8px_30px_rgba(37,211,102,0.4)] border border-white/20 hover:scale-110 transition-all animate-float-dance"
+        style={{ animationDelay: '1s' }}
+      >
+         <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current">
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
          </svg>
       </a>
+
+      {/* Decorative Interactive Premium Floating Bottom Navigation Bar - New Slim 3D Design */}
+      <div className="fixed bottom-4 left-4 right-4 z-40 md:hidden bg-neutral-950/85 backdrop-blur-2xl border border-white/5 rounded-2xl p-1.5 px-3.5 shadow-[0_15px_40px_rgba(0,0,0,0.8)] flex items-center justify-between" style={{ perspective: '800px' }}>
+        {/* Tab: Home */}
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic(30);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className="flex flex-col items-center gap-0.5 group active:scale-95 transition-all w-14 cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-b from-[#1c080d] via-neutral-950 to-neutral-950 border border-rose-500/30 border-b-2 border-b-rose-500/50 flex items-center justify-center group-hover:scale-105 transition-all duration-300">
+            <Home className="w-4 h-4 text-rose-400 font-sans" />
+          </div>
+          <span className="text-[8px] font-bold font-display text-rose-400/70 select-none">الرئيسية</span>
+        </button>
+
+        {/* Tab: Filter (Target Listings) */}
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic(30);
+            const targetEl = document.getElementById('listings-head');
+            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className="flex flex-col items-center gap-0.5 group active:scale-95 transition-all w-14 cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-b from-[#08121a] via-neutral-950 to-neutral-950 border border-sky-500/30 border-b-2 border-b-sky-500/50 flex items-center justify-center group-hover:scale-105 transition-all duration-300">
+            <Grid className="w-4 h-4 text-sky-400" />
+          </div>
+          <span className="text-[8px] font-bold font-display text-sky-400/70 select-none">المعروضات</span>
+        </button>
+
+        {/* Tab: Central Add Button - Slim Version */}
+        <div className="relative w-12 h-10 flex items-center justify-center -mt-6">
+          <div className="absolute inset-0 bg-[#D4AF37]/15 rounded-full blur-lg opacity-60 animate-pulse" />
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic([40, 20]);
+              if (currentUserPhone) {
+                setShowAddProduct(true);
+              } else {
+                setShowAuth(true);
+              }
+            }}
+            className="absolute bg-gradient-to-b from-amber-400 via-yellow-200 to-amber-600 text-black w-12 h-12 rounded-full flex items-center justify-center shadow-[0_6px_20px_rgba(212,175,55,0.45),inset_0_3px_5px_rgba(255,255,255,0.4)] active:scale-90 transition-all border-b-4 border-amber-800 border-x border-x-amber-500 border-t border-t-amber-300 cursor-pointer group"
+          >
+            <PlusCircle className="w-6 h-6 stroke-[2.5]" />
+          </button>
+        </div>
+
+        {/* Tab: Memberships (Pricing Packages) */}
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic(30);
+            const targetEl = document.getElementById('free-package');
+            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className="flex flex-col items-center gap-0.5 group active:scale-95 transition-all w-14 cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-b from-[#140b1c] via-neutral-950 to-neutral-950 border border-purple-500/30 border-b-2 border-b-purple-500/50 flex items-center justify-center group-hover:scale-105 transition-all duration-300">
+            <Crown className="w-4 h-4 text-purple-400" />
+          </div>
+          <span className="text-[8px] font-bold font-display text-purple-400/70 select-none">العضويات</span>
+        </button>
+
+        {/* Tab: Profile login or info */}
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic(30);
+            if (currentUserPhone) {
+              setShowProfile(true);
+            } else {
+              setShowAuth(true);
+            }
+          }}
+          className="flex flex-col items-center gap-0.5 group active:scale-95 transition-all w-14 cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-b from-[#081711] via-neutral-950 to-neutral-950 border border-emerald-500/30 border-b-2 border-b-emerald-500/50 flex items-center justify-center group-hover:scale-105 transition-all duration-300">
+            <User className="w-4 h-4 text-emerald-400" />
+          </div>
+          <span className="text-[8px] font-bold font-display text-emerald-400/70 select-none">حسابي</span>
+        </button>
+      </div>
     </div>
   );
 }

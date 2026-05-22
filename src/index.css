@@ -1,16 +1,40 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Cairo", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "IBM Plex Sans Arabic", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --color-cosmic-black: #020806;
   --color-cosmic-dark: #050505;
   --color-sanad-gold: #D4AF37;
   --color-sanad-gold-light: #F3E5AB;
   --color-sanad-emerald: #10B981;
   --animate-shine-sweep: shine-sweep 2.5s ease-in-out infinite;
+  --animate-shimmer: shimmer 6s linear infinite;
+  --animate-pulse-gold: pulse-gold 2s ease-in-out infinite;
+  --animate-rainbow-glow: rainbow-glow 3s linear infinite;
+  --animate-float-dance: float-dance 4s ease-in-out infinite;
+
+  @keyframes float-dance {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-8px) rotate(3deg); }
+    50% { transform: translateY(-4px) rotate(-3deg); }
+    75% { transform: translateY(-10px) rotate(2deg); }
+  }
+
+  @keyframes pulse-gold {
+    0%, 100% { box-shadow: 0 0 15px 4px rgba(212, 175, 55, 0.4); border-color: rgba(212, 175, 55, 1); }
+    50% { box-shadow: 0 0 25px 8px rgba(212, 175, 55, 0.7); border-color: rgba(255, 215, 0, 1); }
+  }
+
+  @keyframes rainbow-glow {
+    0% { box-shadow: 0 0 15px 4px rgba(212, 175, 55, 0.6); }
+    20% { box-shadow: 0 0 15px 4px rgba(16, 185, 129, 0.6); }
+    40% { box-shadow: 0 0 15px 4px rgba(59, 130, 246, 0.6); }
+    60% { box-shadow: 0 0 15px 4px rgba(236, 72, 153, 0.6); }
+    80% { box-shadow: 0 0 15px 4px rgba(249, 115, 22, 0.6); }
+    100% { box-shadow: 0 0 15px 4px rgba(212, 175, 55, 0.6); }
+  }
 
   @keyframes shine-sweep {
     0% { left: -100%; opacity: 0; }
@@ -18,6 +42,12 @@
     50% { left: 100%; opacity: 0.5; }
     51% { left: 100%; opacity: 0; }
     100% { left: -100%; opacity: 0; }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
   }
 }
 
@@ -28,22 +58,82 @@ body {
   font-family: var(--font-sans);
   background-color: var(--color-cosmic-black);
   color: #fff;
-  direction: rtl; /* Full RTL logic as it's a Tunisian Arabic App */
+  direction: rtl; 
 }
 
-/* Hide scrollbar for stories and category sliders */
 .no-scrollbar::-webkit-scrollbar,
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar,
 .scrollbar-hide {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;  
+  scrollbar-width: none;  
 }
 
 .text-gradient-gold {
   background: linear-gradient(to right, var(--color-sanad-gold), var(--color-sanad-gold-light));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.mask-fade-edges {
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+@keyframes atmospheric-drift {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(1%, 2%) rotate(1deg); }
+  100% { transform: translate(-1%, 1%) rotate(-1deg); }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020806;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1a1a1a;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #D4AF37;
+}
+
+.bg-premium-dark {
+  background: radial-gradient(circle at 50% 10%, #060908 0%, #020403 100%);
+  position: relative;
+  transition: background 1s ease;
+}
+
+.bg-premium-glow {
+  position: fixed;
+  inset: -100px;
+  background: radial-gradient(circle at center, rgba(212, 175, 55, 0.03) 0%, transparent 70%);
+  animation: atmospheric-drift 35s infinite alternate ease-in-out;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.royal-glass {
+  background: rgba(10, 10, 10, 0.45);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }

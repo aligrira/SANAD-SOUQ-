@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 interface AdminPanelProps {
+  key?: React.Key;
   onClose: () => void;
   systemUsers: any[];
   setSystemUsers: React.Dispatch<React.SetStateAction<any[]>>;
@@ -107,6 +108,12 @@ export default function AdminPanel({
   const vipCount = systemUsers.filter(u => u.plan === 'vip').length;
   const bronzeCount = systemUsers.filter(u => u.plan === 'bronze').length;
   
+  // Ad count per user
+  const adCounts = products.reduce((acc: Record<string, number>, p: any) => {
+    acc[p.sellerId] = (acc[p.sellerId] || 0) + 1;
+    return acc;
+  }, {});
+  
   const calculatedVipRevenue = vipCount * parseFloat(pricingVip);
   const calculatedBronzeRevenue = bronzeCount * parseFloat(pricingBronze);
   const calculatedListingsRevenue = products.length * 10; // 10 TND per listing insertion fee
@@ -153,7 +160,7 @@ export default function AdminPanel({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[70] bg-[#020202] text-gray-200 flex flex-col overflow-hidden font-sans"
+      className="fixed inset-0 min-h-screen z-[70] bg-[#020202] text-gray-200 flex flex-col font-sans overflow-y-auto"
       dir="rtl"
     >
         {/* Glow ambient spots */}
@@ -243,9 +250,9 @@ export default function AdminPanel({
               </div>
         </div>
 
-        <div className="flex flex-1 overflow-hidden bg-[#020202]">
+        <div className="bg-[#020202] flex">
             {/* Sidebar menu - Luxury Glassmorphic */}
-            <div className="w-64 bg-[#040404] border-l border-gray-900/60 p-5 shrink-0 overflow-y-auto hidden md:block relative z-10">
+            <div className="w-64 bg-[#040404] border-l border-gray-900/60 p-5 shrink-0 hidden md:block relative z-10">
                 <div className="mb-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest px-3">لوحات التحليل</div>
                 <MenuContent activeTab={activeTab} setActiveTab={setActiveTab} systemRequestsCount={systemRequests.length} />
             </div>
@@ -253,7 +260,7 @@ export default function AdminPanel({
             {/* Main Content Area */}
             <div 
               id="admin-main-scroll"
-              className="flex-1 flex flex-col overflow-y-auto p-5 md:p-8 w-full relative z-10 scrollbar-hide bg-gradient-to-b from-[#020202] to-[#050505]"
+              className="flex flex-col p-5 md:p-8 w-full relative z-10 bg-gradient-to-b from-[#020202] to-[#050505]"
             >
                  {/* Mobile Tabs Controller */}
                  <div className="md:hidden flex gap-2 overflow-x-auto mb-6 pb-2 scrollbar-hide shrink-0 border-b border-gray-900">
@@ -660,13 +667,13 @@ export default function AdminPanel({
                             <div className="bg-[#050505] border border-gray-900 rounded-3xl overflow-hidden shadow-2xl">
                                 {filteredProducts.length > 0 ? (
                                     <div className="divide-y divide-gray-900">
-                                        {filteredProducts.map(a => {
+                                        {filteredProducts.map((a, index) => {
                                             const isVip = a.plan === 'vip' || a.isVip;
                                             const isBronze = a.plan === 'bronze';
 
                                             return (
                                                 <div 
-                                                  key={a.id} 
+                                                  key={`${a.id}-${a.title}-${index}`} 
                                                   className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-[#090909]/40 transition-colors duration-200"
                                                 >
                                                     <div className="flex items-center gap-4">
@@ -745,14 +752,14 @@ export default function AdminPanel({
                             <div className="bg-[#050505] border border-gray-900 rounded-3xl overflow-hidden shadow-2xl">
                                 {filteredUsers.length > 0 ? (
                                     <div className="divide-y divide-gray-900">
-                                        {filteredUsers.map(u => {
+                                        {filteredUsers.map((u, index) => {
                                             const isVip = u.plan === 'vip';
                                             const isBronze = u.plan === 'bronze';
                                             const isSystemAdmin = u.phone === '92942482';
 
                                             return (
                                                 <div 
-                                                  key={u.id} 
+                                                  key={`${u.id}-${u.phone}-${index}`} 
                                                   className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[#090909]/40 transition-colors duration-200"
                                                 >
                                                     <div className="flex items-center gap-3.5 w-full md:w-5/12">
@@ -776,6 +783,10 @@ export default function AdminPanel({
                                                     <div className="w-full md:w-3/12 flex items-center gap-1.5 text-gray-400 font-mono text-sm">
                                                         <span className="text-gray-500 text-xs">الهاتف:</span>
                                                         <span className="dir-ltr text-right inline-block">{u.phone || 'بلا رقم'}</span>
+                                                    </div>
+                                                    <div className="w-full md:w-2/12 text-gray-400 text-sm">
+                                                        <span className="text-gray-500 text-xs">الإعلانات:</span>
+                                                        <span className="font-bold text-white"> {adCounts[u.phone] || 0}</span>
                                                     </div>
 
                                                     <div className="w-full md:w-4/12 flex items-center justify-between md:justify-end gap-4 text-left border-t md:border-0 border-gray-900 pt-3 md:pt-0">
@@ -849,12 +860,12 @@ export default function AdminPanel({
 
                             {filteredRequests.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    {filteredRequests.map(r => {
+                                    {filteredRequests.map((r, index) => {
                                         const isVip = r.plan === 'vip';
                                         
                                         return (
                                             <div 
-                                              key={r.id} 
+                                              key={`${r.id}-${r.phone}-${index}`} 
                                               className="bg-[#050505] border border-gray-900 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between hover:border-gray-700 transition-all duration-300"
                                             >
                                                 {isVip && (
@@ -1012,6 +1023,7 @@ export default function AdminPanel({
         <AnimatePresence>
            {selectedRequest && (
               <motion.div 
+                 key="receipt-modal"
                  initial={{ opacity: 0 }}
                  animate={{ opacity: 1 }}
                  exit={{ opacity: 0 }}

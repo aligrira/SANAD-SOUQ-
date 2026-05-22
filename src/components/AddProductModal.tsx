@@ -8,7 +8,7 @@ const REGIONS = [
   'المنستير', 'منوبة', 'المهدية', 'نابل'
 ];
 
-export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPhone, currentUser, initialProduct }: { onClose: () => void, onAdd: (p: any) => void, onEdit?: (p: any) => void, currentUserPhone?: string | null, currentUser?: any, initialProduct?: any }) {
+export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPhone, currentUser, initialProduct }: { key?: React.Key, onClose: () => void, onAdd: (p: any) => void, onEdit?: (p: any) => void, currentUserPhone?: string | null, currentUser?: any, initialProduct?: any }) {
   const CATEGORIES = [
     'ملابس رجال',
     'ملابس نساء',
@@ -84,14 +84,14 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
           setIsSubmitting(false);
           const productData = {
               ...initialProduct,
-              id: initialProduct?.id || Date.now().toString(),
+              id: initialProduct?.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9)),
               title,
               price: Number(price),
               category,
               location,
               description,
               imageUrls: [imagePreview || 'https://via.placeholder.com/400'],
-              sellerId: initialProduct?.sellerId || currentUserPhone || 'guest',
+              sellerId: phone || initialProduct?.sellerId || currentUserPhone || 'guest',
               sellerName: initialProduct?.sellerName || currentUser?.name || (currentUserPhone ? `User ${currentUserPhone}` : 'مستخدم'),
               sellerAvatar: initialProduct?.sellerAvatar || currentUser?.avatar || undefined,
               createdAt: initialProduct?.createdAt || 'الآن',
@@ -147,17 +147,19 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                  accept="image/*"
                />
                
-               <AnimatePresence>
+               <AnimatePresence mode="wait">
                    {imagePreview ? (
                        <motion.img 
+                          key="preview"
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
                           src={imagePreview} 
                           alt="Preview" 
                           className="absolute inset-0 w-full h-full object-cover rounded-2xl"
                        />
                    ) : (
-                       <motion.div exit={{ opacity: 0 }} className="flex flex-col items-center justify-center z-10 w-full text-center">
+                       <motion.div key="placeholder" exit={{ opacity: 0 }} className="flex flex-col items-center justify-center z-10 w-full text-center">
                            <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center mb-3 group-hover:bg-[#10B981]/15 border border-gray-800 group-hover:border-[#10B981]/30 transition-all">
                               <ImageIcon className="w-6 h-6 text-gray-400 group-hover:text-[#10B981] transition-colors" />
                            </div>
@@ -193,7 +195,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                    <label className="block text-xs font-extrabold text-gray-400 mb-1.5">القسم</label>
                    <div className="relative">
                       <select value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none appearance-none transition-colors">
-                          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                       <Tag className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                    </div>
@@ -204,7 +206,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                <label className="block text-xs font-extrabold text-gray-400 mb-1.5">الموقع (الولاية)</label>
                <div className="relative">
                    <select value={location} onChange={e => setLocation(e.target.value)} className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none appearance-none transition-colors">
-                       {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                       {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
                    </select>
                    <MapPin className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                </div>

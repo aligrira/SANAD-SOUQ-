@@ -23,6 +23,8 @@ export interface Product {
     plan?: 'vip' | 'bronze' | 'free';
     status: 'active' | 'sold' | 'pending';
     comments?: Comment[];
+    views?: number;
+    likes?: number;
 }
 
 export interface UserProfile {
