@@ -30,8 +30,8 @@ export default function VipStoriesRow({ stories, onStoryClick }: VipStoriesRowPr
             whileTap={{ scale: 0.95 }}
             className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0"
           >
-            <div className="relative w-20 h-20 rounded-2xl p-[2px] bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow">
-              <div className="w-full h-full rounded-[14px] border-2 border-[#020806] overflow-hidden bg-gray-900 relative">
+            <div className="relative w-20 h-20 rounded-full p-[2px] bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow">
+              <div className="w-full h-full rounded-full border-2 border-[#020806] overflow-hidden bg-gray-900 relative">
                 <img 
                   src={story.imageUrl || story.sellerAvatar || 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=150'} 
                   alt={story.title}

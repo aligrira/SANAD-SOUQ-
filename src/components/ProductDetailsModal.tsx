@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown, Eye, Heart } from 'lucide-react';
+import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown, Eye, Heart, Share2, AlertTriangle, Star } from 'lucide-react';
 import { Product } from '../types';
 import { triggerPushNotification, requestPushPermission } from '../lib/pushNotifications';
 
@@ -32,6 +32,7 @@ export default function ProductDetailsModal({
   const [comments, setComments] = useState(product.comments || []);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
+  const [isReported, setIsReported] = useState(false);
   const clickBuffer = React.useRef<number>(0);
   const [permissionStatus, setPermissionStatus] = useState<string>(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
@@ -56,6 +57,28 @@ export default function ProductDetailsModal({
   const handleRequestPermission = async () => {
     const res = await requestPushPermission();
     setPermissionStatus(res);
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `سوق سند - ${product.title}`,
+          text: `شاهد هذا الإعلان في سوق سند: ${product.title}\nبسعر: ${product.price} د.ت`,
+          url: window.location.href,
+        });
+      } catch (err) {
+        console.log('Error sharing', err);
+      }
+    } else {
+      navigator.clipboard.writeText(`شاهد هذا الإعلان في سوق سند: ${product.title}\nالسعر: ${product.price} د.ت`);
+      alert('تم نسخ رابط التفاصيل بنجاح!');
+    }
+  };
+
+  const handleReport = () => {
+    setIsReported(true);
+    alert('تم إرسال بلاغك وسيقوم فريق سوق سند بمراجعته. شكراً لاهتمامك.');
   };
 
   const handleAddComment = () => {
@@ -198,6 +221,14 @@ export default function ProductDetailsModal({
                  <Eye className="w-3.5 h-3.5 text-blue-400" /> 
                  <span>{product.views || 0} مشاهدة</span>
               </span>
+              <button
+                onClick={handleShare}
+                className="flex items-center justify-center gap-1.5 text-xs text-gray-300 bg-gray-900 border border-gray-800 hover:bg-gray-800 hover:text-white px-3.5 py-2 rounded-full font-medium transition-colors cursor-pointer"
+                title="مشاركة العرض"
+              >
+                <Share2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>مشاركة</span>
+              </button>
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
@@ -238,7 +269,15 @@ export default function ProductDetailsModal({
                  <div className="flex-1 min-w-0">
                     <p className="text-white font-bold text-sm truncate">{product.sellerName}</p>
                     <p className="text-[11px] text-[#10B981] font-bold mt-0.5 tracking-wider">بائع نشط في سوق سند</p>
-                    <p className="text-xs text-gray-500 font-mono mt-0.5">{product.sellerId}</p>
+                    <div className="flex items-center gap-0.5 mt-1">
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      <Star className="w-3 h-3 text-gray-600 fill-gray-600" />
+                      <span className="text-[10px] text-gray-400 ml-1 mr-1.5">(4.0)</span>
+                    </div>
+                    <p className="text-xs text-gray-500 font-mono mt-1">{product.sellerId}</p>
                  </div>
               </div>
               
@@ -260,9 +299,31 @@ export default function ProductDetailsModal({
                     <span>واتساب</span>
                  </a>
               </div>
+              <button
+                onClick={handleReport}
+                disabled={isReported}
+                className={`mt-1.5 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${isReported ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700/50' : 'bg-red-500/5 hover:bg-red-500/15 text-red-400 border border-red-500/20 cursor-pointer'}`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{isReported ? 'تم رفع البلاغ للمراجعة من قبل الإدارة' : 'الإبلاغ عن الإعلان (مخالف / احتيال)'}</span>
+              </button>
            </div>
 
-
+            {/* Similar Products (Mock) */}
+           <div className="pt-2 border-t border-gray-900 space-y-3">
+              <h3 className="text-base font-bold text-white mb-2">عروض قد تهمك (مشابهة)</h3>
+              <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="min-w-[130px] rounded-xl overflow-hidden bg-gray-950 border border-gray-800 shrink-0">
+                    <img src={`https://images.unsplash.com/photo-${1500000000000 + i * 10000}?auto=format&fit=crop&w=150&q=80`} alt="مشابه" className="w-full h-24 object-cover" />
+                    <div className="p-2">
+                      <p className="text-xs text-gray-300 font-bold truncate">عقار/سلعة مشابهة</p>
+                      <p className="text-[#10B981] font-bold text-xs mt-1">{(product.price * (0.8 + i*0.1)).toFixed(0)} د.ت</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+           </div>
 
 
             {/* Interactive Comments system */}

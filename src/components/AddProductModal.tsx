@@ -35,6 +35,16 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
   const [location, setLocation] = useState(initialProduct?.location || REGIONS[0]);
   const [description, setDescription] = useState(initialProduct?.description || '');
 
+  const isPriceInvalid = price !== '' && (isNaN(Number(price)) || Number(price) <= 0);
+
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value;
+    if (val.includes('-')) {
+      val = val.replace(/-/g, '');
+    }
+    setPrice(val);
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -78,7 +88,8 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
   };
 
   const handleSubmit = () => {
-      if (!title || !price) return;
+      const parsedPrice = Number(price);
+      if (!title || !price || isNaN(parsedPrice) || parsedPrice <= 0) return;
       setIsSubmitting(true);
       setTimeout(() => {
           setIsSubmitting(false);
@@ -187,8 +198,21 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                 <div className="relative">
                    <label className="block text-xs font-extrabold text-gray-400 mb-1.5">السعر (د.ت)</label>
                    <div className="relative">
-                      <input type="number" value={price} onChange={e => setPrice(e.target.value)} className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none transition-colors" placeholder="0" />
-                      <DollarSign className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input 
+                        type="number" 
+                        value={price} 
+                        onChange={handlePriceChange} 
+                        className={`w-full bg-[#020806] border text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none transition-colors ${isPriceInvalid ? 'border-rose-500/80 focus:border-rose-500 text-rose-300' : 'border-gray-900 focus:border-[#D4AF37]'}`} 
+                        placeholder="0" 
+                        min="0.01"
+                        step="any"
+                      />
+                      <DollarSign className={`absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${isPriceInvalid ? 'text-rose-500' : 'text-gray-500'}`} />
+                      {isPriceInvalid && (
+                         <p className="text-rose-550 text-[11px] mt-1.5 font-sans font-bold flex items-center gap-1" dir="rtl">
+                            ⚠️ يرجى إدخال سعر صحيح أكبر من 0
+                         </p>
+                      )}
                    </div>
                 </div>
                 <div className="relative">
@@ -220,7 +244,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
 
          {/* Action buttons embedded directly in scroll flow */}
          <div className="pt-4 flex gap-3">
-            <button onClick={handleSubmit} disabled={isSubmitting} className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-[#10B981] to-[#059669] text-white text-sm font-bold rounded-2xl py-3.5 shadow-lg shadow-[#10B981]/15 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer">
+            <button onClick={handleSubmit} disabled={isSubmitting || !title || !price || isPriceInvalid} className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-[#10B981] to-[#059669] text-white text-sm font-bold rounded-2xl py-3.5 shadow-lg shadow-[#10B981]/15 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer">
                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                {isSubmitting ? 'جاري النشر وتدقيق البيانات...' : 'نشر الإعلان كعرض ملكي'}
             </button>
