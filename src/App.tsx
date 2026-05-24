@@ -30,80 +30,7 @@ import Footer from './components/Footer';
 // Dummy Data mimicking Firestore
 const DUMMY_STORIES: Story[] = [];
 
-const DUMMY_PRODUCTS: Product[] = [
-  {
-    id: 'p1',
-    title: 'هاتف آيفون 15 برو ماكس تيتانيوم مذهب',
-    description: 'آيفون ١٥ برو ماكس ٢٥ كيقا بايت تيتانيوم بحالة جديدة تماماً ومحمي بالكامل ولا خدش واحد. بطارية 98٪ مستورد من أوروبا ومع كامل ملحقاته الأصلية وصندوقه الأصلي الموثق.',
-    price: 3450,
-    category: 'إلكترونيات',
-    imageUrls: ['https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&q=85&w=600'],
-    sellerId: '98765432',
-    sellerName: 'سامي بن علي',
-    sellerAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-    location: 'تونس',
-    createdAt: 'منذ ساعتين',
-    plan: 'vip',
-    isVip: true,
-    status: 'active',
-    comments: [],
-    likes: 12
-  },
-  {
-    id: 'p2',
-    title: 'شقة بنتهاوس فاخرة مطلة على ضفاف البحيرة 2',
-    description: 'شقة فاخرة ومفروشة بالكامل بنظام السكن الراقي في أفضل مكان في ضفاف البحيرة 2. صالون واسع مع إطلالة مفتوحة على المياه، مطبخ مجهز بأرقى المعدات، غرفتين نوم جناح رئيسي وحراسة ومواقف سيارات خاصة.',
-    price: 480000,
-    category: 'عقارات',
-    imageUrls: ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&q=85&w=600'],
-    sellerId: '21698242',
-    sellerName: 'مكتب المعز العقاري',
-    sellerAvatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80',
-    location: 'تونس',
-    createdAt: 'منذ يوم',
-    plan: 'vip',
-    isVip: true,
-    status: 'active',
-    comments: [],
-    likes: 85
-  },
-  {
-    id: 'p3',
-    title: 'ساعة رولكس صبمارينر النخبة الرياضية الأصلية',
-    description: 'سبمارينير التاريخية الأيقونية بإطار أخضر بروتكتيف، علبة وصندوق وكارت الضمان ساري المفعول لغاية 2028. لم تستعمل سوى مرات قليلة للمناسبات الراقية جداً.',
-    price: 36000,
-    category: 'ماكياج و اكسسوارات',
-    imageUrls: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=85&w=600'],
-    sellerId: '92942482',
-    sellerName: 'أدمن سند للسلع النفيسة',
-    sellerAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
-    location: 'سوسة',
-    createdAt: 'منذ ٣ ساعات',
-    plan: 'bronze',
-    isVip: false,
-    status: 'active',
-    comments: [],
-    likes: 42
-  },
-  {
-    id: 'p4',
-    title: 'سيارة مرسيدس Mercedes Benz C-Class C180 AMG Line',
-    description: 'مرسيدس سي كلاس موديل 2023 عداد 23 ألف كم فقط. صيانة كاملة وكتالوجات في الدار الرسمية، سقف بانورامي عريض، حزمة ألوان داخلية تفاعلية، طي كهربائي للمرايا ومساعد قيادة ذكي وخالٍ تماماً من الصدمات.',
-    price: 138000,
-    category: 'سيارات و دراجات',
-    imageUrls: ['https://images.unsplash.com/photo-1617531653332-bd46c24f2068?auto=format&fit=crop&q=85&w=600'],
-    sellerId: '55648931',
-    sellerName: 'كريم الحمامي',
-    sellerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-    location: 'صفاقس',
-    createdAt: 'منذ يومين',
-    plan: 'free',
-    isVip: false,
-    status: 'active',
-    comments: [],
-    likes: 15
-  }
-];
+const DUMMY_PRODUCTS: Product[] = [];
 
 const CATEGORIES = [
   'الكل',
@@ -139,7 +66,10 @@ export default function App() {
 
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = safeStorage.getItem('sanad_products');
-    const initialRaw = saved ? JSON.parse(saved) : DUMMY_PRODUCTS;
+    let initialRaw = saved ? JSON.parse(saved) : DUMMY_PRODUCTS;
+    // Clear out development dummy products
+    initialRaw = initialRaw.filter((p: Product) => !['p1', 'p2', 'p3', 'p4'].includes(p.id));
+    
     // Ensure all products have the required stat properties as numbers
     return initialRaw.map((p: Product) => ({
       ...p,

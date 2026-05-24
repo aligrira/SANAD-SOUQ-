@@ -309,23 +309,6 @@ export default function ProductDetailsModal({
               </button>
            </div>
 
-            {/* Similar Products (Mock) */}
-           <div className="pt-2 border-t border-gray-900 space-y-3">
-              <h3 className="text-base font-bold text-white mb-2">عروض قد تهمك (مشابهة)</h3>
-              <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="min-w-[130px] rounded-xl overflow-hidden bg-gray-950 border border-gray-800 shrink-0">
-                    <img src={`https://images.unsplash.com/photo-${1500000000000 + i * 10000}?auto=format&fit=crop&w=150&q=80`} alt="مشابه" className="w-full h-24 object-cover" />
-                    <div className="p-2">
-                      <p className="text-xs text-gray-300 font-bold truncate">عقار/سلعة مشابهة</p>
-                      <p className="text-[#10B981] font-bold text-xs mt-1">{(product.price * (0.8 + i*0.1)).toFixed(0)} د.ت</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-           </div>
-
-
             {/* Interactive Comments system */}
            <div className="pt-2 border-t border-gray-900 space-y-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
