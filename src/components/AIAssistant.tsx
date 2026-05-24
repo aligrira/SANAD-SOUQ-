@@ -34,11 +34,22 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({ prompt: userMessage })
       });
 
-      const data = await response.json();
-      const modelResponse = { id: crypto.randomUUID(), role: 'model', text: data.text || data.error || 'عذراً، حدث خطأ تأكد من إعداد الخادم.' };
-      setMessages(prev => [...prev, modelResponse]);
-    } catch (error) {
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'model', text: 'حدث خطأ في الاتصال.' }]);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Server returned ${response.status}: ${errText}`);
+      }
+
+      const text = await response.text();
+      try {
+        const data = JSON.parse(text);
+        const modelResponse = { id: crypto.randomUUID(), role: 'model', text: data.text || data.error || 'عذراً، حدث خطأ تأكد من إعداد الخادم.' };
+        setMessages(prev => [...prev, modelResponse]);
+      } catch (e) {
+        throw new Error('Received unexpected non-JSON response format.');
+      }
+    } catch (error: any) {
+      console.error('Chat error:', error);
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'model', text: 'حدث خطأ في الاتصال. يرجى التأكد من أن مفتاح API الخاص بـ Gemini تمت إضافته بشكل صحيح وأن الخادم يعمل.' }]);
     } finally {
       setIsLoading(false);
     }

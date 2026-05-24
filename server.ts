@@ -3,8 +3,6 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -14,19 +12,21 @@ async function startServer() {
   // AI Assistant Route
   app.post("/api/chat", async (req, res) => {
     try {
-      if (!ai) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
           res.status(500).json({ error: "خادم الذكاء الاصطناعي غير متوفر حالياً (API Key missing)." });
           return;
       }
+      const aiClient = new GoogleGenAI({ apiKey });
       const { prompt } = req.body;
-      const response = await ai.models.generateContent({
+      const response = await aiClient.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: `أنت مساعد ذكي لسوق سند (منصة إعلانات في تونس). أجب عن هذا السؤال بلهجة تونسية محترمة أو عربية فصحى وبدقة: ${prompt}`
       });
       res.json({ text: response.text });
     } catch (e: any) {
-      console.error(e);
-      res.status(500).json({ error: e.message });
+      console.error("Gemini API Error:", e);
+      res.status(500).json({ error: `حدث خطأ في الاتصال الداخلي: ${e.message || 'Unknown error'}` });
     }
   });
 
