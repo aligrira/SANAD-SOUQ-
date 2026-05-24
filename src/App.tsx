@@ -68,7 +68,16 @@ export default function App() {
     const saved = safeStorage.getItem('sanad_products');
     let initialRaw = saved ? JSON.parse(saved) : DUMMY_PRODUCTS;
     // Clear out development dummy products
-    initialRaw = initialRaw.filter((p: Product) => !['p1', 'p2', 'p3', 'p4'].includes(p.id));
+    const dummyTitles = [
+      'هاتف آيفون 15 برو ماكس تيتانيوم مذهب',
+      'شقة بنتهاوس فاخرة مطلة على ضفاف البحيرة 2',
+      'ساعة رولكس صبمارينر النخبة الرياضية الأصلية',
+      'سيارة مرسيدس Mercedes Benz C-Class C180 AMG Line'
+    ];
+    initialRaw = initialRaw.filter((p: Product) => 
+      !['p1', 'p2', 'p3', 'p4'].includes(p.id) && 
+      !dummyTitles.includes(p.title)
+    );
     
     // Ensure all products have the required stat properties as numbers
     return initialRaw.map((p: Product) => ({
