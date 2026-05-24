@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown, Eye, Heart, Share2, AlertTriangle, Star } from 'lucide-react';
+import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown, Eye, Heart, Share2, AlertTriangle, Star, Bot } from 'lucide-react';
 import { Product } from '../types';
 import { triggerPushNotification, requestPushPermission } from '../lib/pushNotifications';
 
@@ -281,7 +281,7 @@ export default function ProductDetailsModal({
                  </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-3 mt-1">
+               <div className="grid grid-cols-2 gap-3 mt-1">
                  <a 
                    href={`tel:${product.sellerId}`} 
                    className="flex items-center justify-center gap-2 bg-[#10B981]/10 hover:bg-[#10B981] text-[#10B981] hover:text-white border border-[#10B981]/20 px-4 py-3 rounded-2xl font-bold transition-all text-xs shadow-sm hover:scale-102 active:scale-98"
@@ -296,9 +296,28 @@ export default function ProductDetailsModal({
                    className="flex items-center justify-center gap-2 bg-[#25D366]/10 hover:bg-[#25D366] text-[#25D366] hover:text-white border border-[#25D366]/20 px-4 py-3 rounded-2xl font-bold transition-all text-xs shadow-sm hover:scale-102 active:scale-98"
                  >
                     <MessageCircle className="w-4 h-4 shrink-0" />
-                    <span>واتساب</span>
+                    <span>واتساب مباشر</span>
                  </a>
               </div>
+              <button
+                onClick={() => {
+                   const templates = [
+                      `السلام عليكم ورحمة الله، لقد لفت انتباهي إعلانك بخصوص "${product.title}" على سوق سند. أنا مهتم جداً بالشراء، هل السعر المعروض (${product.price} د.ت) قابل للتفاوض البسيط للجادين؟`,
+                      `مرحباً بك أخي الكريم، بخصوص عرضك لـ "${product.title}" في سوق سند. بصراحة العرض ممتاز، وأنا شاري جاد. ما هو السعر النهائي من الآخر لو تكرمت؟`,
+                      `تحية طيبة، لقد شاهدت إعلان "${product.title}" وهو يحمل مواصفات أبحث عنها. أرجو إعلامي بأفضل سعر ممكن للبيع الفوري، لكي نتمكن من إتمام الصفقة اليوم إن أمكن.`
+                   ];
+                   const aiMessage = templates[Math.floor(Math.random() * templates.length)];
+                   const waUrl = `https://wa.me/216${product.sellerId?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(aiMessage)}`;
+                   window.open(waUrl, '_blank');
+                }}
+                className="mt-1 flex flex-col items-center justify-center py-2.5 px-4 bg-gradient-to-r from-[#D4AF37]/10 to-amber-500/5 hover:from-[#D4AF37]/20 hover:to-amber-500/10 text-[#D4AF37] border border-[#D4AF37]/30 rounded-2xl transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95"
+              >
+                 <div className="flex items-center gap-2 font-bold text-xs">
+                    <Bot className="w-4 h-4 shrink-0" />
+                    <span>فاوض باحترافية عبر الذكاء الاصطناعي</span>
+                 </div>
+                 <span className="text-[9px] text-[#D4AF37]/70 mt-0.5 font-medium">سيقوم بكتابة رسالة تفاوض احترافية عبر واتساب</span>
+              </button>
               <button
                 onClick={handleReport}
                 disabled={isReported}

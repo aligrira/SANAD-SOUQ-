@@ -103,6 +103,32 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
       {isVip && (
         <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden rounded-2xl z-20">
           <div className="absolute top-0 -inset-full h-full w-1/2 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-40 group-hover:animate-shine-sweep" />
+          {/* Magic VIP Particles Overlay */}
+          <div className="absolute inset-0 z-10 pointer-events-none group-hover:opacity-100 opacity-0 transition-opacity duration-700">
+             {[...Array(6)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: Math.random() * 50 }}
+                  animate={{ 
+                    opacity: [0, 1, 0], 
+                    y: [0, -40 - Math.random() * 40],
+                    x: Math.random() * 20 - 10,
+                    scale: [0, Math.random() + 0.5, 0]
+                  }}
+                  transition={{ 
+                    duration: 1.5 + Math.random(), 
+                    repeat: Infinity, 
+                    delay: Math.random() * 2 
+                  }}
+                  className="absolute bottom-4 bg-[#D4AF37] rounded-full blur-[1px]"
+                  style={{
+                    left: `${20 + Math.random() * 60}%`,
+                    width: 3 + Math.random() * 4,
+                    height: 3 + Math.random() * 4
+                  }}
+                />
+             ))}
+          </div>
         </div>
       )}
 

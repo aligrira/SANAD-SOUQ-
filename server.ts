@@ -21,7 +21,7 @@ async function startServer() {
       const { prompt } = req.body;
       const response = await aiClient.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: `أنت مساعد ذكي لسوق سند (منصة إعلانات في تونس). أجب عن هذا السؤال بلهجة تونسية محترمة أو عربية فصحى وبدقة: ${prompt}`
+        contents: `أنت مساعد ذكي لسوق سند (منصة إعلانات في تونس). أجب بلهجة تونسية محترمة أو عربية فصحى. يجب أن تكون إجابتك نصاً واضحاً، مباشراً، وبسيطاً. يمنع منعاً باتاً استخدام الإيموجي (السمايلات) أو النجوم (*) أو أي تنسيق معقد. فقط نص عادي مقروء: ${prompt}`
       });
       res.json({ text: response.text });
     } catch (e: any) {

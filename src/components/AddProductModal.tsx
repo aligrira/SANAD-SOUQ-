@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Image as ImageIcon, MapPin, Tag, DollarSign, Loader2 } from 'lucide-react';
+import { X, Image as ImageIcon, MapPin, Tag, DollarSign, Loader2, Phone, Sparkles, Wand2 } from 'lucide-react';
 
 const REGIONS = [
   'أريانة', 'باجة', 'بن عروس', 'بنزرت', 'تطاوين', 'توزر', 'تونس', 'جندوبة', 'زغوان', 'سليانة', 
@@ -34,6 +34,25 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
   const [category, setCategory] = useState(initialProduct?.category || CATEGORIES[0]);
   const [location, setLocation] = useState(initialProduct?.location || REGIONS[0]);
   const [description, setDescription] = useState(initialProduct?.description || '');
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+
+  const handleSmartWrite = () => {
+    if (!title) {
+        alert("يرجى كتابة عنوان الإعلان أولاً لكي يستطيع الذكاء الاصطناعي كتابة الوصف.");
+        return;
+    }
+    setIsGeneratingDesc(true);
+    setTimeout(() => {
+        const templates = [
+            `فرصة لا تعوض! نوفر لكم اليوم "${title}" من فئة ${category} المتواجد في ${location} بسعر ممتاز جداً (${price || 'حسب الاتفاق'} د.ت). \n\nالمواصفات:\n- حالة ممتازة وجودة عالية.\n- تسليم فوري ومعاينة متاحة.\n\nلا تضيع هذه الفرصة الذهبية، تواصل معي للمزيد من التفاصيل!`,
+            `لمحبي التميز، أعرض عليكم "${title}". مصنف ضمن ${category} وموجود حالياً في ${location}.\n\nمميزات العرض:\n- جودة لا تضاهى\n- سعر منافس (${price ? price + ' د.ت' : 'قابل للنقاش'})\n- جاهز للتسليم\n\nاضغط على رقم الهاتف للتواصل المباشر.`,
+            `للبيع: "${title}" استثنائي في منطقة ${location}.\nمثالي للباحثين عن أفضل العروض في ${category}.\n\n- السعر: ${price ? price + ' دينار تونسي' : 'اتصل لمعرفة السعر'}\n- الحالة: ممتازة\n- التوفر: فوري\n\nتواصل معي الآن للحصول على هذه الصفقة المميزة.`
+        ];
+        const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
+        setDescription(randomTemplate);
+        setIsGeneratingDesc(false);
+    }, 1500);
+  };
 
   const isPriceInvalid = price !== '' && (isNaN(Number(price)) || Number(price) <= 0);
 
@@ -105,7 +124,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
               sellerId: phone || initialProduct?.sellerId || currentUserPhone || 'guest',
               sellerName: initialProduct?.sellerName || currentUser?.name || (currentUserPhone ? `User ${currentUserPhone}` : 'مستخدم'),
               sellerAvatar: initialProduct?.sellerAvatar || currentUser?.avatar || undefined,
-              createdAt: initialProduct?.createdAt || 'الآن',
+              createdAt: initialProduct?.createdAt || new Date().toISOString(),
               status: 'active'
           };
           if (initialProduct && onEdit) {
@@ -237,7 +256,32 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
             </div>
 
             <div className="relative">
-               <label className="block text-xs font-extrabold text-gray-400 mb-1.5">الوصف الإعلاني</label>
+               <label className="block text-xs font-extrabold text-gray-400 mb-1.5">رقم الهاتف للاتصال</label>
+               <div className="relative">
+                  <input 
+                    type="tel" 
+                    value={phone} 
+                    onChange={(e) => setPhone(e.target.value)} 
+                    className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none transition-colors" 
+                    placeholder="أدخل رقم الهاتف..." 
+                  />
+                  <Phone className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+               </div>
+            </div>
+
+            <div className="relative">
+               <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-extrabold text-gray-400">الوصف الإعلاني</label>
+                  <button 
+                     type="button" 
+                     onClick={handleSmartWrite}
+                     disabled={isGeneratingDesc}
+                     className="flex items-center gap-1.5 text-[10px] font-bold text-[#D4AF37] hover:text-[#fcdb71] bg-[#D4AF37]/10 px-2 py-1 rounded-lg transition-colors border border-[#D4AF37]/20"
+                  >
+                     {isGeneratingDesc ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                     {isGeneratingDesc ? 'جاري الكتابة...' : 'كتابة ذكية AI'}
+                  </button>
+               </div>
                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 px-4 outline-none resize-none transition-colors" placeholder="اكتب وصفاً مفصلاً يبرز مزايا العرض والسلعة بدقة..."></textarea>
             </div>
          </div>

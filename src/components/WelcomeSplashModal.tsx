@@ -52,11 +52,12 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
   }, []);
 
   // Determine design characteristics based on user plan
-  const isVip = user.plan === 'vip';
+  const isSuperAdmin = user.phone === '92942482';
+  const isVip = user.plan === 'vip' || isSuperAdmin;
   const isBronze = user.plan === 'bronze';
   
-  let headerText = 'أهلاً بك في منصة النخبة';
-  let planNameShared = 'العضوية التأسيسية المجانية';
+  let headerText = isSuperAdmin ? 'أهلاً بك في منصة النخبة، مدير النظام' : 'أهلاً بك في منصة النخبة';
+  let planNameShared = isSuperAdmin ? 'المدير العام (VIP)' : 'العضوية التأسيسية المجانية';
   let planThemeClass = 'from-emerald-500/20 via-teal-500/10 to-emerald-600/5 border-emerald-500/30';
   let badgeColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
   

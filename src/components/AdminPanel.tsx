@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { safeStorage } from '../lib/safeStorage';
+import { doc, deleteDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { 
   ShieldAlert, Users, LayoutList, CheckCircle, X, Settings, 
   DollarSign, Bell, Trash2, Search, Download, LayoutDashboard, 
@@ -74,22 +76,37 @@ export default function AdminPanel({
     });
   };
 
-  const handleDeleteAd = (id: string) => {
-      setProducts(products.filter(p => p.id !== id));
+  const handleDeleteAd = async (id: string) => {
+      try {
+          await deleteDoc(doc(db, 'products', id));
+          setProducts(products.filter(p => p.id !== id));
+      } catch (e) {
+          console.error("Failed to delete ad", e);
+      }
   };
   
-  const handleDeleteUser = (id: string) => {
-      setSystemUsers(systemUsers.filter(u => u.id !== id));
+  const handleDeleteUser = async (id: string) => {
+      try {
+          await deleteDoc(doc(db, 'systemUsers', id));
+          setSystemUsers(systemUsers.filter(u => u.id !== id));
+      } catch (e) {
+          console.error("Failed to delete user", e);
+      }
   };
 
-  const handleActivateRequest = (req: any) => {
-      // Find user by phone in system (fake db), if not exists create a new one
+  const handleActivateRequest = async (req: any) => {
+      // Find user by phone in system
       const existingUser = systemUsers.find(u => u.phone === req.phone);
-      if (existingUser) {
-          setSystemUsers(systemUsers.map(u => u.id === existingUser.id ? { ...u, plan: req.plan } : u));
-      } else {
-          setSystemUsers([...systemUsers, { id: req.phone, name: req.user, phone: req.phone, plan: req.plan }]);
+      try {
+          if (existingUser) {
+              await setDoc(doc(db, 'systemUsers', existingUser.id), { ...existingUser, plan: req.plan }, { merge: true });
+          } else {
+              await setDoc(doc(db, 'systemUsers', req.phone), { name: req.user, phone: req.phone, plan: req.plan });
+          }
+      } catch (e) {
+          console.error("Failed to update user plan", e);
       }
+
       setSystemRequests(systemRequests.filter(r => r.id !== req.id));
       if (notificationsCount > 0) setNotificationsCount(notificationsCount - 1);
       
@@ -98,7 +115,6 @@ export default function AdminPanel({
       }
 
       setSelectedRequest(null);
-      // Trigger golden rain celebratory confetti for successful purchase activation!
       setTimeout(() => {
         triggerSuccessConfetti();
       }, 100);

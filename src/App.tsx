@@ -5,9 +5,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets } from 'lucide-react';
+import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets, Mic } from 'lucide-react';
 import { Product, Story } from './types';
 import { safeStorage } from './lib/safeStorage';
+import { collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from './firebase';
 import CursorGlow from './components/CursorGlow';
 import VipStoriesRow from './components/VipStoriesRow';
 import BroadcastMarquee, { BroadcastMessage } from './components/BroadcastMarquee';
@@ -27,10 +29,9 @@ import confetti from 'canvas-confetti';
 
 import Footer from './components/Footer';
 
-// Dummy Data mimicking Firestore
-const DUMMY_STORIES: Story[] = [];
+// No more dummy stories or products
+// Using real data from Firestore
 
-const DUMMY_PRODUCTS: Product[] = [];
 
 const CATEGORIES = [
   'الكل',
@@ -64,39 +65,51 @@ export default function App() {
     }
   };
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = safeStorage.getItem('sanad_products');
-    let initialRaw = saved ? JSON.parse(saved) : DUMMY_PRODUCTS;
-    // Clear out development dummy products
-    const dummyTitles = [
-      'هاتف آيفون 15 برو ماكس تيتانيوم مذهب',
-      'شقة بنتهاوس فاخرة مطلة على ضفاف البحيرة 2',
-      'ساعة رولكس صبمارينر النخبة الرياضية الأصلية',
-      'سيارة مرسيدس Mercedes Benz C-Class C180 AMG Line'
-    ];
-    initialRaw = initialRaw.filter((p: Product) => 
-      !['p1', 'p2', 'p3', 'p4'].includes(p.id) && 
-      !dummyTitles.includes(p.title)
-    );
+  const [products, setProducts] = useState<Product[]>([]);
+  const [systemUsers, setSystemUsers] = useState<any[]>([]);
+  const [systemRequests, setSystemRequests] = useState<any[]>([]);
+  
+  useEffect(() => {
+    // Listen to products
+    const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
+      const prods: Product[] = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        prods.push({ id: doc.id, ...data } as Product);
+      });
+      // Sort implicitly by createdAt or handle order
+      const sorted = prods.sort((a, b) => {
+          const tA = new Date(a.createdAt).getTime();
+          const tB = new Date(b.createdAt).getTime();
+          return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+      });
+      setProducts(sorted);
+      
+      // Handle deep linking for shared ads
+      const searchParams = new URLSearchParams(window.location.search);
+      const initialAdId = searchParams.get('ad');
+      if (initialAdId) {
+         const ad = sorted.find(p => p.id === initialAdId);
+         if (ad) {
+           setSelectedProduct(prev => prev ? prev : ad);
+         }
+      }
+    });
     
-    // Ensure all products have the required stat properties as numbers
-    return initialRaw.map((p: Product) => ({
-      ...p,
-      likes: typeof p.likes === 'number' ? Math.max(0, p.likes) : (p.likes || 0),
-      views: typeof p.views === 'number' ? Math.max(0, p.views) : (p.views || 0),
-      comments: Array.isArray(p.comments) ? p.comments : []
-    }));
-  });
-  const [systemUsers, setSystemUsers] = useState<any[]>(() => {
-    const saved = safeStorage.getItem('sanad_system_users');
-    return saved ? JSON.parse(saved) : [
-      { id: 'admin1', name: 'أدمن سند', phone: '92942482', plan: 'vip' }
-    ];
-  });
-  const [systemRequests, setSystemRequests] = useState<any[]>(() => {
-    const saved = safeStorage.getItem('sanad_system_requests');
-    return saved ? JSON.parse(saved) : [];
-  });
+    // Listen to users
+    const unsubUsers = onSnapshot(collection(db, 'systemUsers'), (snapshot) => {
+      const users: any[] = [];
+      snapshot.forEach(doc => {
+        users.push({ id: doc.id, ...doc.data() });
+      });
+      setSystemUsers(users);
+    });
+
+    return () => {
+      unsubProducts();
+      unsubUsers();
+    };
+  }, []);
   const [notificationsCount, setNotificationsCount] = useState(() => {
     const saved = safeStorage.getItem('sanad_notifications_count');
     return saved ? parseInt(saved, 10) : 0;
@@ -177,21 +190,6 @@ export default function App() {
           setRecentlyViewed(prev => [selectedProduct.id, ...prev.filter(id => id !== selectedProduct.id)].slice(0, 5));
       }
   }, [selectedProduct]);
-
-  // Sync state to safeStorage
-  useEffect(() => {
-    safeStorage.setItem('sanad_products', JSON.stringify(products));
-    const ids = products.map(p => p.id);
-    const uniqueIds = new Set(ids);
-    if (ids.length !== uniqueIds.size) {
-      console.error('Duplicate product IDs found! Cleaning...');
-      setProducts(prev => Array.from(new Map(prev.map(p => [p.id, p])).values()));
-    }
-  }, [products]);
-
-  useEffect(() => {
-    safeStorage.setItem('sanad_system_users', JSON.stringify(systemUsers));
-  }, [systemUsers]);
 
   useEffect(() => {
     safeStorage.setItem('sanad_system_requests', JSON.stringify(systemRequests));
@@ -275,6 +273,29 @@ export default function App() {
   const [selectedRegion, setSelectedRegion] = useState('الكل');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAutoSuggest, setShowAutoSuggest] = useState(false);
+  const autoSuggestRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (autoSuggestRef.current && !autoSuggestRef.current.contains(event.target as Node)) {
+        setShowAutoSuggest(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getSuggestions = () => {
+    if (!searchQuery.trim()) return { productMatches: [], categoryMatches: [] };
+    const q = searchQuery.toLowerCase();
+    const productMatches = products
+      .filter(p => p.title.toLowerCase().includes(q))
+      .slice(0, 5);
+    const categoryMatches = CATEGORIES.filter(c => c !== 'الكل' && c.toLowerCase().includes(q)).slice(0, 3);
+    return { productMatches, categoryMatches };
+  };
+
   const mainRef = useRef<HTMLElement>(null);
   const regionsContainerRef = useRef<HTMLDivElement>(null);
   const regionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -316,15 +337,25 @@ export default function App() {
     }
   }, [currentUserPhone, systemUsers]);
 
-  const handleAuth = (isLogin: boolean, phone: string, name: string, password?: string) => {
+  const handleAuth = async (isLogin: boolean, phone: string, name: string, password?: string) => {
       if (isLogin) {
           const user = systemUsers.find(u => u.phone === phone);
-          // For demo, if user doesn't have password set yet, allow entry or check if provided matches
           if (user && (!user.password || user.password === password)) {
+              const isSuperAdmin = phone === '92942482';
+              const finalPlan = isSuperAdmin ? 'vip' : user.plan;
+              
+              if (isSuperAdmin && user.plan !== 'vip') {
+                 try {
+                   await setDoc(doc(db, 'systemUsers', user.id || phone), { ...user, plan: 'vip' }, { merge: true });
+                 } catch (e) {
+                   console.error('Error upgrading admin plan', e);
+                 }
+              }
+
               setCurrentUserPhone(phone);
-              setCurrentUserPlan(user.plan);
+              setCurrentUserPlan(finalPlan);
               setShowAuth(false);
-              setLoggedUserObj(user);
+              setLoggedUserObj({...user, plan: finalPlan});
               setShowWelcomeSplash(true);
               return true;
           }
@@ -333,29 +364,42 @@ export default function App() {
           const existing = systemUsers.find(u => u.phone === phone);
           if (existing) return false;
           
-          const newUser = { id: phone, name, phone, plan: 'free', avatar: null, password };
-          setSystemUsers([...systemUsers, newUser]);
+          const isSuperAdmin = phone === '92942482';
+          const newUser = { name, phone, plan: isSuperAdmin ? 'vip' : 'free', avatar: null, password };
+          try {
+            await setDoc(doc(db, 'systemUsers', phone), newUser);
+          } catch (e) {
+            console.error('Error saving user', e);
+          }
           setCurrentUserPhone(phone);
-          setCurrentUserPlan('free');
+          setCurrentUserPlan(newUser.plan);
           setShowAuth(false);
-          setLoggedUserObj(newUser);
+          setLoggedUserObj({...newUser, id: phone});
           setShowWelcomeSplash(true);
           return true;
       }
   };
 
-  const handleAddProduct = (newProduct: Product) => {
+  const handleAddProduct = async (newProduct: Product) => {
     // Ensure comments, views and likes are initialized for new products
     const adWithStats = { ...newProduct, comments: [], views: 0, likes: 0 };
+    if (!adWithStats.id || adWithStats.id.startsWith('temp-')) {
+       adWithStats.id = crypto.randomUUID(); // ensure clean ID
+    }
 
     // 1. Activate the majestic full-screen luxury transition scene matching the user's plan
     setTransitionPlan(currentUserPlan);
     setIsPublishingTransition(true);
 
+    try {
+        await setDoc(doc(db, 'products', adWithStats.id), adWithStats);
+    } catch (err) {
+        console.error('Failed to publish product', err);
+    }
+
     // 2. Small delay to let the overlay fully render/cover the viewport
     setTimeout(() => {
       // 3. Update products and clear all filters silently behind the scenes
-      setProducts([adWithStats, ...products]);
       setShowAddProduct(false);
       setSelectedCategory('الكل');
       setSelectedRegion('الكل');
@@ -408,7 +452,7 @@ export default function App() {
     }, 380);
   };
 
-  const toggleFavorite = (productId: string, e: React.MouseEvent) => {
+  const toggleFavorite = async (productId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const isAdding = !favorites.includes(productId);
     
@@ -418,19 +462,15 @@ export default function App() {
         : prev.filter(id => id !== productId)
     );
 
-    // Update the real likes count on the product
-    setProducts(prev => prev.map(p => 
-      p.id === productId 
-        ? { ...p, likes: Math.max(0, (p.likes || 0) + (isAdding ? 1 : -1)) } 
-        : p
-    ));
-
-    // Also update selectedProduct if it's currently open to ensure immediate modal update
-    if (selectedProduct && selectedProduct.id === productId) {
-        setSelectedProduct(prev => prev ? { 
-            ...prev, 
-            likes: Math.max(0, (prev.likes || 0) + (isAdding ? 1 : -1)) 
-        } : null);
+    // Update the real likes count on the product in firestore if requested
+    const prod = products.find(p => p.id === productId);
+    if (prod) {
+       const newLikes = Math.max(0, (prod.likes || 0) + (isAdding ? 1 : -1));
+       try {
+         await updateDoc(doc(db, 'products', productId), { likes: newLikes });
+       } catch (err) {
+         console.error('Could not update likes', err);
+       }
     }
 
     showToast(isAdding ? 'تم الإعجاب بالمنتج' : 'تمت إزالة الإعجاب', 'info');
@@ -511,15 +551,20 @@ export default function App() {
     sold: products.filter(p => p.sellerId === currentUserPhone && p.status === 'sold').length
   };
 
-  const handleProductClick = (product: Product) => {
+  const handleProductClick = async (product: Product) => {
     // Determine the updated product with incremented views
     const updatedProduct = { ...product, views: (product.views || 0) + 1 };
     
     // Set the selected product for the modal with the latest stats
     setSelectedProduct(updatedProduct);
     
-    // Update the main products list
-    setProducts(prev => prev.map(p => p.id === product.id ? updatedProduct : p));
+    window.history.pushState(null, '', `?ad=${updatedProduct.id}`);
+
+    try {
+      await updateDoc(doc(db, 'products', product.id), { views: updatedProduct.views });
+    } catch(err) {
+      console.error('Error updating views', err);
+    }
   };
 
   const EmptyState = ({ icon: Icon, title, desc }: { icon: any, title: string, desc: string }) => (
@@ -555,20 +600,27 @@ export default function App() {
               </span>
             </div>
 
-            <div className="hidden md:flex flex-1 max-w-xl mx-8">
+            <div className="hidden md:flex flex-1 max-w-xl mx-8 relative" ref={autoSuggestRef}>
               <div className="relative w-full">
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowAutoSuggest(true);
+                  }}
+                  onFocus={() => setShowAutoSuggest(true)}
                   placeholder="ابحث عن المنتجات الفاخرة..."
-                  className="w-full bg-[#050505] border border-gray-800 rounded-full py-2.5 pr-12 pl-12 focus:outline-none focus:border-[#D4AF37] transition-all text-sm"
+                  className="w-full bg-[#050505] border border-gray-800 rounded-full py-2.5 pr-12 pl-24 focus:outline-none focus:border-[#D4AF37] transition-all text-sm"
                   dir="rtl"
                 />
                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 {searchQuery && (
                   <button 
-                    onClick={() => setSearchQuery('')} 
+                    onClick={() => {
+                      setSearchQuery('');
+                      setShowAutoSuggest(false);
+                    }} 
                     className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
                     title="مسح البحث"
                   >
@@ -576,6 +628,71 @@ export default function App() {
                   </button>
                 )}
               </div>
+              
+              {/* Autocomplete Dropdown - Desktop */}
+              <AnimatePresence>
+                {showAutoSuggest && searchQuery.trim() && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-full mt-2 w-full bg-[#0a0f0d] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden z-50 text-right"
+                    dir="rtl"
+                  >
+                    {(() => {
+                       const { productMatches, categoryMatches } = getSuggestions();
+                       if (productMatches.length === 0 && categoryMatches.length === 0) {
+                         return <div className="p-4 text-gray-500 text-sm text-center">لا توجد نتائج مطابقة</div>;
+                       }
+                       return (
+                         <div className="flex flex-col py-2">
+                           {categoryMatches.length > 0 && (
+                             <div className="px-4 py-2 bg-gray-900/50">
+                               <span className="text-xs font-bold text-[#D4AF37] mb-2 block">الأقسام</span>
+                               <div className="flex flex-col gap-1">
+                                 {categoryMatches.map(c => (
+                                   <button 
+                                     key={c}
+                                     onClick={() => {
+                                       setSelectedCategory(c);
+                                       setSearchQuery('');
+                                       setShowAutoSuggest(false);
+                                     }}
+                                     className="text-right text-sm text-gray-300 hover:text-white hover:bg-white/5 px-2 py-1.5 rounded-lg transition-colors flex items-center gap-2"
+                                   >
+                                     <Tag className="w-3.5 h-3.5 text-gray-500" />
+                                     {c}
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+                           )}
+                           {productMatches.length > 0 && (
+                             <div className="px-4 py-2 mt-1">
+                               <span className="text-xs font-bold text-[#D4AF37] mb-2 block">المنتجات</span>
+                               <div className="flex flex-col gap-1">
+                                 {productMatches.map(p => (
+                                   <button 
+                                     key={p.id}
+                                     onClick={() => {
+                                       setShowAutoSuggest(false);
+                                       handleProductClick(p);
+                                     }}
+                                     className="text-right text-sm text-gray-300 hover:text-white hover:bg-white/5 px-2 py-2 rounded-lg transition-colors flex items-center justify-between group"
+                                   >
+                                     <span className="truncate max-w-[80%]">{p.title}</span>
+                                     <span className="text-[#10B981] font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{p.price} د.ت</span>
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+                           )}
+                         </div>
+                       );
+                    })()}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="flex items-center gap-3">
@@ -832,23 +949,93 @@ export default function App() {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowAutoSuggest(true);
+                  }}
+                  onFocus={() => setShowAutoSuggest(true)}
                   placeholder="ابحث عن هاتف، سيارة، شقة..."
-                  className="w-full bg-[#050505] border border-gray-800 rounded-2xl py-3.5 pr-12 pl-12 focus:outline-none focus:border-[#D4AF37] transition-all text-sm"
+                  className="w-full bg-[#050505] border border-gray-800 rounded-2xl py-3.5 pr-12 pl-24 focus:outline-none focus:border-[#D4AF37] transition-all text-sm"
                   dir="rtl"
                 />
                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 {searchQuery && (
                   <button 
                     type="button"
-                    onClick={() => setSearchQuery('')} 
+                    onClick={() => {
+                      setSearchQuery('');
+                      setShowAutoSuggest(false);
+                    }} 
                     className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors p-1"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 )}
               </div>
-              {/* Autocomplete dropdown removed so states selector is fully visible and clean */}
+              {/* Autocomplete Dropdown - Mobile */}
+              <AnimatePresence>
+                {showAutoSuggest && searchQuery.trim() && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-[80px] left-0 w-full bg-[#0a0f0d] border border-gray-800 rounded-2xl shadow-3xl overflow-hidden z-[60] text-right"
+                    dir="rtl"
+                  >
+                    {(() => {
+                       const { productMatches, categoryMatches } = getSuggestions();
+                       if (productMatches.length === 0 && categoryMatches.length === 0) {
+                         return <div className="p-4 text-gray-500 text-sm text-center">لا توجد نتائج مطابقة</div>;
+                       }
+                       return (
+                         <div className="flex flex-col py-2 max-h-[60vh] overflow-y-auto no-scrollbar">
+                           {categoryMatches.length > 0 && (
+                             <div className="px-4 py-2 bg-gray-900/50">
+                               <span className="text-xs font-bold text-[#D4AF37] mb-2 block">الأقسام</span>
+                               <div className="flex flex-col gap-1">
+                                 {categoryMatches.map(c => (
+                                   <button 
+                                     key={c}
+                                     onClick={() => {
+                                       setSelectedCategory(c);
+                                       setSearchQuery('');
+                                       setShowAutoSuggest(false);
+                                     }}
+                                     className="text-right text-sm text-gray-300 hover:text-white hover:bg-white/5 px-2 py-2 rounded-lg transition-colors flex items-center gap-2"
+                                   >
+                                     <Tag className="w-4 h-4 text-gray-500" />
+                                     {c}
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+                           )}
+                           {productMatches.length > 0 && (
+                             <div className="px-4 py-2 mt-1">
+                               <span className="text-xs font-bold text-[#D4AF37] mb-2 block">المنتجات</span>
+                               <div className="flex flex-col gap-2">
+                                 {productMatches.map(p => (
+                                   <button 
+                                     key={p.id}
+                                     onClick={() => {
+                                       setShowAutoSuggest(false);
+                                       handleProductClick(p);
+                                     }}
+                                     className="text-right text-sm text-gray-300 hover:text-white hover:bg-white/5 px-2 py-2.5 rounded-lg transition-colors flex items-center justify-between group border-b border-gray-800/50 last:border-0"
+                                   >
+                                     <span className="truncate max-w-[80%] font-medium">{p.title}</span>
+                                     <span className="text-[#10B981] font-bold text-xs whitespace-nowrap">{p.price} د.ت</span>
+                                   </button>
+                                 ))}
+                               </div>
+                             </div>
+                           )}
+                         </div>
+                       );
+                    })()}
+                  </motion.div>
+                )}
+              </AnimatePresence>
            </div>
 
            {/* Regions Selector */}
@@ -1164,37 +1351,61 @@ export default function App() {
             pendingPlan={pendingRequest?.plan}
             stats={currentUserStats}
             currentUser={systemUsers.find(u => u.phone === currentUserPhone)}
-            onSaveProfile={(name, avatar) => {
-                setSystemUsers(users => users.map(u => u.phone === currentUserPhone ? { ...u, name, avatar } : u));
-                showToast('تم حفظ الملف الشخصي بنجاح', 'success');
+            onSaveProfile={async (name, avatar) => {
+                if (!currentUserPhone) return;
+                try {
+                  await setDoc(doc(db, 'systemUsers', currentUserPhone), { name, avatar }, { merge: true });
+                  showToast('تم حفظ الملف الشخصي بنجاح', 'success');
+                } catch (e) {
+                  console.error('Error saving profile', e);
+                  showToast('حدث خطأ أثناء حفظ الملف الشخصي', 'error');
+                }
             }}
             onOpenAdmin={currentUserPhone === '92942482' ? () => { setShowAdmin(true); setShowProfile(false); } : undefined} 
             onLogout={() => { setCurrentUserPhone(null); setCurrentUserPlan('free'); }} 
          />}
-         {showAddProduct && <AddProductModal key="addproduct" onClose={() => { setShowAddProduct(false); setEditingProduct(null); }} onAdd={(p) => handleAddProduct({...p, plan: currentUserPlan })} onEdit={(p) => {
-              setProducts(products.map(prod => prod.id === p.id ? p : prod));
-              setShowAddProduct(false);
-              setEditingProduct(null);
-              showToast('تم تحديث الإعلان بنجاح', 'success');
+         {showAddProduct && <AddProductModal key="addproduct" onClose={() => { setShowAddProduct(false); setEditingProduct(null); }} onAdd={(p) => handleAddProduct({...p, plan: currentUserPlan })} onEdit={async (p) => {
+              try {
+                await updateDoc(doc(db, 'products', p.id), {
+                   ...p
+                });
+                setShowAddProduct(false);
+                setEditingProduct(null);
+                showToast('تم تحديث الإعلان بنجاح', 'success');
+              } catch (err) {
+                console.error("Failed to edit ad", err);
+                showToast('حدث خطأ أثناء تعديل الإعلان', 'error');
+              }
           }} currentUserPhone={currentUserPhone} currentUser={systemUsers.find(u => u.phone === currentUserPhone)} initialProduct={editingProduct} />}
          {selectedProduct && <ProductDetailsModal 
            key={`details-${selectedProduct.id}`} 
            product={products.find(p => p.id === selectedProduct.id) || selectedProduct} 
            isFavorite={favorites.includes(selectedProduct.id)}
            onToggleFavorite={(e) => toggleFavorite(selectedProduct.id, e)}
-           onClose={() => setSelectedProduct(null)} 
+           onClose={() => {
+             setSelectedProduct(null);
+             window.history.pushState(null, '', window.location.pathname);
+           }} 
            currentUserPhone={currentUserPhone} 
            isAdmin={currentUserPhone === '92942482'} 
-           onDelete={() => {
-             setProducts(products.filter(p => p.id !== selectedProduct.id));
-             setSelectedProduct(null);
-             showToast('تم حذف الإعلان بنجاح', 'success');
+           onDelete={async () => {
+             try {
+               await deleteDoc(doc(db, 'products', selectedProduct!.id));
+               setSelectedProduct(null);
+               showToast('تم حذف الإعلان بنجاح', 'success');
+             } catch(err) {
+               console.error('Error deleting product', err);
+             }
          }} onEdit={(product) => {
              setEditingProduct(product);
              setShowAddProduct(true);
-         }} onUpdateComments={(productId, updatedComments) => {
-             setProducts(prev => prev.map(p => p.id === productId ? { ...p, comments: updatedComments } : p));
-             setSelectedProduct(prev => prev && prev.id === productId ? { ...prev, comments: updatedComments } : prev);
+         }} onUpdateComments={async (productId, updatedComments) => {
+             try {
+               await updateDoc(doc(db, 'products', productId), { comments: updatedComments });
+               setSelectedProduct(prev => prev && prev.id === productId ? { ...prev, comments: updatedComments } : prev);
+             } catch(err) {
+               console.error('Error updating comments', err);
+             }
          }} onAddNotification={(phone, message) => {
              const newNotif = {
                 id: String(Date.now()) + Math.random().toString(36).substr(2, 9),
@@ -1400,10 +1611,12 @@ export default function App() {
         </button>
 
         {/* Tab: Central Add Button - Slim Version */}
-        <div className="relative w-12 h-10 flex items-center justify-center -mt-6">
-          <div className="absolute inset-0 bg-[#D4AF37]/15 rounded-full blur-lg opacity-60 animate-pulse" />
-          <button
+        <div className="relative w-12 h-10 flex items-center justify-center -mt-6 group">
+          <div className="absolute inset-0 bg-[#D4AF37]/30 rounded-full blur-xl opacity-80 animate-pulse pointer-events-none" />
+          <motion.button
             type="button"
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             onClick={() => {
               triggerHaptic([40, 20]);
               if (currentUserPhone) {
@@ -1412,10 +1625,13 @@ export default function App() {
                 setShowAuth(true);
               }
             }}
-            className="absolute bg-gradient-to-b from-amber-400 via-yellow-200 to-amber-600 text-black w-12 h-12 rounded-full flex items-center justify-center shadow-[0_6px_20px_rgba(212,175,55,0.45),inset_0_3px_5px_rgba(255,255,255,0.4)] active:scale-90 transition-all border-b-4 border-amber-800 border-x border-x-amber-500 border-t border-t-amber-300 cursor-pointer group"
+            className="absolute bg-gradient-to-b from-amber-400 via-yellow-200 to-amber-600 text-black w-14 h-14 rounded-full flex items-center justify-center shadow-[0_6px_25px_rgba(212,175,55,0.6),inset_0_3px_5px_rgba(255,255,255,0.6)] active:scale-90 hover:scale-105 transition-transform border-b-4 border-amber-800 border-x border-x-amber-500 border-t border-t-amber-300 cursor-pointer overflow-hidden z-10"
           >
-            <PlusCircle className="w-6 h-6 stroke-[2.5]" />
-          </button>
+            <div className="absolute top-0 -inset-full h-full w-1/2 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/50 to-transparent group-hover:animate-shine-sweep pointer-events-none" />
+            <PlusCircle className="w-7 h-7 stroke-[2.5]" />
+            <Sparkles className="absolute top-2 right-2 w-2 h-2 text-white animate-ping" />
+            <span className="absolute bottom-2 left-3 w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+          </motion.button>
         </div>
 
         {/* Tab: Memberships (Pricing Packages) */}
