@@ -6,6 +6,7 @@ interface HighlighterProps {
 }
 
 export function HighlightText({ text, query }: HighlighterProps) {
+  if (!text) return null;
   if (!query || !query.trim()) return <>{text}</>;
 
   const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

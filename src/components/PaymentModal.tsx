@@ -63,38 +63,38 @@ export default function PaymentModal({ packageId, onClose, onConfirm }: { packag
             </div>
             
             {/* Content (Scrollable) */}
-            <div className="overflow-y-auto p-4 sm:p-5 space-y-4 flex-1 scrollbar-hide">
-                <div className="bg-gray-900/40 border border-gray-800 p-4 rounded-xl text-center">
-                    <div className="flex items-center justify-center gap-2 mb-3">
+            <div className="overflow-y-auto p-3 sm:p-4 space-y-2.5 flex-1 scrollbar-hide">
+                <div className="bg-gray-900/40 border border-gray-800 py-2.5 px-4 rounded-xl text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1.5">
                         <Smartphone className="w-5 h-5 text-[#10B981]" />
                         <h3 className="text-base font-bold text-white mb-0">تطبيق D17 (البريد التونسي)</h3>
                     </div>
-                    <p className="text-gray-400 mb-2 text-xs">أرسل المبلغ المطلوب إلى رقم التحويل:</p>
-                    <div className="text-xl font-bold text-white tracking-widest bg-black/80 py-2.5 px-4 text-center rounded-xl border border-gray-800 dir-ltr inline-block mx-auto min-w-[150px]">
+                    <p className="text-gray-400 mb-1.5 text-xs">أرسل المبلغ المطلوب إلى رقم التحويل:</p>
+                    <div className="text-lg font-bold text-white tracking-widest bg-black/80 py-1.5 px-4 text-center rounded-xl border border-gray-800 dir-ltr inline-block mx-auto min-w-[130px]">
                         92942482
                     </div>
                 </div>
 
-                <div className="bg-gray-900/40 border border-gray-800 p-4 rounded-xl text-center">
-                    <div className="flex items-center justify-center gap-2 mb-3">
+                <div className="bg-gray-900/40 border border-gray-800 py-2.5 px-4 rounded-xl text-center">
+                    <div className="flex items-center justify-center gap-2 mb-1.5">
                         <CreditCard className="w-5 h-5 text-[#D4AF37]" />
                         <h3 className="text-base font-bold text-white mb-0">التحويل البريدي (e-Dinar)</h3>
                     </div>
-                    <p className="text-gray-400 mb-2 text-xs">إيداع الأموال في بطاقة رقم:</p>
-                    <div className="text-base font-bold text-white tracking-widest bg-black/80 py-2.5 px-4 text-center rounded-xl border border-gray-800 dir-ltr inline-block mx-auto max-w-full">
+                    <p className="text-gray-400 mb-1.5 text-xs">إيداع الأموال في بطاقة رقم:</p>
+                    <div className="text-sm sm:text-base font-bold text-white tracking-widest bg-black/80 py-1.5 px-3 sm:px-4 text-center rounded-xl border border-gray-800 dir-ltr inline-block mx-auto max-w-full">
                         5359402040714234
                     </div>
                 </div>
 
-                <div className="bg-[#10B981]/5 border border-[#10B981]/20 p-4 rounded-xl text-center">
-                    <div className="flex items-center justify-center gap-1 text-[#10B981] font-bold text-sm mb-1">
+                <div className="bg-[#10B981]/5 border border-[#10B981]/20 py-2.5 px-4 rounded-xl text-center">
+                    <div className="flex items-center justify-center gap-1 text-[#10B981] font-bold text-xs sm:text-sm mb-1">
                         <ShieldCheck className="w-4 h-4" />
                         <span>خطوة هامة جداً لتأكيد طلبك</span>
                     </div>
-                    <p className="text-gray-400 text-xs leading-relaxed">
+                    <p className="text-gray-400 text-[11px] sm:text-xs leading-relaxed">
                         الرجاء إرسال وصل الدفع أو لقطة شاشة للتحويل لمشرف القسم على واتساب رقم:
                     </p>
-                    <div className="text-lg font-bold text-white tracking-wide mt-1.5 mb-3 dir-ltr">
+                    <div className="text-base font-bold text-white tracking-wide mt-1 mb-2 dir-ltr">
                         92942482
                     </div>
                     
@@ -112,7 +112,7 @@ export default function PaymentModal({ packageId, onClose, onConfirm }: { packag
                           setConfirmed(true);
                           onConfirm();
                        }} 
-                       className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#10B981] to-[#059669] text-white text-xs sm:text-sm font-extrabold rounded-xl py-3 shadow-md shadow-[#10B981]/15 hover:opacity-95 active:scale-98 transition-all cursor-pointer"
+                       className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#10B981] to-[#059669] text-white text-xs sm:text-sm font-extrabold rounded-xl py-2.5 shadow-md shadow-[#10B981]/15 hover:opacity-95 active:scale-98 transition-all cursor-pointer"
                     >
                         <Send className="w-4 h-4" />
                         تأكيد الدفع وإرسال الإشعار للإدارة

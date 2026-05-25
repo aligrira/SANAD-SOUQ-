@@ -10,11 +10,12 @@ export default function ProductDetailsModal({
   currentUserPhone, 
   isAdmin, 
   onDelete, 
-  onEdit,
-  onUpdateComments,
-  onAddNotification,
-  isFavorite,
-  onToggleFavorite
+  onEdit, 
+  onUpdateComments, 
+  onAddNotification, 
+  isFavorite, 
+  onToggleFavorite,
+  currentUserPlan = 'free'
 }: { 
   key?: React.Key, 
   onClose: () => void, 
@@ -26,7 +27,8 @@ export default function ProductDetailsModal({
   onUpdateComments?: (productId: string, comments: any[]) => void,
   onAddNotification?: (phone: string, message: string) => void,
   isFavorite?: boolean,
-  onToggleFavorite?: (e: React.MouseEvent) => void
+  onToggleFavorite?: (e: React.MouseEvent) => void,
+  currentUserPlan?: 'free' | 'bronze' | 'vip'
 }) {
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState(product.comments || []);
@@ -37,6 +39,11 @@ export default function ProductDetailsModal({
   const [permissionStatus, setPermissionStatus] = useState<string>(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   );
+
+  // Premium Poster Builder States
+  const [posterTheme, setPosterTheme] = useState<'gold' | 'emerald' | 'crimson'>('gold');
+  const [posterSlogan, setPosterSlogan] = useState('حالة ممتازة تواصل واطلب الآن ✦');
+  const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
 
   const handleImageDoubleClick = (e: React.MouseEvent) => {
     if (!onToggleFavorite) return;
@@ -106,7 +113,178 @@ export default function ProductDetailsModal({
     }
   };
 
-  const isOwner = currentUserPhone && (currentUserPhone === '92942482' || currentUserPhone === product.sellerId);
+  const isPhoneAdmin = (phone?: string | null): boolean => {
+    if (!phone) return false;
+    const clean = phone.replace(/[^0-9]/g, '');
+    return clean === '92942482' || clean === '21692942482' || clean.endsWith('92942482');
+  };
+
+  const isOwner = currentUserPhone && (isPhoneAdmin(currentUserPhone) || currentUserPhone === product.sellerId);
+
+  const handleDownloadPoster = async () => {
+    setIsGeneratingPoster(true);
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 600;
+      canvas.height = 900;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // 1. Draw beautiful dark futuristic gradient background depending on selected theme
+      const grad = ctx.createRadialGradient(300, 300, 50, 300, 450, 600);
+      if (posterTheme === 'emerald') {
+        grad.addColorStop(0, '#022c22'); // dark emerald
+        grad.addColorStop(1, '#000000');
+      } else if (posterTheme === 'crimson') {
+        grad.addColorStop(0, '#450a0a'); // dark red
+        grad.addColorStop(1, '#000000');
+      } else {
+        grad.addColorStop(0, '#1c1917'); // dark gold/stone
+        grad.addColorStop(1, '#000000');
+      }
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 600, 900);
+
+      // 2. Draw luxury glowing border frame
+      const frameColor = posterTheme === 'emerald' ? '#10B981' : posterTheme === 'crimson' ? '#EF4444' : '#D4AF37';
+      ctx.strokeStyle = frameColor;
+      ctx.lineWidth = 14;
+      ctx.strokeRect(20, 20, 560, 860);
+
+      // Fine shiny thin inner borders block
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(28, 28, 544, 844);
+
+      // 3. Draw Header Title: Premium branding "سوق سند"
+      ctx.font = 'bold 24px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.fillText('سـوق سـنـد الـتـونـسـي', 300, 75);
+
+      ctx.fillStyle = frameColor;
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('S O U Q   S A N A D   V I P', 300, 100);
+
+      // Draw horizontal line separator
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.beginPath();
+      ctx.moveTo(100, 115);
+      ctx.lineTo(500, 115);
+      ctx.stroke();
+
+      // 4. Draw Product Title (in Arabic)
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
+      ctx.fillText(product.title.substring(0, 34), 300, 160);
+
+      // 5. Draw Product Image (with CORS handled gracefully)
+      const drawProductImage = () => {
+        return new Promise<void>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            try {
+              const targetWidth = 440;
+              const targetHeight = 310;
+              const x = 80;
+              const y = 200;
+
+              // Draw image shadow offset card
+              ctx.shadowColor = 'rgba(0,0,0,0.6)';
+              ctx.shadowBlur = 20;
+              ctx.fillStyle = '#111';
+              ctx.fillRect(x - 5, y - 5, targetWidth + 10, targetHeight + 10);
+              ctx.shadowColor = 'transparent';
+
+              ctx.fillStyle = '#FFFFFF';
+              ctx.fillRect(x, y, targetWidth, targetHeight);
+
+              const imgRatio = img.width / img.height;
+              const boxRatio = targetWidth / targetHeight;
+              let drawW = targetWidth;
+              let drawH = targetHeight;
+              let drawX = x;
+              let drawY = y;
+
+              if (imgRatio > boxRatio) {
+                drawH = targetWidth / imgRatio;
+                drawY = y + (targetHeight - drawH) / 2;
+              } else {
+                drawW = targetHeight * imgRatio;
+                drawX = x + (targetWidth - drawW) / 2;
+              }
+
+              ctx.drawImage(img, drawX, drawY, drawW, drawH);
+              resolve();
+            } catch (err) {
+              resolve();
+            }
+          };
+          img.onerror = () => {
+            resolve();
+          };
+          img.src = product.imageUrls?.[0] || 'https://via.placeholder.com/400';
+        });
+      };
+
+      await drawProductImage();
+
+      // Ensure design stays correct even if image skipped
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.fillRect(80, 200, 440, 310);
+
+      // 6. Draw Price Ribbon Ticket bottom banner
+      ctx.fillStyle = frameColor;
+      ctx.fillRect(100, 535, 400, 65);
+
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 34px system-ui, -apple-system, sans-serif';
+      ctx.fillText(`${product.price} د.ت`, 300, 580);
+
+      // 7. Slogan & Slogan subtitle
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+      ctx.fillText(posterSlogan, 300, 645);
+
+      // 8. Call Info Block & QR Contact code
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText(`مباشر الهاتف: ${product.sellerId}`, 300, 715);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.font = '14px system-ui, -apple-system, sans-serif';
+      ctx.fillText('تواصل الآن لتنسيق الشراء والاستلام الفوري', 300, 745);
+
+      // Draw stylized badge verification stamp
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText('VERIFIED SOUQ SANAD VIP EXCLUSIVE', 300, 795);
+
+      // Draw crown vector emblem
+      ctx.fillStyle = frameColor;
+      ctx.beginPath();
+      ctx.moveTo(280, 815);
+      ctx.lineTo(290, 823);
+      ctx.lineTo(300, 810);
+      ctx.lineTo(310, 823);
+      ctx.lineTo(320, 815);
+      ctx.lineTo(315, 830);
+      ctx.lineTo(285, 830);
+      ctx.closePath();
+      ctx.fill();
+
+      // Trigger standard local download
+      const link = document.createElement('a');
+      link.download = `souq_sanad_poster_${product.id}.jpg`;
+      link.href = canvas.toDataURL('image/jpeg', 0.9);
+      link.click();
+    } catch (error) {
+      console.error('Error generating canvas poster:', error);
+    } finally {
+      setIsGeneratingPoster(false);
+    }
+  };
 
   return (
     <motion.div
@@ -125,7 +303,7 @@ export default function ProductDetailsModal({
             className="absolute inset-0 w-full h-full cursor-pointer overflow-hidden"
           >
             <img 
-              src={product.imageUrls[0] || 'https://via.placeholder.com/400'} 
+              src={product.imageUrls?.[0] || 'https://via.placeholder.com/400'} 
               alt={product.title} 
               className="w-full h-full object-cover object-center select-none pointer-events-none block brightness-110 contrast-105 saturate-110" 
               referrerPolicy="no-referrer" 
@@ -290,7 +468,11 @@ export default function ProductDetailsModal({
                     <span>اتصال ({product.sellerId})</span>
                  </a>
                  <a 
-                   href={`https://wa.me/216${product.sellerId?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`مرحباً، أستفسر عن إعلانك بـ "سوق سند": "${product.title}" بسعر ${product.price} د.ت`)}`}
+                   href={
+                     isPhoneAdmin(product.sellerId)
+                       ? 'https://wa.me/21692942482'
+                       : `https://wa.me/216${product.sellerId?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`مرحباً، أود الاستفسار عن إعلانك بـ "سوق سند": "${product.title}" بسعر ${product.price} د.ت`)}`
+                   }
                    target="_blank" 
                    rel="noreferrer noopener"
                    className="flex items-center justify-center gap-2 bg-[#25D366]/10 hover:bg-[#25D366] text-[#25D366] hover:text-white border border-[#25D366]/20 px-4 py-3 rounded-2xl font-bold transition-all text-xs shadow-sm hover:scale-102 active:scale-98"
@@ -301,14 +483,19 @@ export default function ProductDetailsModal({
               </div>
               <button
                 onClick={() => {
-                   const templates = [
-                      `السلام عليكم ورحمة الله، لقد لفت انتباهي إعلانك بخصوص "${product.title}" على سوق سند. أنا مهتم جداً بالشراء، هل السعر المعروض (${product.price} د.ت) قابل للتفاوض البسيط للجادين؟`,
-                      `مرحباً بك أخي الكريم، بخصوص عرضك لـ "${product.title}" في سوق سند. بصراحة العرض ممتاز، وأنا شاري جاد. ما هو السعر النهائي من الآخر لو تكرمت؟`,
-                      `تحية طيبة، لقد شاهدت إعلان "${product.title}" وهو يحمل مواصفات أبحث عنها. أرجو إعلامي بأفضل سعر ممكن للبيع الفوري، لكي نتمكن من إتمام الصفقة اليوم إن أمكن.`
-                   ];
-                   const aiMessage = templates[Math.floor(Math.random() * templates.length)];
-                   const waUrl = `https://wa.me/216${product.sellerId?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(aiMessage)}`;
-                   window.open(waUrl, '_blank');
+                   const isAdminProduct = isPhoneAdmin(product.sellerId);
+                    if (isAdminProduct) {
+                       window.open('https://wa.me/21692942482', '_blank');
+                       return;
+                    }
+                    const templates = [
+                       `السلام عليكم ورحمة الله، أعجبني إعلانك لـ "${product.title}" على سوق سند. هل السعر المعروض (${product.price} د.ت) قابل للنقاش البسيط للجادين؟`,
+                       `مرحباً بك أخي الكريم، أود الاستفسار عن إعلانك لـ "${product.title}" في سوق سند. أنا شاري جاد، ما هو أفضل سعر للبيع الفوري؟`,
+                       `تحية طيبة، لقد شاهدت إعلان "${product.title}" وهو يحمل مواصفات أبحث عنها. أود تأكيد الشراء والتواصل معك للاتفاق.`
+                    ];
+                    const aiMessage = templates[Math.floor(Math.random() * templates.length)];
+                    const waUrl = `https://wa.me/216${product.sellerId?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(aiMessage)}`;
+                    window.open(waUrl, '_blank');
                 }}
                 className="mt-1 flex flex-col items-center justify-center py-2.5 px-4 bg-gradient-to-r from-[#D4AF37]/10 to-amber-500/5 hover:from-[#D4AF37]/20 hover:to-amber-500/10 text-[#D4AF37] border border-[#D4AF37]/30 rounded-2xl transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95"
               >

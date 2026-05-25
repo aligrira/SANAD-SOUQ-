@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Sparkles, X, Send, Bot } from 'lucide-react';
+import { safeStorage } from '../lib/safeStorage';
 
 export default function AIAssistant({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<{ id: string; role: 'user' | 'model'; text: string }[]>([
@@ -28,7 +29,21 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      let apiUrl = '/api/chat';
+      if (typeof window !== 'undefined') {
+        const isApk = window.location.protocol === 'file:' || 
+                      window.location.protocol.startsWith('capacitor') || 
+                      window.location.protocol.startsWith('ionic') ||
+                      !window.location.hostname;
+        if (isApk) {
+          const savedOrigin = safeStorage.getItem('sanad_last_web_origin');
+          const fallbackUrl = 'https://ais-pre-rr564v6vaibnd4puzzxi64-453310219968.europe-west2.run.app';
+          const baseUrl = savedOrigin || fallbackUrl;
+          apiUrl = `${baseUrl.replace(/\/$/, '')}/api/chat`;
+        }
+      }
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: userMessage })

@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Product } from '../types';
-import { MapPin, Heart, Eye } from 'lucide-react';
+import { MapPin, Heart, Eye, Sparkles, Flame } from 'lucide-react';
 import React, { useState, useRef } from 'react';
 import { HighlightText } from './HighlightText';
 
@@ -16,6 +16,10 @@ interface ListingCardProps {
 
 export default function ListingCard({ product, onClick, searchQuery = '', isFavorite, onToggleFavorite, viewMode = 'grid' }: ListingCardProps) {
   const [showHeart, setShowHeart] = useState(false);
+  const [heartsBurst, setHeartsBurst] = useState<{ id: number; x: number; y: number; scale: number; rotation: number }[]>([]);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const clickBuffer = useRef<number>(0);
   const clickTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -30,6 +34,27 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
   const isBronze = product.plan === 'bronze';
   const isList = viewMode === 'list';
 
+  const triggerHeartsBurst = () => {
+    const bursts = Array.from({ length: 6 }).map((_, i) => ({
+      id: Math.random() + i,
+      x: (Math.random() - 0.5) * 130, // disperse left/right
+      y: -30 - Math.random() * 50,    // float upwards
+      scale: 0.6 + Math.random() * 0.6,
+      rotation: (Math.random() - 0.5) * 45,
+    }));
+    setHeartsBurst(bursts);
+    setTimeout(() => setHeartsBurst([]), 1200);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    setMousePos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -40,6 +65,7 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
         clickTimer.current = null;
       }
       setShowHeart(true);
+      triggerHeartsBurst();
       setTimeout(() => setShowHeart(false), 900);
       if (!isFavorite) onToggleFavorite(e);
       clickBuffer.current = 0;
@@ -57,6 +83,7 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
       }
       
       setShowHeart(true);
+      triggerHeartsBurst();
       setTimeout(() => setShowHeart(false), 900);
       
       // Instagram style: double tap always likes
@@ -80,29 +107,47 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
 
   return (
     <motion.div
+      ref={cardRef}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onMouseMove={handleMouseMove}
       layout
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={isVip ? { y: -6, scale: 1.02 } : { y: -4, scale: 1.01 }}
+      whileHover={isVip ? { y: -6, scale: 1.02, rotate: -0.5 } : { y: -4, scale: 1.01 }}
       transition={{ type: "spring", stiffness: 350, damping: 25 }}
       onClick={handleCardClick}
-      className={`bg-[#050505] rounded-2xl overflow-hidden border transition-all duration-300 cursor-pointer group relative w-full ${
+      className={`bg-white rounded-xl sm:rounded-2xl overflow-hidden border transition-all duration-300 cursor-pointer group relative w-full ${
         isList 
           ? 'flex flex-col sm:flex-row gap-0 max-w-full' 
-          : 'flex flex-col max-w-[290px] xs:max-w-xs sm:max-w-sm md:max-w-none mx-auto'
+          : 'flex flex-col w-full aspect-square'
       } ${
         isVip 
-          ? 'border-[#D4AF37]/30 bg-gradient-to-b from-[#0a0905] to-[#020202] shadow-[0_0_20px_rgba(212,175,55,0.06)] hover:border-[#D4AF37]/90 hover:shadow-[0_0_40px_rgba(212,175,55,0.22)]' 
+          ? 'border-amber-200/85 shadow-[0_4px_24px_rgba(212,175,55,0.08)] hover:border-amber-400 hover:shadow-[0_12px_40px_rgba(212,175,55,0.22)]' 
           : isBronze 
-            ? 'border-[#d97706]/40 hover:border-[#d97706]/80 hover:shadow-[0_0_20px_rgba(217,119,6,0.08)]' 
-            : 'border-gray-850 bg-gradient-to-b from-[#050505] to-[#020202] border-[#1f2937]/50 hover:border-gray-700 shadow-lg'
+            ? 'border-amber-600/25 hover:border-[#D4AF37]/50 hover:shadow-[0_8px_25px_rgba(217,119,6,0.12)]' 
+            : 'border-slate-100 hover:border-[#F25A24]/30 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_28px_rgba(242,90,36,0.12)]'
       }`}
     >
+      {/* Dynamic Cursor Light Spot Tracker - Interactive Client-side Premium Glow */}
+      {isHovered && (
+        <span 
+          className="absolute inset-x-0 inset-y-0 pointer-events-none transition-opacity duration-300 z-10 opacity-100"
+          style={{
+            background: isVip
+              ? `radial-gradient(circle 220px at ${mousePos.x}px ${mousePos.y}px, rgba(212, 175, 55, 0.12), transparent)`
+              : isBronze
+                ? `radial-gradient(circle 180px at ${mousePos.x}px ${mousePos.y}px, rgba(184, 115, 51, 0.08), transparent)`
+                : `radial-gradient(circle 160px at ${mousePos.x}px ${mousePos.y}px, rgba(242, 90, 36, 0.06), transparent)`
+          }}
+        />
+      )}
+
       {/* Golden Shimmer Loop for VIP */}
       {isVip && (
         <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden rounded-2xl z-20">
-          <div className="absolute top-0 -inset-full h-full w-1/2 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-40 group-hover:animate-shine-sweep" />
+          <div className="absolute top-0 -inset-full h-full w-1/2 block transform -skew-x-12 bg-gradient-to-r from-transparent via-amber-400/15 to-transparent opacity-40 group-hover:animate-shine-sweep" />
           {/* Magic VIP Particles Overlay */}
           <div className="absolute inset-0 z-10 pointer-events-none group-hover:opacity-100 opacity-0 transition-opacity duration-700">
              {[...Array(6)].map((_, i) => (
@@ -132,28 +177,56 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
         </div>
       )}
 
-      {/* Product Image */}
+      {/* Product Image Wrapper - Inspired by Jumia white container style */}
       <div 
-        className={`relative overflow-hidden bg-gray-900 shrink-0 select-none ${
+        className={`relative overflow-hidden bg-[#fafafa] shrink-0 select-none flex items-center justify-center p-2 sm:p-2 border-b border-slate-50 group-hover:bg-[#f6f6f6] transition-colors duration-300 ${
         isList 
           ? 'h-48 sm:h-full w-full sm:w-64 sm:order-last' 
-          : 'h-44 sm:h-56 w-full'
+          : 'h-[55%] w-full'
       }`}>
         <img 
-          src={product.imageUrls[0]} 
+          src={product.imageUrls?.[0] || 'https://via.placeholder.com/400'} 
           alt={product.title} 
-          className={`w-full h-full object-cover transition-all duration-700 opacity-80 group-hover:opacity-100 group-hover:scale-110 ${
-            isVip ? 'group-hover:contrast-[1.2] group-hover:brightness-[1.12] group-hover:saturate-[1.15]' : ''
-          }`}
+          className="max-w-[95%] max-h-[92%] object-contain transition-all duration-500 group-hover:scale-108 group-hover:rotate-1"
           referrerPolicy="no-referrer"
         />
         
+        {/* High-Fidelity Conversion Overlay (Glass Peek Hover Effect) */}
+        <div className="absolute inset-0 bg-black/35 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-10 pointer-events-none">
+          <div className="bg-white/95 text-slate-800 text-[10px] sm:text-xs font-bold px-3.5 py-2 rounded-xl shadow-lg flex items-center gap-1.5 transform translate-y-3 group-hover:translate-y-0 transition-all duration-300 select-none">
+            <Eye className="w-4 h-4 text-[#F25A24] animate-pulse" />
+            <span>عرض تفاصيل الإعلان</span>
+          </div>
+        </div>
+
+        {/* Double-Tap Multi-Heart Burst Particles */}
+        <AnimatePresence>
+          {heartsBurst.map((hb) => (
+            <motion.div
+              key={hb.id}
+              initial={{ scale: 0, opacity: 0, x: 0, y: 0, rotate: 0 }}
+              animate={{ 
+                scale: [0, hb.scale, hb.scale * 0.8, 0], 
+                opacity: [0, 1, 1, 0],
+                x: hb.x,
+                y: hb.y,
+                rotate: hb.rotation
+              }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.1, ease: "easeOut" }}
+              className="absolute pointer-events-none z-30"
+            >
+              <Heart className="w-6 h-6 sm:w-8 sm:h-8 text-red-500 fill-red-500 drop-shadow-[0_0_12px_rgba(239,68,68,0.7)]" />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
         {/* Heart Animation Overlay */}
         <AnimatePresence>
           {showHeart && (
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: [0, 1.2, 1], opacity: [0, 1, 0] }}
+              animate={{ scale: [0, 1.3, 1], opacity: [0, 1, 0] }}
               exit={{ scale: 0, opacity: 0 }}
               transition={{ duration: 0.8, times: [0, 0.4, 1] }}
               className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"
@@ -163,72 +236,106 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
           )}
         </AnimatePresence>
 
-        {/* Overlays */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent opacity-80" />
-        
+        {/* Action Button - Floating Heart */}
         <button 
           type="button"
           onClick={onToggleFavorite}
-          className="absolute top-4 left-4 p-2.5 rounded-full bg-black/50 backdrop-blur-md border border-white/10 hover:bg-black/85 hover:scale-110 transition-all z-10"
+          className="absolute top-2.5 left-2.5 p-1.5 sm:p-2 rounded-full bg-white/95 shadow-md border border-slate-100 hover:bg-white hover:scale-110 hover:shadow-lg transition-all z-20"
         >
-          <Heart className={`w-4 h-4 transition-colors ${isFavorite ? 'fill-[#D4AF37] text-[#D4AF37]' : 'text-white'}`} />
+          <Heart className={`w-3.5 h-3.5 transition-colors ${isFavorite ? 'fill-[#e35914] text-[#e35914]' : 'text-slate-400 hover:text-[#e35914]'}`} />
         </button>
 
+        {/* Floating Glassmorphic Badges */}
         {isVip && (
-          <div className="absolute top-4 right-4 bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-black text-[10px] font-black tracking-widest px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
-            <span>VIP</span>
-            <span className="animate-spin text-amber-800">✦</span>
+          <div className="absolute top-2.5 right-2.5 bg-gradient-to-r from-amber-500 via-[#FFD700] to-amber-600 text-slate-950 border border-amber-300 text-[9px] sm:text-[10px] font-extrabold px-2.5 py-1 sm:px-3 sm:py-1 rounded-full shadow-lg flex items-center gap-1 z-20 backdrop-blur-md">
+            <Sparkles className="w-3 h-3 text-slate-950 animate-spin fill-slate-950 shrink-0" />
+            <span className="tracking-wide font-black">سند VIP ✨</span>
           </div>
         )}
 
         {isBronze && (
-          <div className="absolute top-4 right-4 bg-gradient-to-r from-[#d97706] to-[#f59e0b] text-white text-[10px] font-black tracking-widest px-3 py-1 rounded-full shadow-lg">
-            إعلان برونزي
+          <div className="absolute top-2.5 right-2.5 bg-gradient-to-r from-amber-700 to-amber-800 text-white border border-amber-600/30 text-[9px] sm:text-[10px] font-bold px-2.5 py-1 sm:px-3 sm:py-1 rounded-full shadow-md z-20">
+            <span>إعلان برونزي 🥉</span>
           </div>
         )}
       </div>
 
-      {/* Content */}
-      <div className="p-5 flex flex-col justify-between flex-1 gap-3 relative bg-[#050505]">
-        <div>
-          <div className="flex justify-between items-start gap-4 mb-2">
-            <h3 className="font-bold text-lg sm:text-2xl text-white font-display truncate flex-1 group-hover:text-[#D4AF37] transition-colors">
-              <HighlightText text={product.title} query={searchQuery} />
-            </h3>
-            <p className="text-[#10B981] font-bold text-lg sm:text-2xl font-display shrink-0">{product.price} د.ت</p>
+      <div className={`p-2 xs:p-3 flex flex-col justify-between flex-1 gap-1 xs:gap-1.5 bg-white text-right z-10 ${!isList && 'h-[45%] overflow-hidden'}`} dir="rtl">
+        <div className="flex flex-col flex-1 shrink min-h-0">
+          {/* Main Title & Brand info */}
+          <h3 className={`font-bold text-[11px] sm:text-xs text-slate-800 group-hover:text-[#F25A24] transition-colors leading-tight tracking-tight mb-0.5 sm:mb-1 overflow-hidden shrink-0 ${isList ? 'line-clamp-2 h-8 sm:h-10' : 'line-clamp-1 h-4 sm:h-5'}`}>
+            <HighlightText text={product.title} query={searchQuery} />
+          </h3>
+
+          {/* Dynamic Premium Price Tag with hot demand status */}
+          <div className="flex items-center justify-between pb-0.5 w-full gap-1 shrink-0">
+            <div className="flex items-center gap-0.5">
+              <span className="text-[#F25A24] font-black text-sm sm:text-base tracking-tight tabular-nums group-hover:scale-105 transition-transform duration-300 block leading-none">
+                {product.price.toLocaleString()}
+              </span>
+              <span className="text-[#F25A24] text-[9px] font-extrabold font-sans leading-none">د.ت</span>
+            </div>
+            {(product.views && product.views > 15) ? (
+              <span className="flex items-center gap-0.5 bg-red-50 text-red-600 text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-100/70 shrink-0">
+                <Flame className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-red-500 fill-red-500 animate-pulse" />
+                <span className="hidden sm:inline">مطلوب</span>
+              </span>
+            ) : isVip ? (
+              <span className="flex items-center gap-0.5 bg-amber-50 text-amber-600 text-[8px] font-bold px-1 py-0.5 rounded border border-amber-100/70 shrink-0">
+                <Sparkles className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
+                <span className="hidden sm:inline">مميز</span>
+              </span>
+            ) : null}
           </div>
           
-          <p className="text-gray-300 text-sm line-clamp-3 sm:line-clamp-4 leading-relaxed pr-1">
-             <HighlightText text={product.description} query={searchQuery} />
-          </p>
+          {isList && (
+            <p className="text-slate-500 text-[10px] sm:text-xs line-clamp-2 leading-relaxed h-7 sm:h-8 overflow-hidden mt-1 shrink-0">
+               <HighlightText text={product.description} query={searchQuery} />
+            </p>
+          )}
         </div>
         
-        <div className="flex items-center justify-between pt-4 border-t border-gray-800/60 mt-auto">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5 text-gray-500 text-[10px] sm:text-xs">
-              <MapPin className="w-3.5 h-3.5 text-gray-400" />
-              <span>{product.location}</span>
+        {/* Footer Meta Alignments */}
+        <div className="flex items-center justify-between pt-1 sm:pt-1.5 border-t border-slate-100 mt-0 sm:mt-1 shrink-0">
+          <div className="flex flex-col gap-0.5 text-[8px] sm:text-[9px]">
+            {/* Location */}
+            <div className="flex items-center gap-1 text-slate-400">
+              <MapPin className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-slate-300" />
+              <span className="truncate max-w-[60px] sm:max-w-[70px]">{product.location}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-gray-500 text-[10px] sm:text-xs">
-              <Eye className="w-3.5 h-3.5 text-gray-400" />
-              <span>{product.views || 0} مشاهدة</span>
+            
+            {/* Views counter & Quick Like */}
+            <div className="flex items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-0.5 text-slate-400">
+                <Eye className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-slate-300" />
+                <span>{product.views || 0}</span>
+              </div>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite(e);
+                }}
+                className="flex items-center gap-0.5 text-slate-400 hover:text-red-500 transition-colors cursor-pointer group/like"
+              >
+                <Heart className={`w-2.5 h-2.5 sm:w-3 sm:h-3 transition-all ${isFavorite ? 'text-red-500 fill-red-500' : 'text-slate-300'}`} />
+                <span>{product.likes || 0}</span>
+              </button>
             </div>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleFavorite(e);
-              }}
-              className="flex items-center gap-1.5 text-red-400/80 hover:text-red-400 transition-colors text-[10px] sm:text-xs cursor-pointer group/like"
-            >
-              <Heart className={`w-3.5 h-3.5 transition-all ${isFavorite ? 'text-red-500 fill-red-500' : 'text-red-400 fill-red-500/10 group-hover/like:scale-110'}`} />
-              <span className="font-medium underline-offset-4 group-hover/like:underline">{product.likes || 0} إعجاب</span>
-            </button>
           </div>
-          <div className="flex items-center gap-2">
-             <span className="text-xs text-gray-400">{product.sellerName || product.category}</span>
-             <div className="relative w-7 h-7 rounded-full overflow-hidden border border-gray-700 bg-gray-900">
-               <img src={product.sellerAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'} alt={product.sellerName || ''} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-               <div className="absolute bottom-0 right-0 w-2 h-2 bg-[#10B981] rounded-full border border-[#0A0A0A]"></div>
+
+          {/* User Seller Identity Profile Badge */}
+          <div className="flex items-center gap-1 sm:gap-1.5">
+             <span className="text-[8px] sm:text-[9px] text-slate-500 font-medium truncate max-w-[40px] sm:max-w-[60px]" title={product.sellerName || product.category}>
+               {product.sellerName || product.category}
+             </span>
+             <div className={`relative w-5 h-5 sm:w-6 sm:h-6 rounded-full overflow-hidden border bg-slate-50 shrink-0 ${isVip ? 'ring-1 ring-amber-400/80 border-white' : 'border-slate-100'}`}>
+               <img 
+                 src={product.sellerAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'} 
+                 alt={product.sellerName || ''} 
+                 className="w-full h-full object-cover" 
+                 referrerPolicy="no-referrer" 
+               />
+               <div className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-[#10B981] rounded-full border border-white"></div>
              </div>
           </div>
         </div>
@@ -236,4 +343,3 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
     </motion.div>
   );
 }
-

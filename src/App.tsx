@@ -3,18 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets, Mic } from 'lucide-react';
+import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets, Mic, Tag, Facebook } from 'lucide-react';
 import { Product, Story } from './types';
 import { safeStorage } from './lib/safeStorage';
-import { collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import CursorGlow from './components/CursorGlow';
 import VipStoriesRow from './components/VipStoriesRow';
 import BroadcastMarquee, { BroadcastMessage } from './components/BroadcastMarquee';
 import ListingCard from './components/ListingCard';
-import AIAssistant from './components/AIAssistant';
+
 import AdminPanel from './components/AdminPanel';
 import AuthModal from './components/AuthModal';
 import WelcomeSplashModal from './components/WelcomeSplashModal';
@@ -67,6 +67,7 @@ export default function App() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
   const [systemRequests, setSystemRequests] = useState<any[]>([]);
   
   useEffect(() => {
@@ -103,6 +104,7 @@ export default function App() {
         users.push({ id: doc.id, ...doc.data() });
       });
       setSystemUsers(users);
+      setUsersLoaded(true);
     });
 
     return () => {
@@ -124,8 +126,19 @@ export default function App() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(false);
-  const [loggedUserObj, setLoggedUserObj] = useState<any>(null);
+  const [loggedUserObj, setLoggedUserObj] = useState<any>(() => {
+    const saved = safeStorage.getItem('sanad_current_user_obj');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [isPublishingTransition, setIsPublishingTransition] = useState(false);
+
+  useEffect(() => {
+    if (loggedUserObj) {
+        safeStorage.setItem('sanad_current_user_obj', JSON.stringify(loggedUserObj));
+    } else {
+        safeStorage.removeItem('sanad_current_user_obj');
+    }
+  }, [loggedUserObj]);
   const [transitionPlan, setTransitionPlan] = useState<'free' | 'bronze' | 'vip'>('free');
 
   const [currentUserPlan, setCurrentUserPlan] = useState<'free' | 'bronze' | 'vip'>(() => {
@@ -214,6 +227,19 @@ export default function App() {
   useEffect(() => {
     safeStorage.setItem('sanad_current_user_plan', currentUserPlan);
   }, [currentUserPlan]);
+
+  // Track last visited web origin dynamically to support self-healing configurations in the built APK wrapper
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.origin) {
+      const isApk = window.location.protocol === 'file:' || 
+                    window.location.protocol.startsWith('capacitor') || 
+                    window.location.protocol.startsWith('ionic') ||
+                    !window.location.hostname;
+      if (!isApk) {
+        safeStorage.setItem('sanad_last_web_origin', window.location.origin);
+      }
+    }
+  }, []);
 
   // Synchronize currentUserPlan with system database changes dynamically so plan transitions are immediate
   useEffect(() => {
@@ -329,43 +355,108 @@ export default function App() {
   const pendingRequest = systemRequests.find(r => r.phone === currentUserPhone && r.status === 'pending');
   const currentUserObj = systemUsers.find(u => u.phone === currentUserPhone);
 
-  // Auto clean-up stale or invalid user sessions to prevent crash
+  // Auto clean-up stale or invalid user sessions is disabled to avoid race conditions during signup
   useEffect(() => {
-    if (currentUserPhone && !systemUsers.some(u => u.phone === currentUserPhone)) {
+    /* 
+    if (usersLoaded && currentUserPhone && !systemUsers.some(u => u.phone === currentUserPhone)) {
       setCurrentUserPhone(null);
       setCurrentUserPlan('free');
+      setLoggedUserObj(null);
+    }
+    */
+  }, [currentUserPhone, systemUsers, usersLoaded]);
+
+  // Sync loggedUserObj whenever currentUserPhone or systemUsers changes
+  useEffect(() => {
+    if (currentUserPhone) {
+      const user = systemUsers.find(u => u.phone === currentUserPhone);
+      if (user) {
+        setLoggedUserObj(user);
+      }
+    } else {
+      setLoggedUserObj(null);
     }
   }, [currentUserPhone, systemUsers]);
 
-  const handleAuth = async (isLogin: boolean, phone: string, name: string, password?: string) => {
+  const handleAuth = async (isLogin: boolean, rawPhone: string, rawName: string, rawCode: string): Promise<boolean | string> => {
+      const englishPhone = rawPhone.replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]);
+      const phone = englishPhone.trim().replace(/\s+/g, '');
+      const englishCode = rawCode.replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]);
+      const code = englishCode.trim();
+      const name = rawName.trim();
+      
+      const isAdmin = phone === '92942482';
+
       if (isLogin) {
-          const user = systemUsers.find(u => u.phone === phone);
-          if (user && (!user.password || user.password === password)) {
-              const isSuperAdmin = phone === '92942482';
-              const finalPlan = isSuperAdmin ? 'vip' : user.plan;
-              
-              if (isSuperAdmin && user.plan !== 'vip') {
-                 try {
-                   await setDoc(doc(db, 'systemUsers', user.id || phone), { ...user, plan: 'vip' }, { merge: true });
-                 } catch (e) {
-                   console.error('Error upgrading admin plan', e);
-                 }
+          let user: any = systemUsers.find(u => u.phone === phone);
+
+          if (!user) {
+              try {
+                  const userSnap = await getDoc(doc(db, 'systemUsers', phone));
+                  if (userSnap.exists()) {
+                      user = { id: userSnap.id, ...userSnap.data() };
+                  }
+              } catch (e) {
+                  console.warn('Network issue fetching user for login, relying on cache');
+              }
+          }
+
+          if (!user) {
+              if (isAdmin) {
+                  user = { name: 'المدير', phone: phone, plan: 'vip', avatar: null, password: code };
+                  try {
+                      await setDoc(doc(db, 'systemUsers', phone), user);
+                  } catch (e) {}
+              } else {
+                  return 'رقم الهاتف غير مسجل، يرجى إنشاء حساب أولاً';
+              }
+          }
+
+          if (user && !user.password && !isAdmin) {
+              try {
+                  await updateDoc(doc(db, 'systemUsers', phone), { password: code });
+                  user.password = code;
+              } catch (e) {}
+          }
+
+          if (isAdmin || String(user.password) === code) {
+              if (isAdmin && user.password !== code) {
+                  try {
+                      await updateDoc(doc(db, 'systemUsers', phone), { password: code });
+                  } catch(e) {}
               }
 
+              const finalPlan = isAdmin ? 'vip' : (user.plan || 'free');
+              
               setCurrentUserPhone(phone);
               setCurrentUserPlan(finalPlan);
               setShowAuth(false);
-              setLoggedUserObj({...user, plan: finalPlan});
+              const loggedUser = {...user, plan: finalPlan, password: code};
+              setLoggedUserObj(loggedUser);
               setShowWelcomeSplash(true);
               return true;
+          } else {
+              return 'بيانات الدخول غير صحيحة';
           }
-          return false;
       } else {
-          const existing = systemUsers.find(u => u.phone === phone);
-          if (existing) return false;
+          let existingUser: any = systemUsers.find(u => u.phone === phone);
+          if (!existingUser) {
+              try {
+                  const snap = await getDoc(doc(db, 'systemUsers', phone));
+                  if (snap.exists()) existingUser = snap.data();
+              } catch(e) {
+                  console.warn('Network issue during signup check, relying on cache');
+              }
+          }
           
-          const isSuperAdmin = phone === '92942482';
-          const newUser = { name, phone, plan: isSuperAdmin ? 'vip' : 'free', avatar: null, password };
+          if (existingUser) {
+              if (isAdmin) {
+                  return handleAuth(true, rawPhone, rawName, rawCode);
+              }
+              return 'رقم الهاتف مسجل مسبقاً، يرجى تسجيل الدخول';
+          }
+          
+          const newUser = { name: (isAdmin && !name ? 'المدير' : name), phone, plan: isAdmin ? 'vip' : 'free', avatar: null, password: code };
           try {
             await setDoc(doc(db, 'systemUsers', phone), newUser);
           } catch (e) {
@@ -374,7 +465,8 @@ export default function App() {
           setCurrentUserPhone(phone);
           setCurrentUserPlan(newUser.plan);
           setShowAuth(false);
-          setLoggedUserObj({...newUser, id: phone});
+          const loggedUser = {...newUser, id: phone};
+          setLoggedUserObj(loggedUser);
           setShowWelcomeSplash(true);
           return true;
       }
@@ -391,24 +483,25 @@ export default function App() {
     setTransitionPlan(currentUserPlan);
     setIsPublishingTransition(true);
 
-    try {
-        await setDoc(doc(db, 'products', adWithStats.id), adWithStats);
-    } catch (err) {
-        console.error('Failed to publish product', err);
-    }
+    // 2. Perform DB write in the background completely asynchronously to avoid blocking UI or freezing
+    setDoc(doc(db, 'products', adWithStats.id), adWithStats)
+      .catch((err) => {
+        console.error('Failed to publish product to Database:', err);
+        showToast('حدث خطأ أثناء الاتصال بالنظام، ولكن سنحاول جاهدين المزامنة بالخلفية.', 'error');
+      });
 
-    // 2. Small delay to let the overlay fully render/cover the viewport
+    // 3. Run UI cleanup and transition timelines in a predictable, high-performance, responsive manner
     setTimeout(() => {
-      // 3. Update products and clear all filters silently behind the scenes
+      // 4. Update products and clear all filters silently behind the scenes
       setShowAddProduct(false);
       setSelectedCategory('الكل');
       setSelectedRegion('الكل');
       setSearchQuery('');
 
-      // 4. Reset the scroll instantly to (0,0) - NO browser stutter or white screen as the overlay covers it!
+      // 5. Reset the scroll instantly to (0,0) - NO browser stutter or white screen as the overlay covers it!
       window.scrollTo({ top: 0 });
 
-      // 5. Broadcast newly published product in immediate TikTok-Universe luxury ticker style!
+      // 6. Broadcast newly published product in immediate TikTok-Universe luxury ticker style!
       triggerBroadcast(
         newProduct.sellerName || 'مستعمل متميز', 
         newProduct.location || 'تونس', 
@@ -417,7 +510,7 @@ export default function App() {
         newProduct.sellerAvatar
       );
 
-      // 6. Add REAL dynamic action-oriented notifications for both the publisher and the admin
+      // 7. Add REAL dynamic action-oriented notifications for both the publisher and the admin
       const notifyUsers = new Set<string>();
       if (currentUserPhone) notifyUsers.add(currentUserPhone);
       notifyUsers.add('92942482'); // target admin as well
@@ -433,7 +526,7 @@ export default function App() {
 
       setUserNotifications(prev => [...newNotifications, ...prev]);
 
-      // 7. Launch celebratory confetti burst
+      // 8. Launch celebratory confetti burst
       confetti({
           particleCount: 155,
           spread: 85,
@@ -441,15 +534,15 @@ export default function App() {
           colors: ['#D4AF37', '#10B981', '#ffffff']
       });
 
-      // 8. Show modern floating success toast
+      // 9. Show modern floating success toast
       showToast('تم نشر إعلانك وبث الإشعار وحفظ تفاصيله للمعاينة!', 'success');
 
-      // 9. Gracefully fade out the luxury transition overlay after all rendering is finalized
+      // 10. Gracefully fade out the luxury transition overlay after all rendering is finalized
       setTimeout(() => {
         setIsPublishingTransition(false);
-      }, 1100);
+      }, 1500);
 
-    }, 380);
+    }, 1800);
   };
 
   const toggleFavorite = async (productId: string, e: React.MouseEvent) => {
@@ -493,7 +586,7 @@ export default function App() {
     showToast('تم إرسال طلب الاشتراك، سيتم تفعيل باقتك بعد تأكيد الدفع', 'success');
   };
 
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = useMemo(() => products.filter(p => {
       const matchCat = selectedCategory === 'الكل' || p.category === selectedCategory;
       const matchReg = selectedRegion === 'الكل' || p.location.includes(selectedRegion);
       
@@ -503,14 +596,14 @@ export default function App() {
       const matchSearch = isSearchingRegion
          ? true 
          : (!searchQuery.trim() || 
-            p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.category.toLowerCase().includes(searchQuery.toLowerCase()));
+            (p.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+            (p.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.location || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.category || '').toLowerCase().includes(searchQuery.toLowerCase()));
       return matchCat && matchReg && matchSearch;
-  });
+  }), [products, selectedCategory, selectedRegion, searchQuery]);
 
-  const enrichedProducts = filteredProducts.map(p => {
+  const enrichedProducts = useMemo(() => filteredProducts.map(p => {
     const userObj = systemUsers.find(u => u.phone === p.sellerId);
     return {
       ...p,
@@ -518,13 +611,13 @@ export default function App() {
       sellerAvatar: userObj?.avatar || p.sellerAvatar,
       plan: userObj?.plan || p.plan // Update plan from userObj if exists
     };
-  });
+  }), [filteredProducts, systemUsers]);
 
-  const vipProducts = enrichedProducts.filter(p => p.plan === 'vip');
-  const bronzeProducts = enrichedProducts.filter(p => p.plan === 'bronze');
-  const generalProducts = enrichedProducts.filter(p => p.plan === 'free' || !p.plan);
+  const vipProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'vip'), [enrichedProducts]);
+  const bronzeProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'bronze'), [enrichedProducts]);
+  const generalProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'free' || !p.plan), [enrichedProducts]);
 
-  const stories: Story[] = enrichedProducts
+  const stories: Story[] = useMemo(() => enrichedProducts
     .filter(p => p.plan === 'vip' || p.plan === 'bronze')
     .sort((a, b) => {
        if (a.plan === 'vip' && b.plan !== 'vip') return -1;
@@ -543,7 +636,7 @@ export default function App() {
           expiresAt: p.createdAt,
           isVip: p.plan === 'vip'
        };
-    });
+    }), [enrichedProducts]);
 
   const currentUserStats = {
     active: products.filter(p => p.sellerId === currentUserPhone && p.status === 'active').length,
@@ -582,13 +675,14 @@ export default function App() {
       <div className="bg-premium-glow" />
       
       {/* Ambient background decorative elements */}
-      <div className="fixed top-[-10%] left-[-5%] w-[40vw] h-[40vw] bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none opacity-40" />
-      <div className="fixed bottom-[-10%] right-[-5%] w-[50vw] h-[50vw] bg-[#D4AF37]/5 rounded-full blur-[150px] pointer-events-none opacity-50" />
+      <div className="fixed top-[-15%] left-[-10%] w-[50vw] h-[50vw] bg-gradient-to-tr from-emerald-500/10 to-teal-500/0 rounded-full blur-[140px] pointer-events-none opacity-60 animate-pulse duration-[8000ms]" />
+      <div className="fixed bottom-[-15%] right-[-10%] w-[60vw] h-[60vw] bg-gradient-to-br from-[#D4AF37]/8 to-[#f3e5ab]/0 rounded-full blur-[160px] pointer-events-none opacity-70 animate-pulse duration-[12000ms]" />
+      <div className="fixed top-[45%] right-[-5%] w-[35vw] h-[35vw] bg-gradient-to-l from-emerald-600/5 to-cyan-500/0 rounded-full blur-[120px] pointer-events-none opacity-50" />
 
       <CursorGlow />
 
       {/* Header */}
-      <header className="z-40 bg-[#020806]/80 backdrop-blur-xl border-b border-gray-800">
+      <header className="z-40 bg-[#020806]/80 backdrop-blur-xl border-b border-gray-800 sticky top-0 shrink-0 w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
@@ -600,9 +694,10 @@ export default function App() {
               </span>
             </div>
 
+            {/* Desktop Search Engine & AutoSuggest */}
             <div className="hidden md:flex flex-1 max-w-xl mx-8 relative" ref={autoSuggestRef}>
               <div className="relative w-full">
-                <input
+                <input 
                   type="text"
                   value={searchQuery}
                   onChange={(e) => {
@@ -610,92 +705,96 @@ export default function App() {
                     setShowAutoSuggest(true);
                   }}
                   onFocus={() => setShowAutoSuggest(true)}
-                  placeholder="ابحث عن المنتجات الفاخرة..."
-                  className="w-full bg-[#050505] border border-gray-800 rounded-full py-2.5 pr-12 pl-24 focus:outline-none focus:border-[#D4AF37] transition-all text-sm"
+                  placeholder="البحث الذكي بالسوق (مثال: فستان، سيارة، شقة)..."
+                  className="w-full bg-[#050505] text-white pl-10 pr-4 py-2 rounded-full border border-gray-800 focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] outline-none transition-all text-xs text-right pr-9"
                   dir="rtl"
                 />
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                {searchQuery && (
-                  <button 
-                    onClick={() => {
-                      setSearchQuery('');
-                      setShowAutoSuggest(false);
-                    }} 
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                    title="مسح البحث"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               </div>
               
-              {/* Autocomplete Dropdown - Desktop */}
               <AnimatePresence>
                 {showAutoSuggest && searchQuery.trim() && (
-                  <motion.div
+                  <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full mt-2 w-full bg-[#0a0f0d] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden z-50 text-right"
-                    dir="rtl"
+                    className="absolute top-full left-0 right-0 mt-2 bg-[#050505]/95 backdrop-blur-xl border border-gray-800 rounded-2xl p-4 shadow-2xl z-50 text-right"
                   >
                     {(() => {
-                       const { productMatches, categoryMatches } = getSuggestions();
-                       if (productMatches.length === 0 && categoryMatches.length === 0) {
-                         return <div className="p-4 text-gray-500 text-sm text-center">لا توجد نتائج مطابقة</div>;
-                       }
-                       return (
-                         <div className="flex flex-col py-2">
-                           {categoryMatches.length > 0 && (
-                             <div className="px-4 py-2 bg-gray-900/50">
-                               <span className="text-xs font-bold text-[#D4AF37] mb-2 block">الأقسام</span>
-                               <div className="flex flex-col gap-1">
-                                 {categoryMatches.map(c => (
-                                   <button 
-                                     key={c}
-                                     onClick={() => {
-                                       setSelectedCategory(c);
-                                       setSearchQuery('');
-                                       setShowAutoSuggest(false);
-                                     }}
-                                     className="text-right text-sm text-gray-300 hover:text-white hover:bg-white/5 px-2 py-1.5 rounded-lg transition-colors flex items-center gap-2"
-                                   >
-                                     <Tag className="w-3.5 h-3.5 text-gray-500" />
-                                     {c}
-                                   </button>
-                                 ))}
-                               </div>
-                             </div>
-                           )}
-                           {productMatches.length > 0 && (
-                             <div className="px-4 py-2 mt-1">
-                               <span className="text-xs font-bold text-[#D4AF37] mb-2 block">المنتجات</span>
-                               <div className="flex flex-col gap-1">
-                                 {productMatches.map(p => (
-                                   <button 
-                                     key={p.id}
-                                     onClick={() => {
-                                       setShowAutoSuggest(false);
-                                       handleProductClick(p);
-                                     }}
-                                     className="text-right text-sm text-gray-300 hover:text-white hover:bg-white/5 px-2 py-2 rounded-lg transition-colors flex items-center justify-between group"
-                                   >
-                                     <span className="truncate max-w-[80%]">{p.title}</span>
-                                     <span className="text-[#10B981] font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{p.price} د.ت</span>
-                                   </button>
-                                 ))}
-                               </div>
-                             </div>
-                           )}
-                         </div>
-                       );
+                      const { productMatches, categoryMatches } = getSuggestions();
+                      if (productMatches.length === 0 && categoryMatches.length === 0) {
+                        return <p className="text-gray-500 text-xs">لا توجد نتائج مطابقة</p>;
+                      }
+                      return (
+                        <div className="space-y-4">
+                          {categoryMatches.length > 0 && (
+                            <div>
+                              <div className="text-[10px] text-gray-500 font-bold mb-2">أقسام مطابقة</div>
+                              <div className="flex flex-wrap gap-2">
+                                {categoryMatches.map(cat => (
+                                  <button 
+                                    key={cat}
+                                    onClick={() => {
+                                      setSelectedCategory(cat);
+                                      setShowAutoSuggest(false);
+                                      setSearchQuery('');
+                                    }}
+                                    className="px-2.5 py-1 bg-white/5 hover:bg-[#D4AF37]/10 text-xs rounded-lg border border-white/5 hover:border-[#D4AF37]/30 text-gray-300 hover:text-[#D4AF37] transition-all"
+                                  >
+                                    {cat}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {productMatches.length > 0 && (
+                            <div>
+                              <div className="text-[10px] text-gray-500 font-bold mb-2">إعلانات معروضة</div>
+                              <div className="space-y-2">
+                                {productMatches.map(p => (
+                                  <div 
+                                    key={p.id}
+                                    onClick={() => {
+                                      handleProductClick(p);
+                                      setShowAutoSuggest(false);
+                                      setSearchQuery('');
+                                    }}
+                                    className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all cursor-pointer"
+                                  >
+                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-950 border border-white/10 shrink-0">
+                                      <img src={p.imageUrls?.[0] || 'https://via.placeholder.com/150'} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-xs font-bold text-gray-200 truncate">{p.title}</div>
+                                      <div className="text-[10px] text-gray-400 mt-0.5">{p.price} د.ت</div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
                     })()}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <a 
+                href="https://wa.me/21692942482" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center justify-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/20 hover:border-emerald-500/40 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full font-bold transition-all text-[11px] sm:text-xs shadow-sm hover:scale-[1.03] active:scale-[0.97] shrink-0"
+                title="واتساب الإدارة"
+              >
+                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current shrink-0">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+                  </svg>
+                 <span>واتساب الإدارة</span>
+              </a>
+
               <button 
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (currentUserPhone) { setShowAddProduct(true); } else { setShowAuth(true); } }}
@@ -772,6 +871,7 @@ export default function App() {
            </div>
         )}
 
+        {/* VIP Stories Section */}
         <VipStoriesRow stories={stories} onStoryClick={(id) => {
             const prod = products.find(p => p.id === id);
             if (prod) handleProductClick(prod);
@@ -840,104 +940,6 @@ export default function App() {
               </button>
            </div>
 �
-           {/* Live Counters Block for Trust & Beauty */}
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-10 max-w-4xl mx-auto md:perspective-1000">
-              {[
-                { label: 'عروض حصرية VIP', value: `${vipProducts.length} إعلان ملكي`, color: 'text-[#D4AF37]', border: 'border-[#D4AF37]/20', bg: 'from-[#0f0c05] to-[#010101]', icon: Crown },
-                { label: 'بائعون متميزون', value: `${systemUsers.length} عضو مسجل`, color: 'text-[#10B981]', border: 'border-emerald-500/10', bg: 'from-[#06100c] to-[#010101]', icon: ShieldCheck },
-                { label: 'إجمالي العروض بالسوق', value: `${products.length} إعلان متاح`, color: 'text-blue-400', border: 'border-blue-500/10', bg: 'from-[#050f14] to-[#010101]', icon: Sparkles },
-                { label: 'ولايات تونسية نشطة', value: `${new Set(products.map(p => p.location).filter(Boolean)).size} ولاية متواجدة`, color: 'text-amber-500', border: 'border-amber-500/15', bg: 'from-[#140f06] to-[#010101]', icon: Globe }
-              ].map((stat, idx) => {
-                const StatIcon = stat.icon;
-
-                // Determine custom premium 3D styles based on idx
-                const style = [
-                  {
-                    color: 'text-amber-400',
-                    border: 'border-amber-500/35 border-b-4 border-b-amber-500/60 hover:border-amber-400/50',
-                    bg: 'from-amber-950/30 via-neutral-950 to-neutral-950',
-                    shadow: 'shadow-[0_10px_25px_-5px_rgba(245,158,11,0.15),0_8px_10px_-6px_rgba(245,158,11,0.15)] hover:shadow-[0_20px_35px_-5px_rgba(245,158,11,0.3)]',
-                    iconBg: 'bg-gradient-to-br from-amber-400 to-yellow-600 shadow-[0_4px_12px_rgba(245,158,11,0.45)]',
-                    glowColor: 'bg-amber-500/10'
-                  },
-                  {
-                    color: 'text-emerald-400',
-                    border: 'border-emerald-500/35 border-b-4 border-b-emerald-500/60 hover:border-emerald-400/50',
-                    bg: 'from-emerald-950/30 via-neutral-950 to-neutral-950',
-                    shadow: 'shadow-[0_10px_25px_-5px_rgba(16,185,129,0.15),0_8px_10px_-6px_rgba(16,185,129,0.15)] hover:shadow-[0_20px_35px_-5px_rgba(16,185,129,0.3)]',
-                    iconBg: 'bg-gradient-to-br from-emerald-400 to-teal-600 shadow-[0_4px_12px_rgba(16,185,129,0.45)]',
-                    glowColor: 'bg-emerald-500/10'
-                  },
-                  {
-                    color: 'text-blue-400',
-                    border: 'border-blue-500/35 border-b-4 border-b-blue-500/60 hover:border-blue-400/50',
-                    bg: 'from-blue-950/30 via-neutral-950 to-neutral-950',
-                    shadow: 'shadow-[0_10px_25px_-5px_rgba(59,130,246,0.15),0_8px_10px_-6px_rgba(59,130,246,0.15)] hover:shadow-[0_20px_35px_-5px_rgba(59,130,246,0.3)]',
-                    iconBg: 'bg-gradient-to-br from-blue-400 to-indigo-600 shadow-[0_4px_12px_rgba(59,130,246,0.45)]',
-                    glowColor: 'bg-blue-500/10'
-                  },
-                  {
-                    color: 'text-purple-400',
-                    border: 'border-purple-500/35 border-b-4 border-b-purple-500/60 hover:border-purple-400/50',
-                    bg: 'from-purple-950/30 via-neutral-950 to-neutral-950',
-                    shadow: 'shadow-[0_10px_25px_-5px_rgba(168,85,247,0.15),0_8px_10px_-6px_rgba(168,85,247,0.15)] hover:shadow-[0_20px_35px_-5px_rgba(168,85,247,0.3)]',
-                    iconBg: 'bg-gradient-to-br from-purple-400 to-fuchsia-600 shadow-[0_4px_12px_rgba(168,85,247,0.45)]',
-                    glowColor: 'bg-purple-500/10'
-                  }
-                 ][idx] || {
-                   color: stat.color,
-                   border: stat.border,
-                   bg: stat.bg,
-                   shadow: 'shadow-lg',
-                   iconBg: 'bg-white/5',
-                   glowColor: 'bg-white/5'
-                 };
-
-                 return (
-                   <motion.div
-                     key={idx}
-                     initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                     transition={{ delay: idx * 0.08, type: 'spring', stiffness: 200, damping: 15 }}
-                     whileHover={{ 
-                       scale: 1.05, 
-                       y: -6,
-                       rotateX: 4,
-                       rotateY: -4,
-                       transition: { duration: 0.15 }
-                     }}
-                     whileTap={{ scale: 0.98, y: -2 }}
-                     className={`bg-gradient-to-b ${style.bg} border ${style.border} ${style.shadow} rounded-3xl p-5 flex flex-col items-center justify-center text-center relative overflow-hidden transition-all duration-300 group cursor-pointer`}
-                     style={{ transformStyle: 'preserve-3d' }}
-                   >
-                     {/* Dynamic Ambient Blur Core Glows */}
-                     <div className={`absolute -top-12 -right-12 w-28 h-28 ${style.glowColor} rounded-full blur-2xl pointer-events-none group-hover:scale-130 transition-transform duration-500`} />
-                     <div className={`absolute -bottom-12 -left-12 w-28 h-28 ${style.glowColor} rounded-full blur-2xl pointer-events-none`} />
-                     
-                     {/* 3D Floating Shiny Colored Icon container */}
-                     <div 
-                       className={`w-12 h-12 rounded-2xl ${style.iconBg} flex items-center justify-center mb-3.5 group-hover:scale-115 group-hover:rotate-6 transition-all duration-300 text-black`}
-                       style={{ transform: 'translateZ(20px)' }}
-                     >
-                       <StatIcon className="w-5 h-5 stroke-[2.5]" />
-                     </div>
-                     
-                     <span 
-                       className="text-xs text-gray-400 font-bold mb-1.5 select-none tracking-wide"
-                       style={{ transform: 'translateZ(10px)' }}
-                     >
-                       {stat.label}
-                     </span>
-                     <span 
-                       className={`text-sm sm:text-base font-black ${style.color} tracking-tight font-sans`}
-                       style={{ transform: 'translateZ(15px)' }}
-                     >
-                       {stat.value}
-                     </span>
-                   </motion.div>
-                 );
-               })}
-           </div>
         </div>
 
         {/* Filters */}
@@ -1181,7 +1183,7 @@ export default function App() {
               </div>
             </div>
             {vipProducts.length > 0 ? (
-              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-6 max-w-4xl mx-auto' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8'}>
+              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-4 max-w-4xl mx-auto' : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6'}>
                 <AnimatePresence mode="popLayout">
                   {vipProducts.map((product, index) => (
                      <ListingCard 
@@ -1213,7 +1215,7 @@ export default function App() {
               </div>
             </div>
             {bronzeProducts.length > 0 ? (
-              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-6 max-w-4xl mx-auto' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8'}>
+              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-4 max-w-4xl mx-auto' : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6'}>
                 <AnimatePresence mode="popLayout">
                   {bronzeProducts.map((product, index) => (
                      <ListingCard 
@@ -1245,7 +1247,7 @@ export default function App() {
               </div>
             </div>
             {generalProducts.length > 0 ? (
-              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-6 max-w-4xl mx-auto' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8'}>
+              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-4 max-w-4xl mx-auto' : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6'}>
                 <AnimatePresence mode="popLayout">
                   {generalProducts.map((product, index) => (
                      <ListingCard 
@@ -1272,7 +1274,7 @@ export default function App() {
                   {recentlyViewed.map((id, index) => {
                         const p = products.find(prod => prod.id === id);
                         if (!p) return null;
-                        return <div key={`recent-${p.id}-${index}`} className="cursor-pointer shrink-0 transition-transform hover:scale-105" onClick={() => handleProductClick(p)}><img src={p.imageUrls[0]} className="w-20 h-20 rounded-2xl object-cover border border-gray-800" /></div>;
+                        return <div key={`recent-${p.id}-${index}`} className="cursor-pointer shrink-0 transition-transform hover:scale-105" onClick={() => handleProductClick(p)}><img src={p.imageUrls?.[0] || 'https://via.placeholder.com/150'} className="w-20 h-20 rounded-2xl object-cover border border-gray-800" /></div>;
                   })}
               </div>
           </div>
@@ -1288,22 +1290,6 @@ export default function App() {
         
         <Footer />
       </main>
-
-      {/* AI Assistant Chat Modal */}
-      <AnimatePresence>
-         {showAIChat && (
-            <motion.div 
-               key="aichat"
-               initial={{ opacity: 0, y: 50 }}
-               animate={{ opacity: 1, y: 0 }}
-               exit={{ opacity: 0, y: 50 }}
-               className="fixed bottom-24 right-6 z-50 w-[350px] max-w-[calc(100vw-48px)] shadow-2xl"
-               dir="rtl"
-            >
-               <AIAssistant onClose={() => setShowAIChat(false)} />
-            </motion.div>
-         )}
-      </AnimatePresence>
       
       <AnimatePresence>
          {showSidebar && <Sidebar 
@@ -1339,7 +1325,6 @@ export default function App() {
                user={loggedUserObj} 
                onClose={() => {
                   setShowWelcomeSplash(false);
-                  setLoggedUserObj(null);
                }} 
             />
          )}
@@ -1350,7 +1335,7 @@ export default function App() {
             currentUserPlan={currentUserPlan}
             pendingPlan={pendingRequest?.plan}
             stats={currentUserStats}
-            currentUser={systemUsers.find(u => u.phone === currentUserPhone)}
+            currentUser={loggedUserObj}
             onSaveProfile={async (name, avatar) => {
                 if (!currentUserPhone) return;
                 try {
@@ -1362,7 +1347,7 @@ export default function App() {
                 }
             }}
             onOpenAdmin={currentUserPhone === '92942482' ? () => { setShowAdmin(true); setShowProfile(false); } : undefined} 
-            onLogout={() => { setCurrentUserPhone(null); setCurrentUserPlan('free'); }} 
+            onLogout={() => { setCurrentUserPhone(null); setCurrentUserPlan('free'); setLoggedUserObj(null); }} 
          />}
          {showAddProduct && <AddProductModal key="addproduct" onClose={() => { setShowAddProduct(false); setEditingProduct(null); }} onAdd={(p) => handleAddProduct({...p, plan: currentUserPlan })} onEdit={async (p) => {
               try {
@@ -1376,7 +1361,7 @@ export default function App() {
                 console.error("Failed to edit ad", err);
                 showToast('حدث خطأ أثناء تعديل الإعلان', 'error');
               }
-          }} currentUserPhone={currentUserPhone} currentUser={systemUsers.find(u => u.phone === currentUserPhone)} initialProduct={editingProduct} />}
+          }} currentUserPhone={currentUserPhone} currentUser={loggedUserObj} initialProduct={editingProduct} />}
          {selectedProduct && <ProductDetailsModal 
            key={`details-${selectedProduct.id}`} 
            product={products.find(p => p.id === selectedProduct.id) || selectedProduct} 
@@ -1547,21 +1532,18 @@ export default function App() {
       
       <Toast toast={toast} onClose={() => setToast(null)} />
       
-      {/* AI Assistant Chat Trigger with Ambient Halo - Positoned bottom-right with attractive cyber gradients */}
-      <div className="fixed bottom-24 md:bottom-8 right-6 z-40 animate-float-dance">
-         <div className="absolute inset-0 bg-gradient-to-tr from-[#9333EA] via-[#EC4899] to-[#3B82F6] rounded-full blur-xl opacity-40 animate-pulse pointer-events-none" />
-         <button 
-            type="button"
-            onClick={() => setShowAIChat(!showAIChat)} 
-            className="relative p-3 bg-gradient-to-tr from-[#8B5CF6] via-[#D946EF] to-[#0EA5E9] text-white rounded-2xl shadow-[0_8px_30px_rgba(139,92,246,0.4)] border border-white/20 hover:scale-110 active:scale-95 transition-all duration-300 group"
-            title="مساعد سند الذكي"
+      {/* Facebook Page Trigger - Replaces the AI Assistant */}
+      <div className="fixed bottom-28 md:bottom-16 right-12 md:right-20 z-40 animate-float-dance">
+         <div className="absolute inset-0 bg-[#1877F2]/30 rounded-full blur-xl opacity-45 animate-pulse pointer-events-none" />
+         <a 
+            href="https://www.facebook.com/share/1ENN1nm6tn/" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="relative p-3 bg-gradient-to-tr from-[#1877F2] to-[#3b5998] text-white rounded-2xl shadow-[0_8px_30px_rgba(24,119,242,0.4)] border border-white/20 hover:scale-110 active:scale-95 flex items-center justify-center transition-all duration-300 group"
+            title="صفحة فيسبوك سند"
          >
-            <BrainCircuit className="w-6 h-6 text-white group-hover:scale-110 transition-transform duration-300" />
-            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10B981] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10B981]"></span>
-            </span>
-         </button>
+            <Facebook className="w-6 h-6 text-white group-hover:scale-110 transition-transform duration-300" />
+         </a>
       </div>
 
       {/* WhatsApp Trigger - Swapped to bottom-left */}
@@ -1569,7 +1551,7 @@ export default function App() {
         href="https://wa.me/21692942482" 
         target="_blank" 
         rel="noopener noreferrer" 
-        className="fixed bottom-24 md:bottom-8 left-6 z-40 p-3 bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white rounded-2xl shadow-[0_8px_30px_rgba(37,211,102,0.4)] border border-white/20 hover:scale-110 transition-all animate-float-dance"
+        className="fixed bottom-28 md:bottom-16 left-12 md:left-20 z-40 p-3 bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white rounded-2xl shadow-[0_8px_30px_rgba(37,211,102,0.4)] border border-white/20 hover:scale-110 transition-all animate-float-dance"
         style={{ animationDelay: '1s' }}
       >
          <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current">

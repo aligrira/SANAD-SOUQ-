@@ -9,6 +9,18 @@ async function startServer() {
 
   app.use(express.json());
 
+  // CORS Middleware to support mobile apps (APK / Capacitor)
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      res.sendStatus(200);
+      return;
+    }
+    next();
+  });
+
   // AI Assistant Route
   app.post("/api/chat", async (req, res) => {
     try {

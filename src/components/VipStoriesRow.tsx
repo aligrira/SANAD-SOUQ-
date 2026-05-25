@@ -21,16 +21,16 @@ export default function VipStoriesRow({ stories, onStoryClick }: VipStoriesRowPr
         <span className="text-[11px] text-gray-400 bg-[#050505] px-3.5 py-1 rounded-full border border-gray-800 tracking-wide text-center">حصرية للمشتركين VIP</span>
       </div>
       
-      <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1.5 pt-1 -mx-4 px-4" style={{ touchAction: 'pan-x' }}>
+      <div className="flex gap-2.5 sm:gap-4 overflow-x-auto no-scrollbar pb-2 pt-1 -mx-4 px-4 scroll-smooth overscroll-x-contain" style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}>
         {stories.map((story, index) => (
           <motion.div
             key={story.id}
             onClick={() => onStoryClick && onStoryClick(story.id)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0"
+            className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 snap-start"
           >
-            <div className="relative w-20 h-20 rounded-full p-[2px] bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow">
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full p-[2px] bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow">
               <div className="w-full h-full rounded-full border-2 border-[#020806] overflow-hidden bg-gray-900 relative">
                 <img 
                   src={story.imageUrl || story.sellerAvatar || 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=150'} 
@@ -40,13 +40,13 @@ export default function VipStoriesRow({ stories, onStoryClick }: VipStoriesRowPr
                 />
                 
                 {story.isVip && (
-                   <div className="absolute top-0 right-0 left-0 bottom-0 bg-black/10 flex flex-col items-center justify-end pb-2">
-                       <span className="bg-[#D4AF37] text-[#020806] text-[9px] font-black px-2 py-0.5 rounded-md select-none shadow-[0_0_12px_rgba(212,175,55,0.9)] border border-white/20">VIP</span>
+                   <div className="absolute top-0 right-0 left-0 bottom-0 bg-black/10 flex flex-col items-center justify-end pb-1.5">
+                       <span className="bg-[#D4AF37] text-[#020806] text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_12px_rgba(212,175,55,0.9)] border border-white/20 select-none">VIP</span>
                    </div>
                 )}
               </div>
             </div>
-            <span className="text-xs text-gray-300 font-medium truncate w-20 text-center" title={story.title || story.sellerName}>
+            <span className="text-[10px] sm:text-xs text-gray-300 font-medium w-16 sm:w-20 text-center truncate px-0.5" title={story.title || story.sellerName}>
                 {story.title || story.sellerName}
             </span>
           </motion.div>

@@ -5,16 +5,16 @@ import { X, Phone, User, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 interface AuthModalProps {
   key?: React.Key;
   onClose: () => void;
-  onAuth: (isLogin: boolean, phone: string, name: string, password?: string) => boolean;
+  onAuth: (isLogin: boolean, phone: string, name: string, code: string) => boolean | string | Promise<boolean | string>;
 }
 
 export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [code, setCode] = useState('');
+  const [confirmCode, setConfirmCode] = useState('');
+  const [showCode, setShowCode] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -50,13 +50,17 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
             </div>
         )}
 
-        <form className="space-y-4 text-right" dir="rtl" onSubmit={(e) => { 
+        <form className="space-y-4 text-right" dir="rtl" onSubmit={async (e) => { 
           e.preventDefault(); 
           setErrorMsg('');
           
           if (!isLogin) {
-            if (password !== confirmPassword) {
-              setErrorMsg('كلمات المرور غير متطابقة');
+            if (code !== confirmCode) {
+              setErrorMsg('الكود غير متطابق');
+              return;
+            }
+            if (code.length !== 8) {
+              setErrorMsg('يجب أن يتكون الكود من 8 أرقام');
               return;
             }
             if (!agreed) {
@@ -65,9 +69,14 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
             }
           }
 
-          const success = onAuth(isLogin, phone, name, password);
-          if (!success) {
-              setErrorMsg(isLogin ? 'بيانات الدخول غير صحيحة' : 'رقم الهاتف مسجل مسبقاً');
+          try {
+            const result = await onAuth(isLogin, phone, name, code);
+            if (result !== true) {
+                setErrorMsg(typeof result === 'string' ? result : (isLogin ? 'بيانات الدخول غير صحيحة' : 'رقم الهاتف مسجل مسبقاً'));
+            }
+          } catch(err: any) {
+              console.error('Auth error:', err);
+              setErrorMsg(err.message || 'حدث خطأ أثناء الاتصال');
           }
         }}>
           {!isLogin && (
@@ -83,20 +92,21 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
 
           <div className="relative">
             <input 
-              type={showPassword ? "text" : "password"} 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="كلمة المرور" 
+              type={showCode ? "text" : "password"} 
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="كود الدخول (8 أرقام)" 
+              maxLength={8}
               className="w-full bg-[#020806] border border-gray-800 rounded-xl py-3 pr-12 pl-12 text-white focus:border-[#D4AF37] outline-none transition-all text-right" 
               required 
             />
             <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
+              onClick={() => setShowCode(!showCode)}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
             >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              {showCode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
 
@@ -104,10 +114,11 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
             <>
               <div className="relative">
                 <input 
-                  type={showPassword ? "text" : "password"} 
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="تأكيد كلمة المرور" 
+                  type={showCode ? "text" : "password"} 
+                  value={confirmCode}
+                  onChange={(e) => setConfirmCode(e.target.value)}
+                  placeholder="تأكيد كود الدخول" 
+                  maxLength={8}
                   className="w-full bg-[#020806] border border-gray-800 rounded-xl py-3 pr-12 pl-12 text-white focus:border-[#D4AF37] outline-none transition-all text-right" 
                   required 
                 />
