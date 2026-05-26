@@ -315,7 +315,7 @@ export default function AdminPanel({
             {/* Sidebar menu - Luxury Glassmorphic */}
             <div className="w-64 bg-[#040404] border-l border-gray-900/60 p-5 shrink-0 hidden md:block relative z-10">
                 <div className="mb-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest px-3">لوحات التحليل</div>
-                <MenuContent activeTab={activeTab} setActiveTab={setActiveTab} systemRequestsCount={systemRequests.filter(r => r.status !== 'activated').length} />
+                <MenuContent activeTab={activeTab} setActiveTab={setActiveTab} systemRequestsCount={systemRequests.filter(r => r.status !== 'activated').length} systemRequests={systemRequests} />
             </div>
 
             {/* Main Content Area */}
@@ -1182,9 +1182,10 @@ interface MenuContentProps {
   activeTab: string;
   setActiveTab: (t: any) => void;
   systemRequestsCount: number;
+  systemRequests: any[];
 }
 
-function MenuContent({ activeTab, setActiveTab, systemRequestsCount }: MenuContentProps) {
+function MenuContent({ activeTab, setActiveTab, systemRequestsCount, systemRequests }: MenuContentProps) {
     return (
         <div className="flex flex-col gap-2">
             <button 
