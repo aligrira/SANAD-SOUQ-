@@ -21,11 +21,13 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
     'أثاث',
     'أدوات منزلية',
     'حيوانات',
+    'تحف و هدايا',
     'اخرى'
   ];
 
   const [images, setImages] = useState<string[]>(initialProduct?.imageUrls || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmEdit, setShowConfirmEdit] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [title, setTitle] = useState(initialProduct?.title || '');
@@ -66,7 +68,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files);
+      const files = Array.from(e.target.files) as File[];
       const newImages: string[] = [];
       
       const processImage = (file: File): Promise<string> => {
@@ -123,6 +125,14 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
   };
 
   const handleSubmit = () => {
+      if (initialProduct) {
+          setShowConfirmEdit(true);
+      } else {
+          executeSubmit();
+      }
+  };
+
+  const executeSubmit = () => {
       const parsedPrice = Number(price);
       if (!title || !price || isNaN(parsedPrice) || parsedPrice <= 0) return;
       setIsSubmitting(true);
@@ -148,6 +158,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
           } else {
               onAdd(productData);
           }
+          onClose();
       }, 1500);
   };
 
@@ -314,6 +325,27 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                إلغاء
             </button>
          </div>
+         {/* Confirm Dialog */}
+         {showConfirmEdit && (
+             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 text-center">
+                 <div className="bg-[#0f0f0f] border border-gray-800 p-6 rounded-3xl w-full max-w-sm">
+                     <h3 className="text-white font-bold mb-4">هل أنت متأكد من حفظ التعديلات؟</h3>
+                     <div className="flex gap-4">
+                         <button 
+                             onClick={() => {
+                                 setShowConfirmEdit(false);
+                                 executeSubmit();
+                             }} 
+                             disabled={isSubmitting}
+                             className="flex-1 bg-[#10B981] hover:bg-[#059669] text-white font-bold py-3 rounded-2xl disabled:opacity-50"
+                         >
+                             {isSubmitting ? 'جاري الحفظ...' : 'حفظ ✅'}
+                         </button>
+                         <button onClick={() => setShowConfirmEdit(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold py-3 rounded-2xl">إلغاء</button>
+                     </div>
+                 </div>
+             </div>
+         )}
       </motion.div>
     </motion.div>
   );

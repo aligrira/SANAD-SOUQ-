@@ -1,13 +1,15 @@
 import { motion } from 'motion/react';
 import { Story } from '../types';
-import { ShoppingBag } from 'lucide-react';
+import { ShoppingBag, User } from 'lucide-react';
 
 interface VipStoriesRowProps {
   stories: Story[];
+  currentUserObj?: any;
   onStoryClick?: (id: string) => void;
+  onProfileClick?: () => void;
 }
 
-export default function VipStoriesRow({ stories, onStoryClick }: VipStoriesRowProps) {
+export default function VipStoriesRow({ stories, currentUserObj, onStoryClick, onProfileClick }: VipStoriesRowProps) {
   if (!stories.length) return null;
 
   return (
@@ -22,6 +24,7 @@ export default function VipStoriesRow({ stories, onStoryClick }: VipStoriesRowPr
       </div>
       
       <div className="flex gap-2.5 sm:gap-4 overflow-x-auto no-scrollbar pb-2 pt-1 -mx-4 px-4 scroll-smooth overscroll-x-contain" style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}>
+        
         {stories.map((story, index) => (
           <motion.div
             key={story.id}

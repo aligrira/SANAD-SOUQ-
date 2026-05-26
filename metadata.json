@@ -1,5 +1,5 @@
 {
-  "name": "Souk Sanad",
+  "name": "sanadsouk",
   "description": "Premium Tunisian E-Commerce Marketplace with VIP Stories, AI Assistant, and Haptic Pull-to-refresh.",
   "requestFramePermissions": ["camera", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

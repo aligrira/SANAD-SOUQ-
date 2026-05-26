@@ -21,12 +21,19 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
   const [current, setCurrent] = useState<BroadcastMessage | null>(null);
   const [repeatCount, setRepeatCount] = useState(0);
 
-  // Pick the next message when the current one is finished
+  // Pick the next message when the current one is finished, or cancel current and play the newest one
   useEffect(() => {
-    if (!current && queue.length > 0) {
-      setCurrent(queue[0]);
+    if (queue.length > 0) {
+      // Always prioritize the most recently added message in the queue
+      const latestMessage = queue[queue.length - 1];
+      if (current?.id !== latestMessage.id) {
+        setCurrent(latestMessage);
+        setRepeatCount(0);
+      }
+    } else {
+      setCurrent(null);
     }
-  }, [queue, current]);
+  }, [queue, current?.id]);
 
   // Reset iteration count for each new message
   useEffect(() => {
@@ -38,12 +45,11 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
   const handleNext = () => {
     if (current) {
       onDismiss(current.id);
-      setCurrent(null);
     }
   };
 
   const handleAnimationComplete = () => {
-    if (repeatCount < 3) { // 0, 1, 2, 3 means exactly 4 times total
+    if (repeatCount < 4) { // 0, 1, 2, 3, 4 means exactly 5 times total
       setRepeatCount(prev => prev + 1);
     } else {
       handleNext();
@@ -55,11 +61,11 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
       {current && (
         <motion.div
           key="marquee-bar"
-          initial={{ height: 0, opacity: 0, marginTop: 0, marginBottom: 0 }}
-          animate={{ height: 48, opacity: 1, marginTop: 10, marginBottom: 20 }}
-          exit={{ height: 0, opacity: 0, marginTop: 0, marginBottom: 0 }}
+          initial={{ y: '-100%', opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: '-100%', opacity: 0 }}
           transition={{ type: 'spring', stiffness: 100, damping: 15 }}
-          className="relative w-full bg-gradient-to-r from-red-700 via-rose-800 to-red-700 border-2 border-rose-500/80 rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.6),0_0_15px_rgba(244,63,94,0.45)] flex items-center z-10 overflow-hidden select-none"
+          className="fixed top-16 inset-x-0 w-full h-14 bg-gradient-to-r from-red-700 via-rose-800 to-red-700 shadow-[0_4px_15px_rgba(0,0,0,0.6),0_0_15px_rgba(244,63,94,0.45)] flex items-center border-b border-rose-500/80 z-[2000] overflow-hidden select-none"
           dir="rtl"
         >
           {/* Animated subtle bottom light beam */}

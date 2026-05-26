@@ -32,7 +32,7 @@ export default function ProductDetailsModal({
 }) {
   const [commentText, setCommentText] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [comments, setComments] = useState(product.comments || []);
+  const [comments, setComments] = useState(product?.comments || []);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
   const [isReported, setIsReported] = useState(false);
@@ -42,10 +42,23 @@ export default function ProductDetailsModal({
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   );
 
+  const isPhoneAdmin = (phone?: string | null): boolean => {
+    if (!phone) return false;
+    const clean = phone.replace(/[^0-9]/g, '');
+    return clean === '92942482' || clean === '21692942482' || clean.endsWith('92942482');
+  };
+
   // Premium Poster Builder States
   const [posterTheme, setPosterTheme] = useState<'gold' | 'emerald' | 'crimson'>('gold');
   const [posterSlogan, setPosterSlogan] = useState('حالة ممتازة تواصل واطلب الآن ✦');
   const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
+
+  const normalizePhone = (phone?: string | null) => phone ? phone.replace(/[^0-9]/g, '').slice(-8) : '';
+  const isOwner = currentUserPhone && product.sellerId && normalizePhone(currentUserPhone) === normalizePhone(product.sellerId);
+  const canDelete = !!isAdmin || isOwner; // Admin or owner can delete
+  const canEdit = !!isAdmin || isOwner; // Admin or owner can edit
+
+  if (!product) return null;
 
   const scrollNext = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -138,13 +151,7 @@ export default function ProductDetailsModal({
     }
   };
 
-  const isPhoneAdmin = (phone?: string | null): boolean => {
-    if (!phone) return false;
-    const clean = phone.replace(/[^0-9]/g, '');
-    return clean === '92942482' || clean === '21692942482' || clean.endsWith('92942482');
-  };
-
-  const isOwner = currentUserPhone && (isPhoneAdmin(currentUserPhone) || currentUserPhone === product.sellerId);
+  // const isOwner = currentUserPhone && (isPhoneAdmin(currentUserPhone) || currentUserPhone === product.sellerId);
 
   const handleDownloadPoster = async () => {
     setIsGeneratingPoster(true);
@@ -388,19 +395,23 @@ export default function ProductDetailsModal({
              </button>
           </div>
 
-          {isOwner && (
+          {(canEdit || canDelete) && (
              <div className="absolute top-6 right-6 z-20 flex gap-2">
-                {onEdit && (
+                {canEdit && onEdit && (
                     <button onClick={() => { onClose(); onEdit(product); }} className="p-3 bg-blue-500/80 hover:bg-blue-600 backdrop-blur-md rounded-full text-white transition-all scale-100 hover:scale-105 active:scale-95 shadow-lg border border-blue-500/20">
                        <Tag className="w-5 h-5" />
                     </button>
                 )}
-                {onDelete && (
+                {canDelete && onDelete && (
                     showConfirmDelete ? (
-                        <div className="flex items-center gap-2 bg-red-500/95 backdrop-blur-md rounded-full px-4 py-2 border border-red-650 text-white shadow-lg">
+                        <div className="flex items-center gap-2 bg-red-500/95 backdrop-blur-md rounded-full px-4 py-2 border border-red-900 text-white shadow-lg">
                            <span className="text-xs font-bold">هل أنت متأكد؟</span>
-                           <button onClick={onDelete} className="p-1 hover:bg-white/25 rounded-full transition-colors"><Trash2 className="w-4 h-4" /></button>
-                           <button onClick={() => setShowConfirmDelete(false)} className="p-1 hover:bg-white/25 rounded-full transition-colors"><X className="w-4 h-4" /></button>
+                          <button onClick={async () => { 
+                             // Show loading state or directly trigger delete and close
+                             onDelete(); 
+                             onClose(); 
+                          }} className="bg-white/10 p-1.5 hover:bg-white/25 rounded-full transition-colors flex items-center gap-1 text-[10px] font-bold">حذف ✅</button>
+                           <button onClick={() => setShowConfirmDelete(false)} className="bg-white/10 p-1.5 hover:bg-white/25 rounded-full transition-colors"><X className="w-4 h-4" /></button>
                         </div>
                     ) : (
                         <button onClick={() => setShowConfirmDelete(true)} className="p-3 bg-red-500/80 hover:bg-red-600 backdrop-blur-md rounded-full text-white transition-all scale-100 hover:scale-105 active:scale-95 shadow-lg border border-red-500/20">
@@ -422,7 +433,7 @@ export default function ProductDetailsModal({
           {/* Content overlay inside story */}
           <div className="relative z-10 w-full space-y-4">
              <div className="w-full">
-                <h1 className="text-xl sm:text-3xl font-bold text-white drop-shadow-md leading-normal mb-3 font-display w-full max-w-full line-clamp-2 sm:line-clamp-3 min-h-[3.5rem] sm:min-h-[4.5rem]" dir="auto" style={{ wordBreak: 'anywhere', overflowWrap: 'anywhere' }}>{product.title}</h1>
+                <h1 className="text-xl sm:text-3xl font-bold text-white drop-shadow-md leading-normal mb-3 font-display w-full max-w-full line-clamp-2 sm:line-clamp-3 min-h-[3.5rem] sm:min-h-[4.5rem]" dir="auto" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' as any }}>{product.title}</h1>
                 <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-[#10B981]/25 border border-[#10B981]/30 backdrop-blur-md text-[#10B981] font-black text-xl shadow-md">
                    {product.price} <span className="text-sm font-bold">د.ت</span>
                 </div>

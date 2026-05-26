@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets, Mic, Tag, Facebook } from 'lucide-react';
+import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets, Mic, Tag, Facebook, Loader2 } from 'lucide-react';
 import { Product, Story } from './types';
 import { safeStorage } from './lib/safeStorage';
+import { cleanUndefined } from './lib/utils';
 import { collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import CursorGlow from './components/CursorGlow';
@@ -15,19 +16,33 @@ import VipStoriesRow from './components/VipStoriesRow';
 import BroadcastMarquee, { BroadcastMessage } from './components/BroadcastMarquee';
 import ListingCard from './components/ListingCard';
 
-import AdminPanel from './components/AdminPanel';
-import AuthModal from './components/AuthModal';
-import WelcomeSplashModal from './components/WelcomeSplashModal';
-import AddProductModal from './components/AddProductModal';
-import PublishingTransition from './components/PublishingTransition';
-import ProductDetailsModal from './components/ProductDetailsModal';
-import ProfileModal from './components/ProfileModal';
-import Sidebar from './components/Sidebar';
-import PricingPackages from './components/PricingPackages';
+// Lazy load Modals and heavy components
+const AdminPanel = React.lazy(() => import('./components/AdminPanel'));
+const AuthModal = React.lazy(() => import('./components/AuthModal'));
+const WelcomeSplashModal = React.lazy(() => import('./components/WelcomeSplashModal'));
+const AddProductModal = React.lazy(() => import('./components/AddProductModal'));
+const PublishingTransition = React.lazy(() => import('./components/PublishingTransition'));
+const ProductDetailsModal = React.lazy(() => import('./components/ProductDetailsModal'));
+const ProfileModal = React.lazy(() => import('./components/ProfileModal'));
+const Sidebar = React.lazy(() => import('./components/Sidebar'));
+const PricingPackages = React.lazy(() => import('./components/PricingPackages'));
+
+import ListingSkeleton from './components/ListingSkeleton';
+import EmptyState from './components/EmptyState';
 import Toast from './components/Toast';
 import confetti from 'canvas-confetti';
 
 import Footer from './components/Footer';
+
+// Fallback loader for Suspense
+const ModalFallback = () => (
+   <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-gray-900 rounded-2xl p-8 flex flex-col items-center justify-center gap-4 border border-gray-800 shadow-2xl">
+         <Loader2 className="w-10 h-10 text-[#D4AF37] animate-spin" />
+         <p className="text-gray-400 text-sm font-display">جاري التحميل...</p>
+      </div>
+   </div>
+);
 
 // No more dummy stories or products
 // Using real data from Firestore
@@ -46,6 +61,7 @@ const CATEGORIES = [
   'أثاث',
   'أدوات منزلية',
   'حيوانات',
+  'تحف و هدايا',
   'اخرى'
 ];
 const REGIONS = [
@@ -66,9 +82,13 @@ export default function App() {
   };
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
   const [usersLoaded, setUsersLoaded] = useState(false);
-  const [systemRequests, setSystemRequests] = useState<any[]>([]);
+  const [systemRequests, setSystemRequests] = useState<any[]>(() => {
+    const saved = safeStorage.getItem('sanad_system_requests');
+    return saved ? JSON.parse(saved) : [];
+  });
   
   useEffect(() => {
     // Listen to products
@@ -85,6 +105,7 @@ export default function App() {
           return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
       });
       setProducts(sorted);
+      setProductsLoaded(true);
       
       // Handle deep linking for shared ads
       const searchParams = new URLSearchParams(window.location.search);
@@ -107,13 +128,31 @@ export default function App() {
       setUsersLoaded(true);
     });
 
+    // Safety fallback: Ensure usersLoaded is set to true after 2.5 seconds regardless, in case of network latency or offline mode
+    const fallbackTimer = setTimeout(() => {
+      setUsersLoaded(true);
+    }, 2500);
+
+    // Listen to requests
+    const unsubRequests = onSnapshot(collection(db, 'systemRequests'), (snapshot) => {
+      const reqs: any[] = [];
+      snapshot.forEach(doc => {
+        reqs.push({ id: doc.id, ...doc.data() });
+      });
+      setSystemRequests(reqs);
+    }, (error) => {
+      console.error("Failed to sync systemRequests:", error);
+    });
+
     return () => {
       unsubProducts();
       unsubUsers();
+      unsubRequests();
+      clearTimeout(fallbackTimer);
     };
   }, []);
   const [notificationsCount, setNotificationsCount] = useState(() => {
-    const saved = safeStorage.getItem('sanad_notifications_count');
+    const saved = safeStorage.getItem('sanad_last_seen_requests_count');
     return saved ? parseInt(saved, 10) : 0;
   });
 
@@ -158,6 +197,18 @@ export default function App() {
   });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   // Automatically update the region filter if the search query is a known region (full or partial match)
   useEffect(() => {
@@ -183,16 +234,59 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [broadcastQueue, setBroadcastQueue] = useState<BroadcastMessage[]>([]);
 
+  const playPremiumGoldChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      
+      // Beautiful celestial sequence of notes: D5 -> A5 -> D6 -> A6
+      const playTone = (freq: number, start: number, duration: number, vol: number) => {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        // High frequency shimmer for the golden touch
+        osc.type = freq > 1000 ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+        
+        gainNode.gain.setValueAtTime(0, ctx.currentTime + start);
+        gainNode.gain.linearRampToValueAtTime(vol, ctx.currentTime + start + 0.04);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + duration);
+      };
+
+      // Celestial gold chord chime
+      playTone(587.33, 0, 0.6, 0.12);      // D5
+      playTone(880.00, 0.08, 0.7, 0.10);   // A5
+      playTone(1174.66, 0.16, 0.9, 0.08);  // D6 (high sparkle)
+      playTone(1760.00, 0.24, 1.2, 0.05);  // A6 (royal shimmer)
+    } catch (error) {
+      console.warn('Audio synthesis failed, skipping notification sound', error);
+    }
+  };
+
   const triggerBroadcast = (sellerName: string, location: string, title: string, plan: 'vip' | 'bronze' | 'free', avatar?: string) => {
+    const isAdmin = currentUserPhone === '92942482';
+    const resolvedPlan = isAdmin ? 'vip' : plan;
+    if (resolvedPlan !== 'vip') return;
+    
+    // Play the signature golden notification chime sound!
+    playPremiumGoldChime();
+
     const newMessage: BroadcastMessage = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       sellerName,
       location,
       title,
-      plan,
+      plan: resolvedPlan,
       avatar
     };
-    setBroadcastQueue(prev => [...prev, newMessage]);
+    setBroadcastQueue([newMessage]);
   };
 
   // Broadcast system is ready for user triggers on submission only
@@ -209,7 +303,7 @@ export default function App() {
   }, [systemRequests]);
 
   useEffect(() => {
-    safeStorage.setItem('sanad_notifications_count', notificationsCount.toString());
+    safeStorage.setItem('sanad_last_seen_requests_count', notificationsCount.toString());
   }, [notificationsCount]);
 
   useEffect(() => {
@@ -243,9 +337,11 @@ export default function App() {
 
   // Synchronize currentUserPlan with system database changes dynamically so plan transitions are immediate
   useEffect(() => {
-    const userObj = systemUsers.find(u => u.phone === currentUserPhone);
-    if (userObj && userObj.plan !== currentUserPlan) {
-      setCurrentUserPlan(userObj.plan);
+    const userObj = systemUsers.find(u => u.phone === currentUserPhone || u.id === currentUserPhone);
+    const isAdmin = currentUserPhone === '92942482';
+    const resolvedPlan = isAdmin ? 'vip' : (userObj?.plan || 'free');
+    if (userObj && resolvedPlan !== currentUserPlan) {
+      setCurrentUserPlan(resolvedPlan);
     }
   }, [systemUsers, currentUserPhone, currentUserPlan]);
 
@@ -353,7 +449,7 @@ export default function App() {
   };
 
   const pendingRequest = systemRequests.find(r => r.phone === currentUserPhone && r.status === 'pending');
-  const currentUserObj = systemUsers.find(u => u.phone === currentUserPhone);
+  const currentUserObj = systemUsers.find(u => u.phone === currentUserPhone || u.id === currentUserPhone);
 
   // Auto clean-up stale or invalid user sessions is disabled to avoid race conditions during signup
   useEffect(() => {
@@ -369,7 +465,7 @@ export default function App() {
   // Sync loggedUserObj whenever currentUserPhone or systemUsers changes
   useEffect(() => {
     if (currentUserPhone) {
-      const user = systemUsers.find(u => u.phone === currentUserPhone);
+      const user = systemUsers.find(u => u.phone === currentUserPhone || u.id === currentUserPhone);
       if (user) {
         setLoggedUserObj(user);
       }
@@ -387,43 +483,30 @@ export default function App() {
       
       const isAdmin = phone === '92942482';
 
-      if (isLogin) {
-          let user: any = systemUsers.find(u => u.phone === phone);
+      if (!usersLoaded) {
+          return 'يرجى الانتظار للحظات حتى اكتمال تحميل معلومات الأعضاء...';
+      }
 
-          if (!user) {
-              try {
-                  const userSnap = await getDoc(doc(db, 'systemUsers', phone));
-                  if (userSnap.exists()) {
-                      user = { id: userSnap.id, ...userSnap.data() };
-                  }
-              } catch (e) {
-                  console.warn('Network issue fetching user for login, relying on cache');
-              }
-          }
+      if (isLogin) {
+          let user: any = systemUsers.find(u => u.phone === phone || u.id === phone);
 
           if (!user) {
               if (isAdmin) {
                   user = { name: 'المدير', phone: phone, plan: 'vip', avatar: null, password: code };
-                  try {
-                      await setDoc(doc(db, 'systemUsers', phone), user);
-                  } catch (e) {}
+                  setDoc(doc(db, 'systemUsers', phone), user).catch(e => console.error(e));
               } else {
                   return 'رقم الهاتف غير مسجل، يرجى إنشاء حساب أولاً';
               }
           }
 
           if (user && !user.password && !isAdmin) {
-              try {
-                  await updateDoc(doc(db, 'systemUsers', phone), { password: code });
-                  user.password = code;
-              } catch (e) {}
+              updateDoc(doc(db, 'systemUsers', phone), { password: code }).catch(e => console.error(e));
+              user.password = code;
           }
 
           if (isAdmin || String(user.password) === code) {
               if (isAdmin && user.password !== code) {
-                  try {
-                      await updateDoc(doc(db, 'systemUsers', phone), { password: code });
-                  } catch(e) {}
+                  updateDoc(doc(db, 'systemUsers', phone), { password: code }).catch(e => console.error(e));
               }
 
               const finalPlan = isAdmin ? 'vip' : (user.plan || 'free');
@@ -439,31 +522,53 @@ export default function App() {
               return 'بيانات الدخول غير صحيحة';
           }
       } else {
-          let existingUser: any = systemUsers.find(u => u.phone === phone);
-          if (!existingUser) {
-              try {
-                  const snap = await getDoc(doc(db, 'systemUsers', phone));
-                  if (snap.exists()) existingUser = snap.data();
-              } catch(e) {
-                  console.warn('Network issue during signup check, relying on cache');
-              }
+          console.log('--- SIGNUP INITIATED ---');
+          console.log('Input Phone:', phone);
+          console.log('All System Users:', systemUsers.map(u => ({ id: u.id, phone: u.phone, name: u.name })));
+          
+          let existingUser: any = null;
+          if (phone && phone.trim().length >= 4) {
+              existingUser = systemUsers.find(u => {
+                  const checkPhone = u.phone ? String(u.phone).trim().replace(/\s+/g, '') : null;
+                  const checkId = u.id ? String(u.id).trim().replace(/\s+/g, '') : null;
+                  
+                  const isPhoneMatch = checkPhone ? (checkPhone.length >= 4 && checkPhone === phone) : false;
+                  const isIdMatch = checkId ? (checkId.length >= 4 && checkId === phone) : false;
+                  
+                  const isMatch = isPhoneMatch || isIdMatch;
+                  if (isMatch) {
+                      console.log('Matched existing user in loaded state:', u);
+                  }
+                  return isMatch;
+              });
           }
           
           if (existingUser) {
+              console.log('Duplicate user found, preventing signup or self-healing:', existingUser);
               if (isAdmin) {
                   return handleAuth(true, rawPhone, rawName, rawCode);
               }
-              return 'رقم الهاتف مسجل مسبقاً، يرجى تسجيل الدخول';
+              if (existingUser.password && String(existingUser.password) === code) {
+                  console.log('Password matches existing user, performing automatic self-healing login.');
+                  setCurrentUserPhone(phone);
+                  setCurrentUserPlan((existingUser.plan || 'free') as "free" | "bronze" | "vip");
+                  setShowAuth(false);
+                  const loggedUser = { ...existingUser, id: existingUser.id || phone };
+                  setLoggedUserObj(loggedUser);
+                  setShowWelcomeSplash(true);
+                  return true;
+              }
+              return `رقم الهاتف مسجل مسبقاً (Matches: ${existingUser.name || 'No Name'} | Phone: ${existingUser.phone || 'No Phone'} | ID: ${existingUser.id})`;
           }
           
           const newUser = { name: (isAdmin && !name ? 'المدير' : name), phone, plan: isAdmin ? 'vip' : 'free', avatar: null, password: code };
-          try {
-            await setDoc(doc(db, 'systemUsers', phone), newUser);
-          } catch (e) {
-            console.error('Error saving user', e);
-          }
+          setDoc(doc(db, 'systemUsers', phone), newUser)
+            .catch(e => {
+              console.error('Error saving user to Firestore in background:', e);
+            });
+          
           setCurrentUserPhone(phone);
-          setCurrentUserPlan(newUser.plan);
+          setCurrentUserPlan(newUser.plan as "free" | "bronze" | "vip");
           setShowAuth(false);
           const loggedUser = {...newUser, id: phone};
           setLoggedUserObj(loggedUser);
@@ -473,6 +578,10 @@ export default function App() {
   };
 
   const handleAddProduct = async (newProduct: Product) => {
+    const isAdmin = currentUserPhone === '92942482';
+    if (isAdmin) {
+      newProduct.plan = 'vip';
+    }
     // Ensure comments, views and likes are initialized for new products
     const adWithStats = { ...newProduct, comments: [], views: 0, likes: 0 };
     if (!adWithStats.id || adWithStats.id.startsWith('temp-')) {
@@ -480,11 +589,11 @@ export default function App() {
     }
 
     // 1. Activate the majestic full-screen luxury transition scene matching the user's plan
-    setTransitionPlan(currentUserPlan);
+    setTransitionPlan(isAdmin ? 'vip' : currentUserPlan);
     setIsPublishingTransition(true);
 
     // 2. Perform DB write in the background completely asynchronously to avoid blocking UI or freezing
-    setDoc(doc(db, 'products', adWithStats.id), adWithStats)
+    setDoc(doc(db, 'products', adWithStats.id), cleanUndefined(adWithStats))
       .catch((err) => {
         console.error('Failed to publish product to Database:', err);
         showToast('حدث خطأ أثناء الاتصال بالنظام، ولكن سنحاول جاهدين المزامنة بالخلفية.', 'error');
@@ -501,16 +610,13 @@ export default function App() {
       // 5. Reset the scroll instantly to (0,0) - NO browser stutter or white screen as the overlay covers it!
       window.scrollTo({ top: 0 });
 
-      // 6. Broadcast newly published product in immediate TikTok-Universe luxury ticker style!
-      triggerBroadcast(
-        newProduct.sellerName || 'مستعمل متميز', 
-        newProduct.location || 'تونس', 
-        newProduct.title, 
-        newProduct.plan || 'free', 
-        newProduct.sellerAvatar
-      );
+      // INSTANT UI UPDATE: Prepend locally so the user sees it immediately even before Firestore syncs back!
+      setProducts(prev => {
+        if (prev.some(p => p.id === adWithStats.id)) return prev;
+        return [adWithStats, ...prev];
+      });
 
-      // 7. Add REAL dynamic action-oriented notifications for both the publisher and the admin
+      // 6. Add REAL dynamic action-oriented notifications for both the publisher and the admin
       const notifyUsers = new Set<string>();
       if (currentUserPhone) notifyUsers.add(currentUserPhone);
       notifyUsers.add('92942482'); // target admin as well
@@ -526,7 +632,7 @@ export default function App() {
 
       setUserNotifications(prev => [...newNotifications, ...prev]);
 
-      // 8. Launch celebratory confetti burst
+      // 7. Launch celebratory confetti burst
       confetti({
           particleCount: 155,
           spread: 85,
@@ -534,12 +640,20 @@ export default function App() {
           colors: ['#D4AF37', '#10B981', '#ffffff']
       });
 
-      // 9. Show modern floating success toast
+      // 7. Show modern floating success toast
       showToast('تم نشر إعلانك وبث الإشعار وحفظ تفاصيله للمعاينة!', 'success');
 
-      // 10. Gracefully fade out the luxury transition overlay after all rendering is finalized
+      // 8. Gracefully fade out the luxury transition overlay after all rendering is finalized
       setTimeout(() => {
         setIsPublishingTransition(false);
+        // Broadcast newly published product in immediate TikTok-Universe luxury ticker style AFTER the overlay fades!
+        triggerBroadcast(
+          newProduct.sellerName || 'مستعمل متميز', 
+          newProduct.location || 'تونس', 
+          newProduct.title, 
+          newProduct.plan || 'free', 
+          newProduct.sellerAvatar
+        );
       }, 1500);
 
     }, 1800);
@@ -569,24 +683,44 @@ export default function App() {
     showToast(isAdding ? 'تم الإعجاب بالمنتج' : 'تمت إزالة الإعجاب', 'info');
   };
 
-  const handleSubscriptionRequest = (plan: string) => {
+  const handleSubscriptionRequest = async (plan: string) => {
     if (!currentUserPhone) {
         setShowAuth(true);
         return;
     }
+    const newId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
     const newReq = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        id: newId,
         user: `User ${currentUserPhone}`,
         phone: currentUserPhone,
         plan,
         status: 'pending'
     };
-    setSystemRequests([newReq, ...systemRequests]);
-    setNotificationsCount(prev => prev + 1);
-    showToast('تم إرسال طلب الاشتراك، سيتم تفعيل باقتك بعد تأكيد الدفع', 'success');
+    try {
+        await setDoc(doc(db, 'systemRequests', newId), newReq);
+        showToast('تم إرسال طلب الاشتراك، سيتم تفعيل باقتك بعد تأكيد الدفع', 'success');
+    } catch (e) {
+        console.error("Failed to add subscription request to Firestore:", e);
+        // Fallback to local state if offline/network issues
+        setSystemRequests(prev => [newReq, ...prev]);
+        showToast('تم إرسال طلب الاشتراك، ولكن قد يستغرق المزامنة وقتاً أطول.', 'info');
+    }
   };
 
-  const filteredProducts = useMemo(() => products.filter(p => {
+  const allEnrichedProducts = useMemo(() => products.map(p => {
+    const userObj = systemUsers.find(u => u.phone === p.sellerId || u.id === p.sellerId);
+    const isSellerAdmin = p.sellerId === '92942482';
+    const rawPlan = userObj?.plan || p.plan;
+    const resolvedPlan = isSellerAdmin ? 'vip' : (rawPlan || 'free');
+    return {
+      ...p,
+      sellerName: isSellerAdmin ? 'المدير' : (userObj?.name || p.sellerName),
+      sellerAvatar: userObj?.avatar || p.sellerAvatar,
+      plan: resolvedPlan
+    };
+  }), [products, systemUsers]);
+
+  const filteredProducts = useMemo(() => allEnrichedProducts.filter(p => {
       const matchCat = selectedCategory === 'الكل' || p.category === selectedCategory;
       const matchReg = selectedRegion === 'الكل' || p.location.includes(selectedRegion);
       
@@ -601,28 +735,37 @@ export default function App() {
             (p.location || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (p.category || '').toLowerCase().includes(searchQuery.toLowerCase()));
       return matchCat && matchReg && matchSearch;
-  }), [products, selectedCategory, selectedRegion, searchQuery]);
+  }), [allEnrichedProducts, selectedCategory, selectedRegion, searchQuery]);
 
-  const enrichedProducts = useMemo(() => filteredProducts.map(p => {
-    const userObj = systemUsers.find(u => u.phone === p.sellerId);
-    return {
-      ...p,
-      sellerName: userObj?.name || p.sellerName,
-      sellerAvatar: userObj?.avatar || p.sellerAvatar,
-      plan: userObj?.plan || p.plan // Update plan from userObj if exists
-    };
-  }), [filteredProducts, systemUsers]);
+  const enrichedProducts = filteredProducts;
+
+  const [generalPage, setGeneralPage] = useState(1);
+  const PAGE_SIZE = 12;
+
+  useEffect(() => {
+    setGeneralPage(1);
+  }, [selectedCategory, selectedRegion, searchQuery]);
 
   const vipProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'vip'), [enrichedProducts]);
   const bronzeProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'bronze'), [enrichedProducts]);
-  const generalProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'free' || !p.plan), [enrichedProducts]);
+  const allGeneralProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'free' || !p.plan), [enrichedProducts]);
+  
+  const generalProducts = useMemo(() => allGeneralProducts.slice(0, generalPage * PAGE_SIZE), [allGeneralProducts, generalPage]);
 
-  const stories: Story[] = useMemo(() => enrichedProducts
+  const stories: Story[] = useMemo(() => allEnrichedProducts
     .filter(p => p.plan === 'vip' || p.plan === 'bronze')
     .sort((a, b) => {
-       if (a.plan === 'vip' && b.plan !== 'vip') return -1;
-       if (a.plan !== 'vip' && b.plan === 'vip') return 1;
-       return 0;
+       const score = (x: any) => {
+          if (x.plan === 'vip') return 2;
+          if (x.plan === 'bronze') return 1;
+          return 0;
+       };
+       const scoreDiff = score(b) - score(a);
+       if (scoreDiff !== 0) return scoreDiff;
+       
+       const tA = new Date(a.createdAt).getTime();
+       const tB = new Date(b.createdAt).getTime();
+       return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
     })
     .map(p => {
        return {
@@ -636,7 +779,7 @@ export default function App() {
           expiresAt: p.createdAt,
           isVip: p.plan === 'vip'
        };
-    }), [enrichedProducts]);
+    }), [allEnrichedProducts]);
 
   const currentUserStats = {
     active: products.filter(p => p.sellerId === currentUserPhone && p.status === 'active').length,
@@ -660,32 +803,107 @@ export default function App() {
     }
   };
 
-  const EmptyState = ({ icon: Icon, title, desc }: { icon: any, title: string, desc: string }) => (
-    <div className="bg-gray-900/40 border border-[#1f2937]/50 rounded-2xl p-6 py-16 flex flex-col items-center justify-center text-center max-w-xs sm:max-w-sm mx-auto w-full">
-      <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center mb-6 border border-gray-800">
-        <Icon className="w-8 h-8 text-gray-500" />
-      </div>
-      <p className="text-gray-400 max-w-[240px] text-sm leading-relaxed">{desc}</p>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-premium-dark text-white relative overflow-hidden" dir="rtl">
       {/* Premium Atmospheric Effects */}
       <div className="bg-premium-glow" />
       
       {/* Ambient background decorative elements */}
-      <div className="fixed top-[-15%] left-[-10%] w-[50vw] h-[50vw] bg-gradient-to-tr from-emerald-500/10 to-teal-500/0 rounded-full blur-[140px] pointer-events-none opacity-60 animate-pulse duration-[8000ms]" />
-      <div className="fixed bottom-[-15%] right-[-10%] w-[60vw] h-[60vw] bg-gradient-to-br from-[#D4AF37]/8 to-[#f3e5ab]/0 rounded-full blur-[160px] pointer-events-none opacity-70 animate-pulse duration-[12000ms]" />
-      <div className="fixed top-[45%] right-[-5%] w-[35vw] h-[35vw] bg-gradient-to-l from-emerald-600/5 to-cyan-500/0 rounded-full blur-[120px] pointer-events-none opacity-50" />
+      <div className="fixed top-[-15%] left-[-10%] w-[50vw] h-[50vw] bg-gradient-to-tr from-emerald-500/12 via-[#D4AF37]/5 to-teal-500/0 rounded-full blur-[140px] pointer-events-none opacity-80 animate-pulse duration-[8000ms]" />
+      <div className="fixed bottom-[-15%] right-[-10%] w-[60vw] h-[60vw] bg-gradient-to-br from-[#D4AF37]/12 via-[#f3e5ab]/4 to-[#f3e5ab]/0 rounded-full blur-[160px] pointer-events-none opacity-85 animate-pulse duration-[12000ms]" />
+      <div className="fixed top-[30%] right-[-5%] w-[35vw] h-[35vw] bg-gradient-to-l from-emerald-600/8 via-[#D4AF37]/4 to-transparent rounded-full blur-[120px] pointer-events-none opacity-75" />
 
       <CursorGlow />
 
       {/* Header */}
-      <header className="z-40 bg-[#020806]/80 backdrop-blur-xl border-b border-gray-800 sticky top-0 shrink-0 w-full">
+      <header className="z-40 bg-[#020806]/85 backdrop-blur-xl border-b border-gray-800/80 sticky top-0 shrink-0 w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
+              {/* Profile button directly in top-right corner */}
+              <div 
+                className="flex flex-col items-center justify-center cursor-pointer group select-none relative shrink-0"
+                onClick={(e) => { 
+                    e.preventDefault(); 
+                    e.stopPropagation(); 
+                    if (currentUserPhone) { 
+                      setShowProfile(true); 
+                    } else { 
+                      setShowAuth(true); 
+                    } 
+                }} 
+              >
+                {currentUserPhone ? (
+                  <div className="flex flex-col items-center">
+                    {/* Royal Frame according to package */}
+                    <div className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-full p-[2px] transition-all duration-300 group-hover:scale-105 ${
+                      currentUserPlan === 'vip' 
+                        ? 'bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow shadow-[0_0_15px_rgba(212,175,55,0.45)]' 
+                        : currentUserPlan === 'bronze' 
+                          ? 'bg-gradient-to-tr from-amber-600 via-amber-500 to-orange-400 shadow-[0_0_12px_rgba(217,119,6,0.3)] border border-amber-500/30' 
+                          : 'bg-gradient-to-tr from-[#10B981] via-gray-750 to-gray-850 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
+                    }`}>
+                      <div className="w-full h-full rounded-full bg-gray-950 overflow-hidden relative flex items-center justify-center">
+                        {currentUserObj?.avatar ? (
+                          <img 
+                            src={currentUserObj.avatar} 
+                            alt={currentUserObj.name || 'Profile'} 
+                            className="w-full h-full object-cover rounded-full" 
+                          />
+                        ) : (
+                          // Stunning royal letter monogram
+                          <span className={`text-xs font-black tracking-tighter uppercase ${
+                            currentUserPlan === 'vip' 
+                              ? 'text-gradient-gold' 
+                              : currentUserPlan === 'bronze' 
+                                ? 'text-amber-500' 
+                                : 'text-emerald-400'
+                          }`}>
+                            {currentUserObj?.name?.[0] || 'س'}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Overlapping micro-badge of the tier under the photo inside the frame */}
+                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-10 flex items-center scale-75 sm:scale-100">
+                        {currentUserPlan === 'vip' ? (
+                          <span className="bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black text-[7px] font-black px-1.5 py-0.5 rounded-full border border-white/40 shadow-lg whitespace-nowrap tracking-wide leading-none flex items-center gap-0.5">
+                            👑 VIP
+                          </span>
+                        ) : currentUserPlan === 'bronze' ? (
+                          <span className="bg-gradient-to-r from-amber-600 to-orange-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full border border-orange-400/30 shadow-md whitespace-nowrap leading-none">
+                            🥉 متميز
+                          </span>
+                        ) : (
+                          <span className="bg-gray-900 text-emerald-400 text-[6.5px] font-bold px-1 py-0.5 rounded-full border border-emerald-500/20 shadow-sm whitespace-nowrap leading-none">
+                            عضو
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* The Subscriber's name under the photo */}
+                    <span 
+                      className={`text-[8.5px] sm:text-[9.5px] font-extrabold mt-1.5 max-w-[50px] sm:max-w-[70px] truncate block text-center leading-none transition-colors ${
+                        currentUserPlan === 'vip' ? 'text-[#D4AF37] group-hover:text-yellow-200' : currentUserPlan === 'bronze' ? 'text-amber-500/90 group-hover:text-amber-400' : 'text-gray-400 group-hover:text-gray-300'
+                      }`}
+                      dir="auto"
+                    >
+                      {currentUserObj?.name || 'حسابي'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center">
+                    <button 
+                      type="button"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-700 bg-[#050505] flex items-center justify-center group-hover:border-[#D4AF37] group-hover:shadow-[0_0_10px_rgba(212,175,55,0.3)] transition-all overflow-hidden relative"
+                    >
+                      <User className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-gray-400 group-hover:text-[#D4AF37] transition-colors" />
+                    </button>
+                    <span className="text-[8.5px] sm:text-[9.5px] text-gray-400 font-bold mt-1 scale-90 sm:scale-100 group-hover:text-white transition-colors">دخول</span>
+                  </div>
+                )}
+              </div>
+
               <button onClick={() => setShowSidebar(true)} className="p-2 -ml-2 text-gray-400 hover:text-white transition-colors" title="القائمة">
                 <Menu className="w-6 h-6" />
               </button>
@@ -706,10 +924,10 @@ export default function App() {
                   }}
                   onFocus={() => setShowAutoSuggest(true)}
                   placeholder="البحث الذكي بالسوق (مثال: فستان، سيارة، شقة)..."
-                  className="w-full bg-[#050505] text-white pl-10 pr-4 py-2 rounded-full border border-gray-800 focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] outline-none transition-all text-xs text-right pr-9"
+                  className="w-full bg-[#050505]/90 text-white pl-10 pr-4 py-2.5 rounded-full border border-gray-800/80 focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20 outline-none transition-all text-xs text-right pr-10 shadow-[0_2px_12px_rgba(0,0,0,0.5)] focus:shadow-[0_0_15px_rgba(212,175,55,0.15)]"
                   dir="rtl"
                 />
-                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
               </div>
               
               <AnimatePresence>
@@ -828,35 +1046,26 @@ export default function App() {
                 </button>
               )}
               
-              <div 
-                className="flex items-center gap-2 cursor-pointer group"
-                onClick={(e) => { 
-                    e.preventDefault(); 
-                    e.stopPropagation(); 
-                    if (currentUserPhone) { 
-                      setShowProfile(true); 
-                    } else { 
-                      setShowAuth(true); 
-                    } 
-                }} 
-              >
-                {!currentUserPhone && <span className="text-sm font-bold text-gray-300 group-hover:text-[#D4AF37] transition-colors whitespace-nowrap">تسجيل الدخول</span>}
-                <button 
-                  type="button"
-                  className="w-10 h-10 rounded-full border border-gray-700 bg-[#050505] flex items-center justify-center group-hover:border-[#D4AF37] transition-colors overflow-hidden"
-                >
-                  {currentUserObj?.avatar ? (
-                    <img src={currentUserObj.avatar} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-5 h-5 text-gray-400 group-hover:text-[#D4AF37] transition-colors" />
-                  )}
-                </button>
-              </div>
+
             </div>
           </div>
         </div>
       </header>
       
+      {/* Offline Banner */}
+      <AnimatePresence>
+        {isOffline && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-red-500/90 text-white text-xs font-medium py-2 px-4 w-full text-center shadow-lg border-b border-red-600 sticky top-16 z-30"
+          >
+            أنت حالياً تعمل في وضع عدم الاتصال (Offline). يرجى التحقق من الشبكة الخاصة بك.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main Content */}
       <main 
         ref={mainRef}
@@ -872,9 +1081,19 @@ export default function App() {
         )}
 
         {/* VIP Stories Section */}
-        <VipStoriesRow stories={stories} onStoryClick={(id) => {
-            const prod = products.find(p => p.id === id);
-            if (prod) handleProductClick(prod);
+        <VipStoriesRow 
+             stories={stories} 
+             currentUserObj={currentUserObj}
+             onProfileClick={() => {
+                if (currentUserPhone) {
+                   setShowProfile(true);
+                } else {
+                   setShowAuth(true);
+                }
+             }}
+             onStoryClick={(id) => {
+                const prod = products.find(p => p.id === id);
+                if (prod) handleProductClick(prod);
         }} />
 
         <BroadcastMarquee 
@@ -892,7 +1111,7 @@ export default function App() {
              <motion.div 
                initial={{ opacity: 0, scale: 0.95 }}
                animate={{ opacity: 1, scale: 1 }}
-               className="inline-flex items-center gap-3 bg-gradient-to-r from-gray-950 via-[#0a0f0d] to-gray-950 px-5 py-2 rounded-2xl border border-gray-800/80 shadow-inner text-right mb-2"
+               className="inline-flex items-center gap-3 bg-gradient-to-r from-gray-950 via-[#0a0f0d] to-gray-950 px-5 py-2 rounded-2xl border border-gray-800/80 shadow-inner text-right mb-3 -mt-9 sm:-mt-11"
              >
                <div className="relative w-8 h-8 rounded-full overflow-hidden border border-[#D4AF37]/40 ring-2 ring-[#D4AF37]/10 bg-gray-900 shrink-0">
                  {currentUserObj?.avatar ? (
@@ -910,34 +1129,40 @@ export default function App() {
                </div>
              </motion.div>
            ) : (
-             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-                <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">منصة تونس الأولى للعروض الملكية</span>
+             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-gray-950 via-[#0a120e] to-gray-950 border border-[#D4AF37]/30 shadow-[0_4px_15px_rgba(212,175,55,0.08)] mb-2.5 -mt-2 sm:-mt-4 py-2 px-5">
+                <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] animate-pulse" />
+                <span className="text-[10px] sm:text-xs text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-gray-200 to-[#F3E5AB] uppercase tracking-widest font-black">منصة تونس الأولى للعروض الملكية</span>
              </div>
            )}
 
-           <div className="max-w-xl mx-auto">
-             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black font-display leading-tight text-white mb-2 tracking-tight">
-                سوق سند: <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-yellow-200 to-[#F3E5AB]">فضاؤكم للبيع والتميز</span> في تونس
-             </h1>
-             <p className="text-gray-400 text-[10px] sm:text-xs px-6 leading-relaxed max-w-lg mx-auto mb-1 opacity-90">
-                نحن لسنا مجرد وسيط، نحن نمنح إعلاناتك الهوية الملكية والضمانة الرقمية التي تستحقها، لتصل لزبائنك بكامل الدقة والشفافية.
-             </p>
-           </div>
- 
-           <div className="flex flex-col items-center justify-center relative z-10 -mt-1">
-              <button 
-                onClick={() => {
-                  const targetEl = document.getElementById('listings-head');
-                  if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
-                }} 
-                className="relative overflow-hidden px-6 py-3 bg-gradient-to-br from-[#FFD700] via-[#D4AF37] to-[#B8860B] text-neutral-950 font-black rounded-lg border-2 border-red-600 shadow-[0_0_15px_rgba(255,215,0,0.3)] hover:shadow-[0_0_25px_rgba(255,215,0,0.5)] transition-all duration-300 cursor-pointer flex items-center justify-center gap-3 group w-fit"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none" />
-                <Grid className="w-4 h-4 text-neutral-950 stroke-[2px] group-hover:scale-110 transition-transform" />
-                  <span className="text-sm tracking-wide">تصفح عروض السوق</span>
-                  <ChevronDown className="w-4 h-4 text-neutral-950 stroke-[2px] group-hover:translate-y-0.5 transition-all duration-300" />
-              </button>
+           <div className="max-w-2xl mx-auto mt-2 space-y-2 px-1">
+             <div className="flex items-center justify-center gap-2 mb-3">
+               <Crown className="w-4 h-4 text-[#D4AF37]" />
+               <span className="text-gray-300 text-xs font-black tracking-wider uppercase">إعلانات النخبة البارزة</span>
+               <Crown className="w-4 h-4 text-[#D4AF37]" />
+             </div>
+             <div className="flex justify-center flex-wrap gap-2 sm:gap-3">
+               {allEnrichedProducts.filter(p => p.plan === 'vip').slice(0, 4).map(p => (
+                 <motion.div 
+                   key={p.id}
+                   whileHover={{ scale: 1.05 }}
+                   whileTap={{ scale: 0.95 }}
+                   onClick={() => handleProductClick(p)}
+                   className="relative w-[75px] h-[75px] sm:w-[90px] sm:h-[90px] rounded-xl overflow-hidden border border-[#D4AF37]/40 cursor-pointer shadow-[0_4px_10px_rgba(212,175,55,0.2)] group shrink-0"
+                 >
+                   <img src={p.imageUrls?.[0] || 'https://via.placeholder.com/150'} alt={p.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-1.5 sm:p-2">
+                     <p className="text-white text-[8px] sm:text-[9px] font-bold line-clamp-2 leading-tight drop-shadow-md text-center w-full" dir="auto">{p.title}</p>
+                   </div>
+                   {p.plan === 'vip' && (
+                     <div className="absolute top-1 right-1 bg-[#D4AF37] text-black text-[7px] font-black px-1 rounded shadow-sm">VIP</div>
+                   )}
+                 </motion.div>
+               ))}
+               {allEnrichedProducts.filter(p => p.plan === 'vip').length === 0 && (
+                   <div className="text-[10px] text-gray-500 w-full text-center py-4">لا توجد إعلانات بارزة حالياً</div>
+               )}
+             </div>
            </div>
 �
         </div>
@@ -957,7 +1182,7 @@ export default function App() {
                   }}
                   onFocus={() => setShowAutoSuggest(true)}
                   placeholder="ابحث عن هاتف، سيارة، شقة..."
-                  className="w-full bg-[#050505] border border-gray-800 rounded-2xl py-3.5 pr-12 pl-24 focus:outline-none focus:border-[#D4AF37] transition-all text-sm"
+                  className="w-full bg-[#050505]/90 border border-gray-800/80 rounded-2xl py-3.5 pr-12 pl-24 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 transition-all text-sm shadow-[0_4px_20px_rgba(0,0,0,0.6)] focus:shadow-[0_0_15px_rgba(212,175,55,0.12)]"
                   dir="rtl"
                 />
                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1051,7 +1276,7 @@ export default function App() {
                     <button
                        type="button"
                        key={reg}
-                       ref={(el) => (regionRefs.current[reg] = el)}
+                       ref={(el) => { if (el) regionRefs.current[reg] = el; }}
                        onClick={() => setSelectedRegion(reg)}
                        className={`whitespace-nowrap px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                           selectedRegion === reg 
@@ -1182,7 +1407,11 @@ export default function App() {
                  <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">أرقى العروض والسلع الحصرية في تونس</p>
               </div>
             </div>
-            {vipProducts.length > 0 ? (
+            {!productsLoaded ? (
+              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-4 max-w-4xl mx-auto' : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6'}>
+                {[...Array(5)].map((_, i) => <ListingSkeleton key={`sk-vip-${i}`} viewMode={viewMode} />)}
+              </div>
+            ) : vipProducts.length > 0 ? (
               <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-4 max-w-4xl mx-auto' : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6'}>
                 <AnimatePresence mode="popLayout">
                   {vipProducts.map((product, index) => (
@@ -1214,7 +1443,11 @@ export default function App() {
                  <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">اختياراتنا المميزة لبائعين موثوقين</p>
               </div>
             </div>
-            {bronzeProducts.length > 0 ? (
+            {!productsLoaded ? (
+              <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-4 max-w-4xl mx-auto' : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6'}>
+                {[...Array(5)].map((_, i) => <ListingSkeleton key={`sk-bronze-${i}`} viewMode={viewMode} />)}
+              </div>
+            ) : bronzeProducts.length > 0 ? (
               <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-4 max-w-4xl mx-auto' : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6'}>
                 <AnimatePresence mode="popLayout">
                   {bronzeProducts.map((product, index) => (
@@ -1246,21 +1479,35 @@ export default function App() {
                  <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">عروض سوقنا المتنوعة لكل الفئات</p>
               </div>
             </div>
-            {generalProducts.length > 0 ? (
+            {!productsLoaded ? (
               <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-4 max-w-4xl mx-auto' : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6'}>
-                <AnimatePresence mode="popLayout">
-                  {generalProducts.map((product, index) => (
-                     <ListingCard 
-                      key={`general-${product.id}-${index}`} 
-                      product={product} 
-                      onClick={() => handleProductClick(product)} 
-                      searchQuery={searchQuery} 
-                      isFavorite={favorites.includes(product.id)}
-                      onToggleFavorite={(e) => toggleFavorite(product.id, e)}
-                      viewMode={viewMode}
-                     />
-                  ))}
-                </AnimatePresence>
+                {[...Array(10)].map((_, i) => <ListingSkeleton key={`sk-general-${i}`} viewMode={viewMode} />)}
+              </div>
+            ) : generalProducts.length > 0 ? (
+              <div className="flex flex-col items-center">
+                <div className={viewMode === 'list' ? 'grid grid-cols-1 gap-4 max-w-4xl mx-auto w-full' : 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6 w-full'}>
+                  <AnimatePresence mode="popLayout">
+                    {generalProducts.map((product, index) => (
+                       <ListingCard 
+                        key={`general-${product.id}-${index}`} 
+                        product={product} 
+                        onClick={() => handleProductClick(product)} 
+                        searchQuery={searchQuery} 
+                        isFavorite={favorites.includes(product.id)}
+                        onToggleFavorite={(e) => toggleFavorite(product.id, e)}
+                        viewMode={viewMode}
+                       />
+                    ))}
+                  </AnimatePresence>
+                </div>
+                {generalProducts.length < allGeneralProducts.length && (
+                  <button 
+                    onClick={() => setGeneralPage(p => p + 1)}
+                    className="mt-10 px-8 py-3 bg-[#050505] border border-gray-800 text-gray-300 hover:text-white hover:border-gray-600 rounded-full font-bold transition-all shadow-lg active:scale-95"
+                  >
+                    عرض المزيد من العروض
+                  </button>
+                )}
               </div>
             ) : (
               <EmptyState icon={ShoppingBag} title="لا توجد عروض" desc="لا توجد عروض حالياً في هذا القسم" />
@@ -1292,99 +1539,110 @@ export default function App() {
       </main>
       
       <AnimatePresence>
-         {showSidebar && <Sidebar 
-            selectedCategory={selectedCategory} 
-            setSelectedCategory={setSelectedCategory} 
-            onClose={() => setShowSidebar(false)} />}
-         {showAdmin && <AdminPanel 
-            key="admin"
-            onClose={() => setShowAdmin(false)}
-            systemUsers={systemUsers}
-            setSystemUsers={setSystemUsers}
-            systemRequests={systemRequests}
-            setSystemRequests={setSystemRequests}
-            onAddUserNotification={(phone: string, msg: string) => {
-               const newNotif = {
-                  id: String(Date.now()) + Math.random().toString(36).substr(2, 9),
-                  userPhone: phone,
-                  message: msg,
-                  read: false,
-                  createdAt: new Date().toISOString()
-               };
-               setUserNotifications(prev => [newNotif, ...prev]);
-            }}
-            products={products}
-            setProducts={setProducts}
-            notificationsCount={notificationsCount}
-            setNotificationsCount={setNotificationsCount}
-         />}
-         {showAuth && <AuthModal key="auth" onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
-         {showWelcomeSplash && loggedUserObj && (
-            <WelcomeSplashModal 
-               key="welcome-splash" 
-               user={loggedUserObj} 
-               onClose={() => {
-                  setShowWelcomeSplash(false);
-               }} 
-            />
-         )}
-         {showProfile && <ProfileModal 
-            key="profile"
-            onClose={() => setShowProfile(false)} 
-            phone={currentUserPhone ?? undefined} 
-            currentUserPlan={currentUserPlan}
-            pendingPlan={pendingRequest?.plan}
-            stats={currentUserStats}
-            currentUser={loggedUserObj}
-            onSaveProfile={async (name, avatar) => {
-                if (!currentUserPhone) return;
+         <Suspense key="suspense-sidebar" fallback={<ModalFallback />}>
+            {showSidebar && <Sidebar 
+               selectedCategory={selectedCategory} 
+               setSelectedCategory={setSelectedCategory} 
+               onClose={() => setShowSidebar(false)} />}
+         </Suspense>
+         <Suspense key="suspense-admin" fallback={<ModalFallback />}>
+            {showAdmin && <AdminPanel 
+               onClose={() => setShowAdmin(false)}
+               systemUsers={systemUsers}
+               setSystemUsers={setSystemUsers}
+               systemRequests={systemRequests}
+               setSystemRequests={setSystemRequests}
+               onAddUserNotification={(phone: string, msg: string) => {
+                  const newNotif = {
+                     id: String(Date.now()) + Math.random().toString(36).substr(2, 9),
+                     userPhone: phone,
+                     message: msg,
+                     read: false,
+                     createdAt: new Date().toISOString()
+                  };
+                  setUserNotifications(prev => [newNotif, ...prev]);
+               }}
+               products={products}
+               setProducts={setProducts}
+               notificationsCount={notificationsCount}
+               setNotificationsCount={setNotificationsCount}
+               showToast={showToast}
+            />}
+         </Suspense>
+         <Suspense key="suspense-auth" fallback={<ModalFallback />}>
+            {showAuth && <AuthModal key="auth" onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
+         </Suspense>
+         <Suspense key="suspense-welcome" fallback={<ModalFallback />}>
+            {showWelcomeSplash && loggedUserObj && (
+               <WelcomeSplashModal 
+                  key="welcome-splash" 
+                  user={loggedUserObj} 
+                  onClose={() => {
+                     setShowWelcomeSplash(false);
+                  }} 
+               />
+            )}
+         </Suspense>
+         <Suspense key="suspense-profile" fallback={<ModalFallback />}>
+            {showProfile && <ProfileModal 
+               onClose={() => setShowProfile(false)} 
+               phone={currentUserPhone ?? undefined} 
+               currentUserPlan={currentUserPlan}
+               pendingPlan={pendingRequest?.plan}
+               stats={currentUserStats}
+               currentUser={loggedUserObj}
+               onSaveProfile={async (name, avatar) => {
+                   if (!currentUserPhone) return;
+                   try {
+                     await setDoc(doc(db, 'systemUsers', currentUserPhone), { name, avatar }, { merge: true });
+                     showToast('تم حفظ الملف الشخصي بنجاح', 'success');
+                   } catch (e) {
+                     console.error('Error saving profile', e);
+                     showToast('حدث خطأ أثناء حفظ الملف الشخصي', 'error');
+                   }
+               }}
+               onOpenAdmin={currentUserPhone === '92942482' ? () => { setShowAdmin(true); setShowProfile(false); } : undefined} 
+               onLogout={() => { setCurrentUserPhone(null); setCurrentUserPlan('free'); setLoggedUserObj(null); }} 
+            />}
+         </Suspense>
+         <Suspense key="suspense-addproduct" fallback={<ModalFallback />}>
+            {showAddProduct && <AddProductModal key="addproduct" onClose={() => { setShowAddProduct(false); setEditingProduct(null); }} onAdd={(p) => handleAddProduct({...p, plan: currentUserPlan })} onEdit={async (p) => {
+                 try {
+                   await updateDoc(doc(db, 'products', p.id), cleanUndefined({
+                      ...p
+                   }));
+                   setShowAddProduct(false);
+                   setEditingProduct(null);
+                   showToast('تم تحديث الإعلان بنجاح', 'success');
+                 } catch (err) {
+                   console.error("Failed to edit ad", err);
+                   showToast('حدث خطأ أثناء تعديل الإعلان', 'error');
+                 }
+             }} currentUserPhone={currentUserPhone} currentUser={loggedUserObj} initialProduct={editingProduct} />}
+         </Suspense>
+         <Suspense key="suspense-details" fallback={<ModalFallback />}>
+            {selectedProduct && <ProductDetailsModal 
+              product={products.find(p => p.id === selectedProduct.id) || selectedProduct} 
+              isFavorite={favorites.includes(selectedProduct.id)}
+              onToggleFavorite={(e) => toggleFavorite(selectedProduct.id, e)}
+              onClose={() => {
+                setSelectedProduct(null);
+                window.history.pushState(null, '', window.location.pathname);
+              }} 
+              currentUserPhone={currentUserPhone} 
+              isAdmin={currentUserPhone === '92942482'} 
+              onDelete={async () => {
                 try {
-                  await setDoc(doc(db, 'systemUsers', currentUserPhone), { name, avatar }, { merge: true });
-                  showToast('تم حفظ الملف الشخصي بنجاح', 'success');
-                } catch (e) {
-                  console.error('Error saving profile', e);
-                  showToast('حدث خطأ أثناء حفظ الملف الشخصي', 'error');
+                  await deleteDoc(doc(db, 'products', selectedProduct!.id));
+                  showToast('تم حذف الإعلان بنجاح', 'success');
+                  setSelectedProduct(null);
+                } catch(err) {
+                  console.error('Error deleting product', err);
                 }
-            }}
-            onOpenAdmin={currentUserPhone === '92942482' ? () => { setShowAdmin(true); setShowProfile(false); } : undefined} 
-            onLogout={() => { setCurrentUserPhone(null); setCurrentUserPlan('free'); setLoggedUserObj(null); }} 
-         />}
-         {showAddProduct && <AddProductModal key="addproduct" onClose={() => { setShowAddProduct(false); setEditingProduct(null); }} onAdd={(p) => handleAddProduct({...p, plan: currentUserPlan })} onEdit={async (p) => {
-              try {
-                await updateDoc(doc(db, 'products', p.id), {
-                   ...p
-                });
-                setShowAddProduct(false);
-                setEditingProduct(null);
-                showToast('تم تحديث الإعلان بنجاح', 'success');
-              } catch (err) {
-                console.error("Failed to edit ad", err);
-                showToast('حدث خطأ أثناء تعديل الإعلان', 'error');
-              }
-          }} currentUserPhone={currentUserPhone} currentUser={loggedUserObj} initialProduct={editingProduct} />}
-         {selectedProduct && <ProductDetailsModal 
-           key={`details-${selectedProduct.id}`} 
-           product={products.find(p => p.id === selectedProduct.id) || selectedProduct} 
-           isFavorite={favorites.includes(selectedProduct.id)}
-           onToggleFavorite={(e) => toggleFavorite(selectedProduct.id, e)}
-           onClose={() => {
-             setSelectedProduct(null);
-             window.history.pushState(null, '', window.location.pathname);
-           }} 
-           currentUserPhone={currentUserPhone} 
-           isAdmin={currentUserPhone === '92942482'} 
-           onDelete={async () => {
-             try {
-               await deleteDoc(doc(db, 'products', selectedProduct!.id));
-               setSelectedProduct(null);
-               showToast('تم حذف الإعلان بنجاح', 'success');
-             } catch(err) {
-               console.error('Error deleting product', err);
-             }
-         }} onEdit={(product) => {
-             setEditingProduct(product);
-             setShowAddProduct(true);
-         }} onUpdateComments={async (productId, updatedComments) => {
+            }} onEdit={(product) => {
+                setEditingProduct(product);
+                setShowAddProduct(true);
+            }} onUpdateComments={async (productId, updatedComments) => {
              try {
                await updateDoc(doc(db, 'products', productId), { comments: updatedComments });
                setSelectedProduct(prev => prev && prev.id === productId ? { ...prev, comments: updatedComments } : prev);
@@ -1402,6 +1660,7 @@ export default function App() {
              setUserNotifications(prev => [newNotif, ...prev]);
              showToast('تنبيه: تم تلقي تعليق جديد على إعلانك! 🔔', 'success');
          }} />}
+         </Suspense>
          {/* Notifications Modal for Regular Users */}
          {showNotificationsModal && (
             <motion.div 

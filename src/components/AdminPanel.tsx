@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { safeStorage } from '../lib/safeStorage';
-import { doc, deleteDoc, setDoc } from 'firebase/firestore';
+import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { 
   ShieldAlert, Users, LayoutList, CheckCircle, X, Settings, 
@@ -24,19 +24,21 @@ interface AdminPanelProps {
   notificationsCount: number;
   setNotificationsCount: React.Dispatch<React.SetStateAction<number>>;
   onAddUserNotification?: (phone: string, message: string) => void;
+  showToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
 }
 
 export default function AdminPanel({ 
   onClose, 
-  systemUsers, 
+  systemUsers = [], 
   setSystemUsers, 
-  systemRequests, 
+  systemRequests = [], 
   setSystemRequests, 
-  products, 
+  products = [], 
   setProducts, 
   notificationsCount, 
   setNotificationsCount,
-  onAddUserNotification
+  onAddUserNotification,
+  showToast
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard'|'ads'|'users'|'requests'|'settings'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,10 +54,22 @@ export default function AdminPanel({
     return safeStorage.getItem('sanad_settings_maintenance') === 'true';
   });
   const [pricingVip, setPricingVip] = useState(() => {
-    return safeStorage.getItem('sanad_settings_pricing_vip') || '100';
+    const val = safeStorage.getItem('sanad_settings_pricing_vip');
+    const oldValues = ['100', '50', '50.00', '100 د.ت', '50 د.ت', '70', '150'];
+    if (!val || oldValues.includes(String(val).trim())) {
+      safeStorage.setItem('sanad_settings_pricing_vip', '99');
+      return '99';
+    }
+    return val;
   });
   const [pricingBronze, setPricingBronze] = useState(() => {
-    return safeStorage.getItem('sanad_settings_pricing_bronze') || '50';
+    const val = safeStorage.getItem('sanad_settings_pricing_bronze');
+    const oldValues = ['50', '30', '30.00', '50 د.ت', '30 د.ت', '35', '40'];
+    if (!val || oldValues.includes(String(val).trim())) {
+      safeStorage.setItem('sanad_settings_pricing_bronze', '49');
+      return '49';
+    }
+    return val;
   });
 
   // Save Settings to safeStorage
@@ -80,8 +94,10 @@ export default function AdminPanel({
       try {
           await deleteDoc(doc(db, 'products', id));
           setProducts(products.filter(p => p.id !== id));
+          if (showToast) showToast('تم حذف الإعلان بنجاح', 'success');
       } catch (e) {
           console.error("Failed to delete ad", e);
+          if (showToast) showToast('حدث خطأ أثناء حذف الإعلان', 'error');
       }
   };
   
@@ -95,29 +111,58 @@ export default function AdminPanel({
   };
 
   const handleActivateRequest = async (req: any) => {
+      if (!req || !req.phone) {
+          if (showToast) showToast('طلب غير صالح أو رقم الهاتف مفقود', 'error');
+          return;
+      }
+      const phoneStr = String(req.phone).trim().replace(/\s+/g, '');
+      const reqIdStr = req.id ? String(req.id).trim() : '';
+
       // Find user by phone in system
-      const existingUser = systemUsers.find(u => u.phone === req.phone);
-      try {
-          if (existingUser) {
-              await setDoc(doc(db, 'systemUsers', existingUser.id), { ...existingUser, plan: req.plan }, { merge: true });
-          } else {
-              await setDoc(doc(db, 'systemUsers', req.phone), { name: req.user, phone: req.phone, plan: req.plan });
-          }
-      } catch (e) {
-          console.error("Failed to update user plan", e);
+      const existingUser = systemUsers.find(u => {
+          const uPhone = u.phone ? String(u.phone).trim().replace(/\s+/g, '') : '';
+          const uId = u.id ? String(u.id).trim().replace(/\s+/g, '') : '';
+          return uPhone === phoneStr || uId === phoneStr;
+      });
+
+      // Update Parent State Locally for instant feedback
+      setSystemRequests(prev => prev.filter(r => r.id !== req.id));
+      if (notificationsCount > 0) setNotificationsCount(prev => Math.max(0, prev - 1));
+      
+      if (existingUser) {
+          setSystemUsers(prev => prev.map(u => (u.id === existingUser.id || u.phone === phoneStr) ? { ...u, plan: req.plan } : u));
+      } else {
+          setSystemUsers(prev => [...prev, { id: phoneStr, name: req.user || `مستخدم ${phoneStr}`, phone: phoneStr, plan: req.plan }]);
       }
 
-      setSystemRequests(systemRequests.filter(r => r.id !== req.id));
-      if (notificationsCount > 0) setNotificationsCount(notificationsCount - 1);
-      
       if (onAddUserNotification) {
-          onAddUserNotification(req.phone, 'تم ترقية حسابكم بنجاح شكرا');
+          onAddUserNotification(phoneStr, 'تم تفعيل باقتكم بنجاح شكرا');
       }
 
       setSelectedRequest(null);
+      // Trigger visual confetti
       setTimeout(() => {
         triggerSuccessConfetti();
       }, 100);
+
+      // Now run the DB operations in background
+      try {
+          const targetUserId = existingUser?.id || phoneStr;
+          if (existingUser) {
+              await setDoc(doc(db, 'systemUsers', targetUserId), { ...existingUser, plan: req.plan }, { merge: true });
+          } else {
+              await setDoc(doc(db, 'systemUsers', targetUserId), { name: req.user || `مستخدم ${phoneStr}`, phone: phoneStr, plan: req.plan });
+          }
+
+          if (reqIdStr) {
+              // await deleteDoc(doc(db, 'systemRequests', reqIdStr));
+              await updateDoc(doc(db, 'systemRequests', reqIdStr), { status: 'activated' });
+          }
+          if (showToast) showToast('تم تأكيد وتفعيل الاشتراك بنجاح ✦', 'success');
+      } catch (e) {
+          console.error("Failed to update user plan or delete request in Firestore:", e);
+          if (showToast) showToast('حدث خطأ أثناء مزامنة التفعيل مع السيرفر، ولكن تم التحديث مؤقتاً بالخلفية.', 'warning');
+      }
   };
 
   // Dynamic calculations for luxury dashboard stats
@@ -200,13 +245,13 @@ export default function AdminPanel({
            
            <div className="flex gap-4 items-center">
                 {/* Active counters */}
-                {notificationsCount > 0 && (
+                {systemRequests.filter(r => r.status !== 'activated').length > notificationsCount && (
                   <button 
-                    onClick={() => { setActiveTab('requests'); setNotificationsCount(0); }}
+                    onClick={() => { setActiveTab('requests'); setNotificationsCount(systemRequests.filter(r => r.status !== 'activated').length); }}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold animate-pulse hover:bg-red-500/20 transition-all"
                   >
                      <Bell className="w-3.5 h-3.5" />
-                     <span>{notificationsCount} طلب جديد</span>
+                     <span>{systemRequests.filter(r => r.status !== 'activated').length - notificationsCount} طلب جديد</span>
                   </button>
                 )}
 
@@ -270,7 +315,7 @@ export default function AdminPanel({
             {/* Sidebar menu - Luxury Glassmorphic */}
             <div className="w-64 bg-[#040404] border-l border-gray-900/60 p-5 shrink-0 hidden md:block relative z-10">
                 <div className="mb-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest px-3">لوحات التحليل</div>
-                <MenuContent activeTab={activeTab} setActiveTab={setActiveTab} systemRequestsCount={systemRequests.length} />
+                <MenuContent activeTab={activeTab} setActiveTab={setActiveTab} systemRequestsCount={systemRequests.filter(r => r.status !== 'activated').length} />
             </div>
 
             {/* Main Content Area */}
@@ -878,11 +923,12 @@ export default function AdminPanel({
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                     {filteredRequests.map((r, index) => {
                                         const isVip = r.plan === 'vip';
+                                        const isActivated = r.status === 'activated';
                                         
                                         return (
                                             <div 
                                               key={`${r.id}-${r.phone}-${index}`} 
-                                              className="bg-[#050505] border border-gray-900 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between hover:border-gray-700 transition-all duration-300"
+                                              className={`bg-[#050505] border ${isActivated ? 'border-emerald-900/50' : 'border-gray-900'} rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between hover:border-gray-700 transition-all duration-300`}
                                             >
                                                 {isVip && (
                                                   <div className="absolute top-0 left-0 w-24 h-24 overflow-hidden pointer-events-none">
@@ -917,17 +963,36 @@ export default function AdminPanel({
                                                 </div>
 
                                                 <div className="mt-6 pt-4 border-t border-gray-900/60 flex items-center justify-between gap-3">
-                                                    <span className="text-[10px] text-yellow-500 font-bold flex items-center gap-1 animate-pulse">
-                                                       ✦ تفعيل بانتظار الموافقة المالية
-                                                    </span>
+                                                    {isActivated ? (
+                                                        <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
+                                                           <CheckCircle className="w-3.5 h-3.5" /> تم التفعيل ✦
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] text-yellow-500 font-bold flex items-center gap-1 animate-pulse">
+                                                           ✦ تفعيل بانتظار الموافقة المالية
+                                                        </span>
+                                                    )}
 
-                                                    <button 
-                                                      onClick={() => setSelectedRequest(r)}
-                                                      className="bg-[#10B981] hover:bg-[#0ea5e9] text-black px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 flex items-center gap-1 shadow-lg shadow-[#10B981]/10"
-                                                    >
-                                                       <span>مراجعة وتفعيل الآن</span>
-                                                       <ChevronRight className="w-3.5 h-3.5 rotate-180" />
-                                                    </button>
+                                                    {isActivated ? (
+                                                        <button 
+                                                          onClick={async () => {
+                                                            await deleteDoc(doc(db, 'systemRequests', r.id));
+                                                            setSystemRequests(prev => prev.filter(req => req.id !== r.id));
+                                                            if (showToast) showToast('تم الحذف', 'success');
+                                                          }}
+                                                          className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition"
+                                                        >
+                                                            حذف
+                                                        </button>
+                                                    ) : (
+                                                        <button 
+                                                          onClick={() => setSelectedRequest(r)}
+                                                          className="bg-[#10B981] hover:bg-[#0ea5e9] text-black px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 flex items-center gap-1 shadow-lg shadow-[#10B981]/10"
+                                                        >
+                                                           <span>مراجعة وتفعيل الآن</span>
+                                                           <ChevronRight className="w-3.5 h-3.5 rotate-180" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         );

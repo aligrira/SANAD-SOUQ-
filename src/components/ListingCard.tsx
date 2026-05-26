@@ -14,11 +14,12 @@ interface ListingCardProps {
   viewMode?: 'grid' | 'list';
 }
 
-export default function ListingCard({ product, onClick, searchQuery = '', isFavorite, onToggleFavorite, viewMode = 'grid' }: ListingCardProps) {
+const ListingCard: React.FC<ListingCardProps> = ({ product, onClick, searchQuery = '', isFavorite, onToggleFavorite, viewMode = 'grid' }) => {
   const [showHeart, setShowHeart] = useState(false);
   const [heartsBurst, setHeartsBurst] = useState<{ id: number; x: number; y: number; scale: number; rotation: number }[]>([]);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const clickBuffer = useRef<number>(0);
   const clickTimer = useRef<NodeJS.Timeout | null>(null);
@@ -184,10 +185,16 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
           ? 'h-48 sm:h-full w-full sm:w-64 sm:order-last' 
           : 'h-[55%] w-full'
       }`}>
+        {/* Placeholder before load for blur-up effect */}
+        {!imageLoaded && (
+          <div className="absolute inset-0 bg-slate-200 animate-pulse flex items-center justify-center" />
+        )}
         <img 
           src={product.imageUrls?.[0] || 'https://via.placeholder.com/400'} 
           alt={product.title} 
-          className="max-w-[95%] max-h-[92%] object-contain transition-all duration-500 group-hover:scale-108 group-hover:rotate-1"
+          loading="lazy"
+          onLoad={() => setImageLoaded(true)}
+          className={`max-w-[95%] max-h-[92%] object-contain transition-all duration-700 ease-out group-hover:scale-[1.03] group-hover:-rotate-1 relative z-10 ${imageLoaded ? 'opacity-100 blur-0 scale-100' : 'opacity-0 blur-xl scale-90'}`}
           referrerPolicy="no-referrer"
         />
 
@@ -342,6 +349,7 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
                <img 
                  src={product.sellerAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'} 
                  alt={product.sellerName || ''} 
+                 loading="lazy"
                  className="w-full h-full object-cover" 
                  referrerPolicy="no-referrer" 
                />
@@ -352,4 +360,15 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
       </div>
     </motion.div>
   );
-}
+};
+
+// Use deep comparison for product objects to avoid unnecessary re-renders
+export default React.memo(ListingCard, (prevProps, nextProps) => {
+  return (
+    prevProps.isFavorite === nextProps.isFavorite &&
+    prevProps.viewMode === nextProps.viewMode &&
+    prevProps.searchQuery === nextProps.searchQuery &&
+    prevProps.product.id === nextProps.product.id &&
+    prevProps.product.views === nextProps.product.views
+  );
+});

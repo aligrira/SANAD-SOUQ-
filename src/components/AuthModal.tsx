@@ -17,6 +17,7 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
   const [showCode, setShowCode] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   return (
     <motion.div
@@ -52,6 +53,7 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
 
         <form className="space-y-4 text-right" dir="rtl" onSubmit={async (e) => { 
           e.preventDefault(); 
+          if (loading) return;
           setErrorMsg('');
           
           if (!isLogin) {
@@ -69,6 +71,7 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
             }
           }
 
+          setLoading(true);
           try {
             const result = await onAuth(isLogin, phone, name, code);
             if (result !== true) {
@@ -77,16 +80,18 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
           } catch(err: any) {
               console.error('Auth error:', err);
               setErrorMsg(err.message || 'حدث خطأ أثناء الاتصال');
+          } finally {
+              setLoading(false);
           }
         }}>
           {!isLogin && (
             <div className="relative">
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="الاسم الكامل" className="w-full bg-[#020806] border border-gray-800 rounded-xl py-3 pr-12 pl-4 text-white focus:border-[#D4AF37] outline-none" required={!isLogin} />
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="الاسم الكامل" className="w-full bg-[#020806] border border-gray-800 rounded-xl py-3 pr-12 pl-4 text-white focus:border-[#D4AF37] outline-none" disabled={loading} required={!isLogin} />
               <User className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
             </div>
           )}
           <div className="relative">
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="رقم الهاتف" className="w-full bg-[#020806] border border-gray-800 rounded-xl py-3 pr-12 pl-4 text-white focus:border-[#D4AF37] outline-none text-right" dir="auto" required />
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="رقم الهاتف" className="w-full bg-[#020806] border border-gray-800 rounded-xl py-3 pr-12 pl-4 text-white focus:border-[#D4AF37] outline-none text-right" dir="auto" disabled={loading} required />
             <Phone className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
           </div>
 
@@ -98,6 +103,7 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
               placeholder="كود الدخول (8 أرقام)" 
               maxLength={8}
               className="w-full bg-[#020806] border border-gray-800 rounded-xl py-3 pr-12 pl-12 text-white focus:border-[#D4AF37] outline-none transition-all text-right" 
+              disabled={loading}
               required 
             />
             <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
@@ -105,6 +111,7 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
               type="button"
               onClick={() => setShowCode(!showCode)}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+              disabled={loading}
             >
               {showCode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
@@ -120,6 +127,7 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
                   placeholder="تأكيد كود الدخول" 
                   maxLength={8}
                   className="w-full bg-[#020806] border border-gray-800 rounded-xl py-3 pr-12 pl-12 text-white focus:border-[#D4AF37] outline-none transition-all text-right" 
+                  disabled={loading}
                   required 
                 />
                 <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
@@ -128,20 +136,32 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
               <div className="flex items-center gap-2 px-1 py-1">
                 <button 
                   type="button" 
-                  onClick={() => setAgreed(!agreed)}
-                  className={`w-5 h-5 rounded border transition-all flex items-center justify-center ${agreed ? 'bg-[#D4AF37] border-[#D4AF37]' : 'border-gray-700 hover:border-gray-500'}`}
+                  onClick={() => !loading && setAgreed(!agreed)}
+                  className={`w-5 h-5 rounded border transition-all flex items-center justify-center ${agreed ? 'bg-[#D4AF37] border-[#D4AF37]' : 'border-gray-700 hover:border-gray-500'} ${loading ? 'cursor-not-allowed opacity-50' : ''}`}
+                  disabled={loading}
                 >
                   {agreed && <CheckCircle2 className="w-4 h-4 text-black" />}
                 </button>
                 <span className="text-xs text-gray-400 select-none">
-                  أوافق على <button type="button" className="text-[#D4AF37] hover:underline">الشروط والأحكام</button> وسياسة الخصوصية
+                  أوافق على <button type="button" className="text-[#D4AF37] hover:underline" disabled={loading}>الشروط والأحكام</button> وسياسة الخصوصية
                 </span>
               </div>
             </>
           )}
 
-          <button type="submit" className="w-full bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black font-bold rounded-xl py-3 shadow-lg shadow-[#D4AF37]/20 hover:opacity-90 transition-opacity mt-2">
-             {isLogin ? 'دخول' : 'إنشاء حساب'}
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className={`w-full bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black font-bold rounded-xl py-3 shadow-lg shadow-[#D4AF37]/20 transition-all mt-2 flex items-center justify-center gap-2 ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
+          >
+             {loading ? (
+               <>
+                 <span className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
+                 <span>جاري التحميل...</span>
+               </>
+             ) : (
+               isLogin ? 'دخول' : 'إنشاء حساب'
+             )}
           </button>
         </form>
 

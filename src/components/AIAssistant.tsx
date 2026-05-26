@@ -24,7 +24,7 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
 
     const userMessage = input.trim();
     setInput('');
-    const newUserMessage = { id: crypto.randomUUID(), role: 'user', text: userMessage };
+    const newUserMessage = { id: crypto.randomUUID(), role: 'user' as const, text: userMessage };
     setMessages(prev => [...prev, newUserMessage]);
     setIsLoading(true);
 
@@ -57,14 +57,14 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
       const text = await response.text();
       try {
         const data = JSON.parse(text);
-        const modelResponse = { id: crypto.randomUUID(), role: 'model', text: data.text || data.error || 'عذراً، حدث خطأ تأكد من إعداد الخادم.' };
+        const modelResponse = { id: crypto.randomUUID(), role: 'model' as const, text: data.text || data.error || 'عذراً، حدث خطأ تأكد من إعداد الخادم.' };
         setMessages(prev => [...prev, modelResponse]);
       } catch (e) {
         throw new Error('Received unexpected non-JSON response format.');
       }
     } catch (error: any) {
       console.error('Chat error:', error);
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'model', text: 'حدث خطأ في الاتصال. يرجى التأكد من أن مفتاح API الخاص بـ Gemini تمت إضافته بشكل صحيح وأن الخادم يعمل.' }]);
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'model' as const, text: 'حدث خطأ في الاتصال. يرجى التأكد من أن مفتاح API الخاص بـ Gemini تمت إضافته بشكل صحيح وأن الخادم يعمل.' }]);
     } finally {
       setIsLoading(false);
     }
