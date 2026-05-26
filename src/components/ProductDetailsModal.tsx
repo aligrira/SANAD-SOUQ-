@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown, Eye, Heart, Share2, AlertTriangle, Star, Bot } from 'lucide-react';
+import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown, ChevronLeft, ChevronRight, Eye, Heart, Share2, AlertTriangle, Star, Bot } from 'lucide-react';
 import { Product } from '../types';
 import { triggerPushNotification, requestPushPermission } from '../lib/pushNotifications';
 
@@ -31,11 +31,13 @@ export default function ProductDetailsModal({
   currentUserPlan?: 'free' | 'bronze' | 'vip'
 }) {
   const [commentText, setCommentText] = useState('');
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [comments, setComments] = useState(product.comments || []);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
   const [isReported, setIsReported] = useState(false);
   const clickBuffer = React.useRef<number>(0);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
   const [permissionStatus, setPermissionStatus] = useState<string>(
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
   );
@@ -44,6 +46,29 @@ export default function ProductDetailsModal({
   const [posterTheme, setPosterTheme] = useState<'gold' | 'emerald' | 'crimson'>('gold');
   const [posterSlogan, setPosterSlogan] = useState('حالة ممتازة تواصل واطلب الآن ✦');
   const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
+
+  const scrollNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (scrollRef.current) {
+        scrollRef.current.scrollBy({ left: -scrollRef.current.clientWidth, behavior: 'smooth' }); // rtl is negative... wait, if `dir="ltr"` is used for scroll, it's positive. Let's use `clientWidth` and just rely on ltr scrolling.
+    }
+  };
+
+  const scrollPrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (scrollRef.current) {
+        scrollRef.current.scrollBy({ left: scrollRef.current.clientWidth, behavior: 'smooth' }); // for LTR, scrollBy(positive) goes right. Wait, the container has `dir="ltr"`. Let's test left/right carefully inside the component or just check `scrollRef.current.scrollBy({ left: 300 })`. Actually, let's use positive for next and negative for prev since it's dir="ltr".
+    }
+  };
+
+  const nextImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (scrollRef.current) scrollRef.current.scrollBy({ left: scrollRef.current.clientWidth, behavior: 'smooth' });
+  };
+  const prevImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (scrollRef.current) scrollRef.current.scrollBy({ left: -scrollRef.current.clientWidth, behavior: 'smooth' });
+  };
 
   const handleImageDoubleClick = (e: React.MouseEvent) => {
     if (!onToggleFavorite) return;
@@ -300,14 +325,42 @@ export default function ProductDetailsModal({
           {/* Main Image */}
           <div 
             onClick={handleImageDoubleClick}
-            className="absolute inset-0 w-full h-full cursor-pointer overflow-hidden"
+            className="absolute inset-0 w-full h-full cursor-pointer overflow-hidden group"
           >
-            <img 
-              src={product.imageUrls?.[0] || 'https://via.placeholder.com/400'} 
-              alt={product.title} 
-              className="w-full h-full object-cover object-center select-none pointer-events-none block brightness-110 contrast-105 saturate-110" 
-              referrerPolicy="no-referrer" 
-            />
+            <div ref={scrollRef} className="flex w-full h-full snap-x snap-mandatory overflow-x-auto no-scrollbar scroll-smooth" dir="ltr" onScroll={(e) => {
+                const index = Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth);
+                setCurrentImageIndex(index);
+            }}>
+                {(product.imageUrls?.length ? product.imageUrls : [product.imageUrls?.[0] || 'https://via.placeholder.com/400']).map((img, idx) => (
+                   <img 
+                      key={idx}
+                      src={img} 
+                      alt={product.title} 
+                      className="w-full h-full shrink-0 object-cover object-center select-none pointer-events-none block brightness-110 contrast-105 saturate-110 snap-center" 
+                      referrerPolicy="no-referrer" 
+                   />
+                ))}
+            </div>
+
+            {product.imageUrls && product.imageUrls.length > 1 && (
+                <>
+                  <div className="absolute top-1/2 left-4 -translate-y-1/2 z-20">
+                     <button onClick={prevImage} className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md text-white/70 hover:text-white flex items-center justify-center border border-white/10 transition-colors">
+                        <ChevronLeft className="w-6 h-6" />
+                     </button>
+                  </div>
+                  <div className="absolute top-1/2 right-4 -translate-y-1/2 z-20">
+                     <button onClick={nextImage} className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md text-white/70 hover:text-white flex items-center justify-center border border-white/10 transition-colors">
+                        <ChevronRight className="w-6 h-6" />
+                     </button>
+                  </div>
+                  <div className="absolute bottom-[40%] left-0 right-0 flex justify-center gap-1.5 z-20 pointer-events-none" dir="ltr">
+                      {product.imageUrls.map((_, idx) => (
+                          <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentImageIndex ? 'bg-white w-4' : 'bg-white/50 w-1.5'}`} />
+                      ))}
+                  </div>
+                </>
+            )}
             
             {/* Heart Animation Overlay */}
             <AnimatePresence>
@@ -368,8 +421,8 @@ export default function ProductDetailsModal({
 
           {/* Content overlay inside story */}
           <div className="relative z-10 w-full space-y-4">
-             <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-md leading-tight mb-3 font-display">{product.title}</h1>
+             <div className="w-full">
+                <h1 className="text-xl sm:text-3xl font-bold text-white drop-shadow-md leading-normal mb-3 font-display w-full max-w-full line-clamp-2 sm:line-clamp-3 min-h-[3.5rem] sm:min-h-[4.5rem]" dir="auto" style={{ wordBreak: 'anywhere', overflowWrap: 'anywhere' }}>{product.title}</h1>
                 <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-[#10B981]/25 border border-[#10B981]/30 backdrop-blur-md text-[#10B981] font-black text-xl shadow-md">
                    {product.price} <span className="text-sm font-bold">د.ت</span>
                 </div>
@@ -432,7 +485,7 @@ export default function ProductDetailsModal({
                  <span className="w-1 h-4 bg-[#D4AF37] rounded-full inline-block"></span>
                  تفاصيل الإعلان
               </h3>
-              <p className="text-gray-400 leading-relaxed whitespace-pre-wrap text-sm">
+              <p className="text-gray-400 leading-relaxed whitespace-pre-wrap text-sm break-words" dir="auto" style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}>
                  {product.description || 'لا يوجد وصف متاح لهذا الإعلان.'}
               </p>
            </div>

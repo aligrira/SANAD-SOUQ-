@@ -24,7 +24,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
     'اخرى'
   ];
 
-  const [imagePreview, setImagePreview] = useState<string | null>(initialProduct?.imageUrls[0] || null);
+  const [images, setImages] = useState<string[]>(initialProduct?.imageUrls || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -64,46 +64,62 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
     setPrice(val);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const img = new Image();
-        img.src = reader.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 360;
-          const MAX_HEIGHT = 640; // keeps 9:16 aspect ratio beautifully for stories and listing images
-          let width = img.width;
-          let height = img.height;
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
+      const newImages: string[] = [];
+      
+      const processImage = (file: File): Promise<string> => {
+         return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const img = new Image();
+              img.src = reader.result as string;
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 360;
+                const MAX_HEIGHT = 640;
+                let width = img.width;
+                let height = img.height;
 
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
+                if (width > height) {
+                  if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                  }
+                } else {
+                  if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                  }
+                }
 
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.55); // Highly compressed, extremely light data size
-            setImagePreview(compressedBase64);
-          } else {
-            setImagePreview(reader.result as string);
-          }
-        };
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0, width, height);
+                  resolve(canvas.toDataURL('image/jpeg', 0.55));
+                } else {
+                  resolve(reader.result as string);
+                }
+              };
+            };
+            reader.readAsDataURL(file);
+         });
       };
-      reader.readAsDataURL(file);
+
+      for (const file of files) {
+          const compressed = await processImage(file);
+          newImages.push(compressed);
+      }
+      
+      setImages(prev => [...prev, ...newImages]);
     }
+  };
+
+  const removeImage = (index: number) => {
+      setImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = () => {
@@ -120,7 +136,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
               category,
               location,
               description,
-              imageUrls: [imagePreview || 'https://via.placeholder.com/400'],
+              imageUrls: images.length > 0 ? images : ['https://via.placeholder.com/400'],
               sellerId: phone || initialProduct?.sellerId || currentUserPhone || 'guest',
               sellerName: initialProduct?.sellerName || currentUser?.name || (currentUserPhone ? `User ${currentUserPhone}` : 'مستخدم'),
               sellerAvatar: initialProduct?.sellerAvatar || currentUser?.avatar || undefined,
@@ -164,40 +180,42 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                <p className="text-gray-400 text-xs mt-0.5">{initialProduct ? 'قم بتعديل بيانات إعلانك.' : 'يرجى رفع صورة وإدخال تفاصيل إعلانك العقاري أو التجاري بدقة عالية.'}</p>
             </div>
 
-            {/* 9:16 Image upload area with slight margin and beautiful branding */}
-            <div 
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-850 hover:border-[#D4AF37] rounded-3xl p-3 flex flex-col items-center justify-center bg-gray-950/40 hover:bg-gray-900/30 transition-all cursor-pointer group relative overflow-hidden aspect-[9/16] w-full max-w-[155px] mx-auto shadow-inner"
-            >
-               <input 
+            {/* Image upload area */}
+            <div className="flex flex-col items-center w-full">
+              <input 
                  type="file" 
                  ref={fileInputRef} 
                  onChange={handleImageChange} 
                  className="hidden" 
                  accept="image/*"
-               />
-               
-               <AnimatePresence mode="wait">
-                   {imagePreview ? (
-                       <motion.img 
-                          key="preview"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          src={imagePreview} 
-                          alt="Preview" 
-                          className="absolute inset-0 w-full h-full object-cover rounded-2xl"
-                       />
-                   ) : (
-                       <motion.div key="placeholder" exit={{ opacity: 0 }} className="flex flex-col items-center justify-center z-10 w-full text-center">
-                           <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center mb-3 group-hover:bg-[#10B981]/15 border border-gray-800 group-hover:border-[#10B981]/30 transition-all">
-                              <ImageIcon className="w-6 h-6 text-gray-400 group-hover:text-[#10B981] transition-colors" />
-                           </div>
-                           <p className="text-white text-xs font-bold font-display">أضف صورة الإعلان</p>
-                           <p className="text-[10px] text-gray-500 mt-0.5">مقاس 16:9 عمودي (قصة)</p>
-                       </motion.div>
-                   )}
-               </AnimatePresence>
+                 multiple
+              />
+
+              <div className="flex gap-3 overflow-x-auto w-full pb-2 px-2 snap-x snap-mandatory no-scrollbar" dir="rtl">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative shrink-0 snap-center aspect-[9/16] w-[120px] rounded-2xl overflow-hidden border border-gray-800 group">
+                     <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                     <button 
+                       type="button"
+                       onClick={(e) => { e.stopPropagation(); removeImage(idx); }} 
+                       className="absolute top-1.5 left-1.5 bg-black/60 backdrop-blur hover:bg-rose-500 p-1.5 rounded-full shadow-lg transition-colors z-10"
+                     >
+                        <X className="w-3.5 h-3.5 text-white" />
+                     </button>
+                  </div>
+                ))}
+
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-gray-850 hover:border-[#D4AF37] rounded-3xl flex flex-col items-center justify-center bg-gray-950/40 hover:bg-gray-900/30 transition-all cursor-pointer group shrink-0 aspect-[9/16] w-[120px]"
+                >
+                   <div className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center mb-2 group-hover:bg-[#10B981]/15 border border-gray-800 group-hover:border-[#10B981]/30 transition-all">
+                      <ImageIcon className="w-5 h-5 text-gray-400 group-hover:text-[#10B981] transition-colors" />
+                   </div>
+                   <p className="text-white text-[11px] font-bold font-display">أضف صور</p>
+                   <p className="text-[9px] text-gray-500 mt-0.5 px-2 text-center" style={{lineHeight: 1.2}}>إضافة صور<br/>لمنتجك</p>
+                </div>
+              </div>
             </div>
          </div>
 

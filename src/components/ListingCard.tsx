@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Product } from '../types';
-import { MapPin, Heart, Eye, Sparkles, Flame } from 'lucide-react';
+import { MapPin, Heart, Eye, Sparkles, Flame, Images } from 'lucide-react';
 import React, { useState, useRef } from 'react';
 import { HighlightText } from './HighlightText';
 
@@ -190,6 +190,14 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
           className="max-w-[95%] max-h-[92%] object-contain transition-all duration-500 group-hover:scale-108 group-hover:rotate-1"
           referrerPolicy="no-referrer"
         />
+
+        {/* Indicator for multiple images */}
+        {product.imageUrls && product.imageUrls.length > 1 && (
+           <div className="absolute top-2 left-2 sm:top-3 sm:left-3 bg-black/60 backdrop-blur-md text-white text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10 select-none border border-white/10" dir="ltr">
+              <Images className="w-3 w-3" />
+              <span>1/{product.imageUrls.length}</span>
+           </div>
+        )}
         
         {/* High-Fidelity Conversion Overlay (Glass Peek Hover Effect) */}
         <div className="absolute inset-0 bg-black/35 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-10 pointer-events-none">
@@ -240,7 +248,9 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
         <button 
           type="button"
           onClick={onToggleFavorite}
-          className="absolute top-2.5 left-2.5 p-1.5 sm:p-2 rounded-full bg-white/95 shadow-md border border-slate-100 hover:bg-white hover:scale-110 hover:shadow-lg transition-all z-20"
+          className={`absolute left-2.5 p-1.5 sm:p-2 rounded-full bg-white/95 shadow-md border border-slate-100 hover:bg-white hover:scale-110 hover:shadow-lg transition-all z-20 ${
+            product.imageUrls && product.imageUrls.length > 1 ? 'top-10 sm:top-12' : 'top-2.5'
+          }`}
         >
           <Heart className={`w-3.5 h-3.5 transition-colors ${isFavorite ? 'fill-[#e35914] text-[#e35914]' : 'text-slate-400 hover:text-[#e35914]'}`} />
         </button>
@@ -263,7 +273,7 @@ export default function ListingCard({ product, onClick, searchQuery = '', isFavo
       <div className={`p-2 xs:p-3 flex flex-col justify-between flex-1 gap-1 xs:gap-1.5 bg-white text-right z-10 ${!isList && 'h-[45%] overflow-hidden'}`} dir="rtl">
         <div className="flex flex-col flex-1 shrink min-h-0">
           {/* Main Title & Brand info */}
-          <h3 className={`font-bold text-[11px] sm:text-xs text-slate-800 group-hover:text-[#F25A24] transition-colors leading-tight tracking-tight mb-0.5 sm:mb-1 overflow-hidden shrink-0 ${isList ? 'line-clamp-2 h-8 sm:h-10' : 'line-clamp-1 h-4 sm:h-5'}`}>
+          <h3 className={`font-bold text-[11px] sm:text-xs text-slate-800 group-hover:text-[#F25A24] transition-colors leading-tight tracking-tight mb-0.5 sm:mb-1 overflow-hidden shrink-0 ${isList ? 'line-clamp-2 h-8 sm:h-10' : 'line-clamp-1 h-4 sm:h-5'}`} dir="auto">
             <HighlightText text={product.title} query={searchQuery} />
           </h3>
 
