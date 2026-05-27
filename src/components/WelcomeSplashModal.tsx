@@ -4,12 +4,12 @@ import { Crown, Sparkles, Zap, Check, ArrowRight, User } from 'lucide-react';
 
 interface WelcomeSplashModalProps {
   key?: React.Key;
-  user: {
+  user?: {
     name: string;
     phone: string;
     plan: string;
     avatar?: string | null;
-  };
+  } | null;
   onClose: () => void;
 }
 
@@ -52,9 +52,9 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
   }, []);
 
   // Determine design characteristics based on user plan
-  const isSuperAdmin = user.phone === '92942482';
-  const isVip = user.plan === 'vip' || isSuperAdmin;
-  const isBronze = user.plan === 'bronze';
+  const isSuperAdmin = user?.phone === '92942482';
+  const isVip = user?.plan === 'vip' || isSuperAdmin;
+  const isBronze = user?.plan === 'bronze';
   
   let headerText = isSuperAdmin ? 'أهلاً بك في منصة النخبة، مدير النظام' : 'أهلاً بك في منصة النخبة';
   let planNameShared = isSuperAdmin ? 'المدير العام (VIP)' : 'العضوية التأسيسية المجانية';
@@ -74,11 +74,9 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
   }
 
   // Dual initials for placeholder avatar
-  const initials = user.name
-    .split(' ')
-    .map(n => n[0])
-    .slice(0, 2)
-    .join('');
+  const initials = user?.name
+    ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('')
+    : 'ز';
 
   return (
     <motion.div
@@ -124,7 +122,7 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.9, y: 30, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 120, damping: 15 }}
-        className="bg-gradient-to-b from-[#0a0f0d] to-black rounded-[2.5rem] p-8 border border-gray-800 shadow-2xl w-full max-w-md relative text-center overflow-hidden"
+        className="bg-gradient-to-b from-[#0a0f0d] to-black rounded-[2.5rem] p-6 sm:p-8 border border-gray-800 shadow-2xl w-full max-w-md relative text-center overflow-y-auto max-h-[90vh]"
       >
         {/* Subtle radial golden background light */}
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 bg-gradient-to-r from-amber-500/20 to-yellow-400/5 rounded-full blur-[80px] pointer-events-none" />
@@ -143,8 +141,8 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
             {/* Main Avatar Container */}
             <div className={`w-28 h-28 rounded-full p-[3px] bg-gradient-to-tr ${isVip ? 'from-[#D4AF37] via-amber-200 to-[#D4AF37]' : isBronze ? 'from-slate-400 via-white to-slate-500' : 'from-emerald-500 via-teal-200 to-emerald-600'} shadow-2xl relative z-10`}>
               <div className="w-full h-full bg-[#050907] rounded-full flex items-center justify-center overflow-hidden">
-                {user.avatar ? (
-                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user?.name || ''} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center">
                     <span className={`text-2xl font-black font-display tracking-widest ${isVip ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-yellow-100' : isBronze ? 'text-slate-100' : 'text-emerald-300'}`}>
@@ -185,7 +183,7 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
             transition={{ delay: 0.4 }}
             className="text-2xl sm:text-3xl font-black text-white font-display leading-tight tracking-tight drop-shadow-md"
           >
-            مرحباً بك، <span className={`text-transparent bg-clip-text bg-gradient-to-r ${isVip ? 'from-[#D4AF37] via-yellow-200 to-[#F5ECE2]' : isBronze ? 'from-slate-200 via-white to-slate-400' : 'from-emerald-300 via-teal-100 to-emerald-400'}`}>{user.name}</span>!
+            مرحباً بك، <span className={`text-transparent bg-clip-text bg-gradient-to-r ${isVip ? 'from-[#D4AF37] via-yellow-200 to-[#F5ECE2]' : isBronze ? 'from-slate-200 via-white to-slate-400' : 'from-emerald-300 via-teal-100 to-emerald-400'}`}>{user?.name || 'ضيفنا الكريم'}</span>!
           </motion.h2>
           
           <motion.p 

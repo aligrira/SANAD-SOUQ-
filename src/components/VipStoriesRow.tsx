@@ -33,18 +33,21 @@ export default function VipStoriesRow({ stories, currentUserObj, onStoryClick, o
             whileTap={{ scale: 0.95 }}
             className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 snap-start"
           >
-            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full p-[2px] bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow">
-              <div className="w-full h-full rounded-full border-2 border-[#020806] overflow-hidden bg-gray-900 relative">
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full p-[3px] vip-image-border">
+              <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 bg-red-600/95 text-white text-[8px] font-bold px-1.5 py-[1px] border border-[#D4AF37] shadow-[0_0_5px_rgba(212,175,55,0.8)] rounded-sm whitespace-nowrap">
+                الملكي
+              </div>
+              <div className="w-full h-full rounded-full overflow-hidden bg-neutral-900 relative">
                 <img 
-                  src={story.imageUrl || story.sellerAvatar || 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&q=80&w=150'} 
+                  src={(story as any).imageUrls?.[0] || story.imageUrl || story.sellerAvatar || 'https://via.placeholder.com/150'} 
                   alt={story.title}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
                 
                 {story.isVip && (
-                   <div className="absolute top-0 right-0 left-0 bottom-0 bg-black/10 flex flex-col items-center justify-end pb-1.5">
-                       <span className="bg-[#D4AF37] text-[#020806] text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_12px_rgba(212,175,55,0.9)] border border-white/20 select-none">VIP</span>
+                   <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-end pb-1">
+                       <span className="bg-[#c5a059] text-white text-[9px] font-bold px-1.5 py-0.5 rounded">VIP</span>
                    </div>
                 )}
               </div>

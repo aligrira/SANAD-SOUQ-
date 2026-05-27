@@ -40,7 +40,7 @@ export default function AdminPanel({
   onAddUserNotification,
   showToast
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard'|'ads'|'users'|'requests'|'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard'|'ads'|'users'|'requests'|'settings'|'subscribers'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [chartMetric, setChartMetric] = useState<'revenue' | 'ads'>('revenue');
   const [hoveredDataIndex, setHoveredDataIndex] = useState<number | null>(null);
@@ -126,7 +126,7 @@ export default function AdminPanel({
       });
 
       // Update Parent State Locally for instant feedback
-      setSystemRequests(prev => prev.filter(r => r.id !== req.id));
+      setSystemRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'activated' } : r));
       if (notificationsCount > 0) setNotificationsCount(prev => Math.max(0, prev - 1));
       
       if (existingUser) {
@@ -149,14 +149,13 @@ export default function AdminPanel({
       try {
           const targetUserId = existingUser?.id || phoneStr;
           if (existingUser) {
-              await setDoc(doc(db, 'systemUsers', targetUserId), { ...existingUser, plan: req.plan }, { merge: true });
+              await setDoc(doc(db, 'systemUsers', targetUserId), { plan: req.plan }, { merge: true });
           } else {
               await setDoc(doc(db, 'systemUsers', targetUserId), { name: req.user || `مستخدم ${phoneStr}`, phone: phoneStr, plan: req.plan });
           }
 
           if (reqIdStr) {
-              // await deleteDoc(doc(db, 'systemRequests', reqIdStr));
-              await updateDoc(doc(db, 'systemRequests', reqIdStr), { status: 'activated' });
+              await deleteDoc(doc(db, 'systemRequests', reqIdStr));
           }
           if (showToast) showToast('تم تأكيد وتفعيل الاشتراك بنجاح ✦', 'success');
       } catch (e) {
@@ -336,6 +335,48 @@ export default function AdminPanel({
                  </div>
 
                  <AnimatePresence mode="wait">
+                    {activeTab === 'subscribers' && (
+                        <motion.div 
+                          key="tab-subscribers"
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -15 }}
+                          transition={{ duration: 0.3 }}
+                          className="w-full max-w-6xl mx-auto space-y-6"
+                        >
+                            <h3 className="text-white font-bold text-2xl font-display">قائمة المشتركين ومتابعة الاشتراكات</h3>
+                            <div className="bg-[#050505] border border-gray-900 rounded-3xl p-6">
+                                <div className="grid grid-cols-6 gap-4 text-xs text-gray-500 font-bold mb-4 px-4 pb-2 border-b border-gray-900">
+                                    <div className="col-2">اسم المشترك</div>
+                                    <div>الاعلانات</div>
+                                    <div>العضوية</div>
+                                    <div>البداية</div>
+                                    <div>الانتهاء</div>
+                                    <div>تنبيه</div>
+                                </div>
+                                <div className="space-y-2">
+                                  {systemUsers.map((user) => (
+                                     <div key={user.id} className="grid grid-cols-6 gap-4 items-center bg-[#070707] hover:bg-[#0a0a0a] rounded-2xl p-4 border border-gray-900 shadow-sm transition">
+                                        <div className="col-span-2 text-white text-xs font-bold">{user.name}</div>
+                                        <div className="text-white text-xs">{adCounts[user.id] || 0} إعلان</div>
+                                        <div className={`text-[10px] font-black px-2 py-1 rounded-full w-fit ${user.plan === 'vip' ? 'bg-[#D4AF37]/15 text-[#D4AF37]' : 'bg-amber-500/15 text-amber-500'}`}>
+                                            {user.plan === 'vip' ? 'VIP الذهبي' : 'برونزي'}
+                                        </div>
+                                        <div className="text-gray-400 text-xs">{user.subscriptionStartDate || '---'}</div>
+                                        <div className="text-gray-400 text-xs">{user.subscriptionEndDate || '---'}</div>
+                                        <div>
+                                            <button 
+                                              onClick={() => showToast && user.phone ? onAddUserNotification?.(user.phone, 'تنبيه: اشتراكك سينتهي قريباً!') : null}
+                                              className="text-xs bg-[#D4AF37]/10 text-[#D4AF37] px-3 py-1.5 rounded-xl hover:bg-[#D4AF37]/20 font-bold">
+                                               إرسال تنبيه
+                                            </button>
+                                        </div>
+                                     </div>
+                                  ))}
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
                     {activeTab === 'dashboard' && (
                         <motion.div 
                           key="tab-dashboard"
@@ -903,110 +944,161 @@ export default function AdminPanel({
                           initial={{ opacity: 0, y: 15 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -15 }}
-                          className="max-w-5xl mx-auto w-full space-y-6"
+                          className="max-w-5xl mx-auto w-full space-y-8"
                         >
-                            <div className="flex justify-between items-center mb-4">
+                            <div className="flex justify-between items-center mb-2">
                                 <div>
-                                   <h3 className="text-white font-bold text-xl font-display flex items-center gap-2">
-                                      طلبات الاشتراك والدفع المعلقة
-                                      {filteredRequests.length > 0 && (
-                                         <span className="bg-red-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full animate-bounce">
-                                            {filteredRequests.length} معلق
-                                         </span>
-                                      )}
+                                   <h3 className="text-white font-bold text-2xl font-display flex items-center gap-2">
+                                      طلبات الاشتراك والدفع
                                    </h3>
                                    <p className="text-gray-400 text-xs mt-1">تؤكد هذه القائمة الحوالات المالية ووصول الدفعات لتفعيل الميزات الذهبية للمستخدمين.</p>
                                 </div>
                             </div>
 
-                            {filteredRequests.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    {filteredRequests.map((r, index) => {
-                                        const isVip = r.plan === 'vip';
-                                        const isActivated = r.status === 'activated';
-                                        
-                                        return (
-                                            <div 
-                                              key={`${r.id}-${r.phone}-${index}`} 
-                                              className={`bg-[#050505] border ${isActivated ? 'border-emerald-900/50' : 'border-gray-900'} rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between hover:border-gray-700 transition-all duration-300`}
-                                            >
-                                                {isVip && (
-                                                  <div className="absolute top-0 left-0 w-24 h-24 overflow-hidden pointer-events-none">
-                                                    <div className="bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] absolute transform -rotate-45 text-[8px] font-black text-black py-1 text-center w-36 -left-10 top-5 uppercase tracking-widest shadow-md">
-                                                       GOLDEN
-                                                    </div>
-                                                  </div>
-                                                )}
-
-                                                <div className="space-y-4">
-                                                    <div className="flex items-start justify-between">
-                                                       <div className="flex items-center gap-3">
-                                                           <div className="w-10 h-10 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center text-white font-black">
-                                                              {r.user ? r.user.charAt(0).toUpperCase() : '👤'}
-                                                           </div>
-                                                           <div>
-                                                              <h4 className="font-bold text-white text-sm">{r.user}</h4>
-                                                              <span className="text-[10px] text-gray-500 font-mono">رقم الهاتف: <span className="dir-ltr text-right inline-block font-black text-gray-400">{r.phone}</span></span>
-                                                           </div>
+                            {/* Pending Requests Section */}
+                            <div>
+                               <div className="flex items-center justify-between border-b border-gray-800 pb-2 mb-4">
+                                  <h4 className="text-[#D4AF37] font-bold text-lg flex items-center gap-2">
+                                     <Crown className="w-5 h-5" /> 
+                                     طلبات بانتظار التفعيل
+                                     {filteredRequests.filter(r => r.status !== 'activated').length > 0 && (
+                                        <span className="bg-red-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full animate-bounce">
+                                           {filteredRequests.filter(r => r.status !== 'activated').length} معلق
+                                        </span>
+                                     )}
+                                  </h4>
+                               </div>
+                               
+                               {filteredRequests.filter(r => r.status !== 'activated').length > 0 ? (
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                       {filteredRequests.filter(r => r.status !== 'activated').map((r, index) => {
+                                           const isVip = r.plan === 'vip';
+                                           return (
+                                               <div 
+                                                 key={`${r.id}-${r.phone}-${index}`} 
+                                                 className="bg-[#050505] border border-gray-900 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between hover:border-gray-700 transition-all duration-300"
+                                               >
+                                                   {isVip && (
+                                                     <div className="absolute top-0 left-0 w-24 h-24 overflow-hidden pointer-events-none">
+                                                       <div className="bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] absolute transform -rotate-45 text-[8px] font-black text-black py-1 text-center w-36 -left-10 top-5 uppercase tracking-widest shadow-md">
+                                                          GOLDEN
                                                        </div>
-                                                       <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${isVip ? 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30' : 'bg-amber-600/15 text-amber-500 border border-amber-600/35'}`}>
-                                                           {isVip ? 'ذهبية VIP' : 'برونزية'}
+                                                     </div>
+                                                   )}
+
+                                                   <div className="space-y-4">
+                                                       <div className="flex items-start justify-between">
+                                                          <div className="flex items-center gap-3">
+                                                              <div className="w-10 h-10 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center text-white font-black">
+                                                                 {r.user ? r.user.charAt(0).toUpperCase() : '👤'}
+                                                              </div>
+                                                              <div>
+                                                                 <h4 className="font-bold text-white text-sm">{r.user}</h4>
+                                                                 <span className="text-[10px] text-gray-500 font-mono">رقم الهاتف: <span className="dir-ltr text-right inline-block font-black text-gray-400">{r.phone}</span></span>
+                                                              </div>
+                                                          </div>
+                                                          <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${isVip ? 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/30' : 'bg-amber-600/15 text-amber-500 border border-amber-600/35'}`}>
+                                                              {isVip ? 'ذهبية VIP' : 'برونزية'}
+                                                          </span>
+                                                       </div>
+
+                                                       <div className="bg-black/40 border border-gray-950 p-3.5 rounded-2xl flex items-center justify-between text-xs">
+                                                           <span className="text-gray-500">القيمة المالية للاشتراك:</span>
+                                                           <span className="text-[#10B981] font-black text-md">
+                                                              {isVip ? pricingVip : pricingBronze} د.ت
+                                                           </span>
+                                                       </div>
+                                                   </div>
+
+                                                   <div className="mt-6 pt-4 border-t border-gray-900/60 flex items-center justify-between gap-3">
+                                                       <span className="text-[10px] text-yellow-500 font-bold flex items-center gap-1 animate-pulse">
+                                                          ✦ تفعيل بانتظار الموافقة المالية
                                                        </span>
-                                                    </div>
 
-                                                    <div className="bg-black/40 border border-gray-950 p-3.5 rounded-2xl flex items-center justify-between text-xs">
-                                                        <span className="text-gray-500">القيمة المالية للاشتراك:</span>
-                                                        <span className="text-[#10B981] font-black text-md">
-                                                           {isVip ? pricingVip : pricingBronze} د.ت
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                                       <button 
+                                                         onClick={() => setSelectedRequest(r)}
+                                                         className="bg-[#10B981] hover:bg-[#0ea5e9] text-black px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 flex items-center gap-1 shadow-lg shadow-[#10B981]/10"
+                                                       >
+                                                          <span>مراجعة وتفعيل الآن</span>
+                                                          <ChevronRight className="w-3.5 h-3.5 rotate-180" />
+                                                       </button>
+                                                   </div>
+                                               </div>
+                                           );
+                                       })}
+                                   </div>
+                               ) : (
+                                   <div className="flex flex-col items-center justify-center p-8 bg-[#050505] rounded-3xl border border-gray-900 text-center">
+                                       <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-3 animate-bounce">
+                                          <BadgeCheck className="w-6 h-6" />
+                                       </div>
+                                       <h4 className="text-white font-bold text-sm">جميع الطلبات مغلقة</h4>
+                                       <p className="text-gray-500 text-xs mt-1">لا توجد طلبات اشتراك معلقة تتطلب التدخل المالي للمدير حالياً.</p>
+                                   </div>
+                               )}
+                            </div>
 
-                                                <div className="mt-6 pt-4 border-t border-gray-900/60 flex items-center justify-between gap-3">
-                                                    {isActivated ? (
-                                                        <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
-                                                           <CheckCircle className="w-3.5 h-3.5" /> تم التفعيل ✦
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-[10px] text-yellow-500 font-bold flex items-center gap-1 animate-pulse">
-                                                           ✦ تفعيل بانتظار الموافقة المالية
-                                                        </span>
-                                                    )}
+                            {/* Activated Requests Section */}
+                            <div>
+                               <div className="flex items-center justify-between border-b border-gray-800 pb-2 mb-4">
+                                  <h4 className="text-gray-400 font-bold text-lg flex items-center gap-2">
+                                     <CheckCircle className="w-5 h-5 text-emerald-500" />
+                                     الطلبات المفعلة وتاريخ السجلات
+                                  </h4>
+                               </div>
 
-                                                    {isActivated ? (
-                                                        <button 
-                                                          onClick={async () => {
-                                                            await deleteDoc(doc(db, 'systemRequests', r.id));
-                                                            setSystemRequests(prev => prev.filter(req => req.id !== r.id));
-                                                            if (showToast) showToast('تم الحذف', 'success');
-                                                          }}
-                                                          className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition"
-                                                        >
-                                                            حذف
-                                                        </button>
-                                                    ) : (
-                                                        <button 
-                                                          onClick={() => setSelectedRequest(r)}
-                                                          className="bg-[#10B981] hover:bg-[#0ea5e9] text-black px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 flex items-center gap-1 shadow-lg shadow-[#10B981]/10"
-                                                        >
-                                                           <span>مراجعة وتفعيل الآن</span>
-                                                           <ChevronRight className="w-3.5 h-3.5 rotate-180" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center p-16 bg-[#050505] rounded-3xl border border-gray-900 text-center">
-                                    <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-4 animate-bounce">
-                                       <BadgeCheck className="w-8 h-8" />
-                                    </div>
-                                    <h4 className="text-white font-bold text-md">جميع الطلبات مغلقة</h4>
-                                    <p className="text-gray-500 text-xs mt-1">لا توجد طلبات اشتراك معلقة تتطلب التدخل المالي للمدير حالياً.</p>
-                                </div>
-                            )}
+                               {filteredRequests.filter(r => r.status === 'activated').length > 0 ? (
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 opacity-70 hover:opacity-100 transition-opacity">
+                                       {filteredRequests.filter(r => r.status === 'activated').map((r, index) => {
+                                           const isVip = r.plan === 'vip';
+                                           return (
+                                               <div 
+                                                 key={`${r.id}-${r.phone}-${index}`} 
+                                                 className="bg-[#050505] border border-emerald-900/40 rounded-3xl p-5 relative overflow-hidden flex flex-col justify-between"
+                                               >
+                                                   <div className="space-y-4">
+                                                       <div className="flex items-center justify-between">
+                                                          <div className="flex items-center gap-3">
+                                                              <div className="w-8 h-8 rounded-full bg-gray-900 border border-emerald-900/50 flex items-center justify-center text-emerald-500 font-black text-xs">
+                                                                 <CheckCircle className="w-4 h-4" />
+                                                              </div>
+                                                              <div>
+                                                                 <h4 className="font-bold text-gray-300 text-xs">{r.user}</h4>
+                                                                 <span className="text-[10px] text-gray-500 font-mono"><span className="dir-ltr text-right inline-block">{r.phone}</span></span>
+                                                              </div>
+                                                          </div>
+                                                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${isVip ? 'bg-[#D4AF37]/10 text-[#D4AF37]' : 'bg-gray-800 text-gray-400'}`}>
+                                                              {isVip ? 'VIP' : 'برونزي'}
+                                                          </span>
+                                                       </div>
+                                                   </div>
+
+                                                   <div className="mt-4 pt-3 border-t border-gray-900/60 flex items-center justify-between gap-3">
+                                                       <span className="text-[9px] text-emerald-500 font-semibold flex items-center gap-1">
+                                                          تم التفعيل بنجاح
+                                                       </span>
+
+                                                       <button 
+                                                         onClick={async () => {
+                                                           await deleteDoc(doc(db, 'systemRequests', r.id));
+                                                           setSystemRequests(prev => prev.filter(req => req.id !== r.id));
+                                                           if (showToast) showToast('تم الحذف', 'success');
+                                                         }}
+                                                         className="text-gray-500 hover:text-red-500 text-[10px] border border-gray-800 hover:border-red-500 px-3 py-1 rounded-lg transition"
+                                                       >
+                                                           أرشفة / حذف
+                                                       </button>
+                                                   </div>
+                                               </div>
+                                           );
+                                       })}
+                                   </div>
+                               ) : (
+                                   <div className="p-6 text-center border border-gray-900 border-dashed rounded-3xl">
+                                     <p className="text-gray-500 text-xs">لا يوجد سجل للطلبات المفعلة حالياً.</p>
+                                   </div>
+                               )}
+                            </div>
                         </motion.div>
                     )}
                     
@@ -1241,6 +1333,18 @@ function MenuContent({ activeTab, setActiveTab, systemRequestsCount, systemReque
             >
                 <Users className="w-5 h-5 shrink-0" />
                 <span className="text-xs">قاعدة الحرفاء والمشتركين</span>
+            </button>
+
+            <button 
+               onClick={() => setActiveTab('subscribers')} 
+               className={`w-full text-right p-3.5 rounded-2xl flex items-center gap-3 transition-all duration-300 ${
+                  activeTab === 'subscribers' 
+                     ? 'bg-gradient-to-r from-[#D4AF37]/15 to-transparent text-[#D4AF37] font-bold border border-[#D4AF37]/25 shadow-[0_0_15px_rgba(212,175,55,0.03)]' 
+                     : 'text-gray-400 hover:text-white hover:bg-white/[0.02]'
+               }`}
+            >
+                <Crown className="w-5 h-5 shrink-0" />
+                <span className="text-xs">إدارة الاشتراكات والنخبة</span>
             </button>
 
             <div className="my-3 border-t border-gray-900/40 w-full" />

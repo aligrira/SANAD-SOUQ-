@@ -11,7 +11,8 @@ import { safeStorage } from './lib/safeStorage';
 import { cleanUndefined } from './lib/utils';
 import { collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import CursorGlow from './components/CursorGlow';
+import { initialProducts } from './initialData';
+// Removed CursorGlow import
 import VipStoriesRow from './components/VipStoriesRow';
 import BroadcastMarquee, { BroadcastMessage } from './components/BroadcastMarquee';
 import ListingCard from './components/ListingCard';
@@ -93,11 +94,13 @@ export default function App() {
   useEffect(() => {
     // Listen to products
     const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-      const prods: Product[] = [];
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        prods.push({ id: doc.id, ...data } as Product);
-      });
+      let prods: Product[] = [];
+      if (!snapshot.empty) {
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          prods.push({ id: doc.id, ...data } as Product);
+        });
+      }
       // Sort implicitly by createdAt or handle order
       const sorted = prods.sort((a, b) => {
           const tA = new Date(a.createdAt).getTime();
@@ -144,10 +147,25 @@ export default function App() {
       console.error("Failed to sync systemRequests:", error);
     });
 
+    // Listen to broadcasts
+    const unsubBroadcasts = onSnapshot(collection(db, 'broadcasts'), (snapshot) => {
+      const msgs: BroadcastMessage[] = [];
+      snapshot.forEach(doc => {
+        msgs.push({ id: doc.id, ...doc.data() } as BroadcastMessage);
+      });
+      // Sort client-side
+      msgs.sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      console.log('--- BROADCAST LOG ---', msgs);
+      setBroadcastQueue(msgs);
+    }, (error) => {
+      console.error("Failed to sync broadcasts:", error);
+    });
+
     return () => {
       unsubProducts();
       unsubUsers();
       unsubRequests();
+      unsubBroadcasts();
       clearTimeout(fallbackTimer);
     };
   }, []);
@@ -164,7 +182,9 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-  const [showWelcomeSplash, setShowWelcomeSplash] = useState(false);
+  const [showWelcomeSplash, setShowWelcomeSplash] = useState(() => {
+    return !safeStorage.getItem('sanad_current_user_phone');
+  });
   const [loggedUserObj, setLoggedUserObj] = useState<any>(() => {
     const saved = safeStorage.getItem('sanad_current_user_obj');
     return saved ? JSON.parse(saved) : null;
@@ -270,23 +290,28 @@ export default function App() {
     }
   };
 
-  const triggerBroadcast = (sellerName: string, location: string, title: string, plan: 'vip' | 'bronze' | 'free', avatar?: string) => {
+  const triggerBroadcast = async (sellerName: string, location: string, title: string, plan: 'vip' | 'bronze' | 'free', avatar?: string, forceBroadcast: boolean = false) => {
     const isAdmin = currentUserPhone === '92942482';
     const resolvedPlan = isAdmin ? 'vip' : plan;
-    if (resolvedPlan !== 'vip') return;
+    if (!forceBroadcast && resolvedPlan !== 'vip') return;
     
     // Play the signature golden notification chime sound!
     playPremiumGoldChime();
 
-    const newMessage: BroadcastMessage = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    const newMessage = {
       sellerName,
       location,
       title,
       plan: resolvedPlan,
-      avatar
+      avatar,
+      createdAt: new Date().toISOString()
     };
-    setBroadcastQueue([newMessage]);
+    
+    try {
+      await addDoc(collection(db, 'broadcasts'), newMessage);
+    } catch (e) {
+      console.error("Error broadcasting message:", e);
+    }
   };
 
   // Broadcast system is ready for user triggers on submission only
@@ -345,6 +370,10 @@ export default function App() {
     }
   }, [systemUsers, currentUserPhone, currentUserPlan]);
 
+  const handleDismissBroadcast = (id: string) => {
+    setBroadcastQueue(prev => prev.filter(b => b.id !== id));
+  };
+
   // PWA & Browser App Installation Triggers
   useEffect(() => {
     const handleBeforeInstall = (e: Event) => {
@@ -357,17 +386,17 @@ export default function App() {
 
     const isDismissed = safeStorage.getItem('sanad_app_install_dismissed') === 'true';
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-
+    
+    let timer: NodeJS.Timeout | null = null;
     if (!isStandalone && !isDismissed) {
-      // Show promotional installer banner after 5 seconds to invite user to pin on screen
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         setShowInstallBanner(true);
       }, 5000);
-      return () => clearTimeout(timer);
     }
-
+    
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
@@ -566,6 +595,16 @@ export default function App() {
             .catch(e => {
               console.error('Error saving user to Firestore in background:', e);
             });
+          
+          // Broadcast new user
+          triggerBroadcast(
+              newUser.name,
+              'سوق سند',
+              'انضم إلينا مستخدم جديد!',
+              'free',
+              undefined,
+              true
+          );
           
           setCurrentUserPhone(phone);
           setCurrentUserPlan(newUser.plan as "free" | "bronze" | "vip");
@@ -804,16 +843,13 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-premium-dark text-white relative overflow-hidden" dir="rtl">
-      {/* Premium Atmospheric Effects */}
-      <div className="bg-premium-glow" />
-      
-      {/* Ambient background decorative elements */}
-      <div className="fixed top-[-15%] left-[-10%] w-[50vw] h-[50vw] bg-gradient-to-tr from-emerald-500/12 via-[#D4AF37]/5 to-teal-500/0 rounded-full blur-[140px] pointer-events-none opacity-80 animate-pulse duration-[8000ms]" />
-      <div className="fixed bottom-[-15%] right-[-10%] w-[60vw] h-[60vw] bg-gradient-to-br from-[#D4AF37]/12 via-[#f3e5ab]/4 to-[#f3e5ab]/0 rounded-full blur-[160px] pointer-events-none opacity-85 animate-pulse duration-[12000ms]" />
-      <div className="fixed top-[30%] right-[-5%] w-[35vw] h-[35vw] bg-gradient-to-l from-emerald-600/8 via-[#D4AF37]/4 to-transparent rounded-full blur-[120px] pointer-events-none opacity-75" />
+    <div className="min-h-screen bg-neutral-950 text-white relative overflow-hidden" dir="rtl">
+      {/* Removed fancy decorative backgrounds for a cleaner, faster interface */}
 
-      <CursorGlow />
+
+
+      {/* Removed fancy backgrounds */}
+      {/* <CursorGlow /> */}
 
       {/* Header */}
       <header className="z-40 bg-[#020806]/85 backdrop-blur-xl border-b border-gray-800/80 sticky top-0 shrink-0 w-full">
@@ -1096,10 +1132,8 @@ export default function App() {
                 if (prod) handleProductClick(prod);
         }} />
 
-        <BroadcastMarquee 
-           queue={broadcastQueue} 
-           onDismiss={(id) => setBroadcastQueue(prev => prev.filter(m => m.id !== id))} 
-        />
+        {/* Broadcast Marquee Ticker */}
+        {/* Removed as requested */}
 
         {/* Intro Section */}
         <div className="mb-6 text-center mx-auto space-y-3 max-w-4xl mt-1 px-2 relative">
@@ -1135,34 +1169,23 @@ export default function App() {
              </div>
            )}
 
-           <div className="max-w-2xl mx-auto mt-2 space-y-2 px-1">
-             <div className="flex items-center justify-center gap-2 mb-3">
-               <Crown className="w-4 h-4 text-[#D4AF37]" />
-               <span className="text-gray-300 text-xs font-black tracking-wider uppercase">إعلانات النخبة البارزة</span>
-               <Crown className="w-4 h-4 text-[#D4AF37]" />
-             </div>
-             <div className="flex justify-center flex-wrap gap-2 sm:gap-3">
-               {allEnrichedProducts.filter(p => p.plan === 'vip').slice(0, 4).map(p => (
-                 <motion.div 
-                   key={p.id}
-                   whileHover={{ scale: 1.05 }}
-                   whileTap={{ scale: 0.95 }}
-                   onClick={() => handleProductClick(p)}
-                   className="relative w-[75px] h-[75px] sm:w-[90px] sm:h-[90px] rounded-xl overflow-hidden border border-[#D4AF37]/40 cursor-pointer shadow-[0_4px_10px_rgba(212,175,55,0.2)] group shrink-0"
-                 >
-                   <img src={p.imageUrls?.[0] || 'https://via.placeholder.com/150'} alt={p.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex items-end p-1.5 sm:p-2">
-                     <p className="text-white text-[8px] sm:text-[9px] font-bold line-clamp-2 leading-tight drop-shadow-md text-center w-full" dir="auto">{p.title}</p>
-                   </div>
-                   {p.plan === 'vip' && (
-                     <div className="absolute top-1 right-1 bg-[#D4AF37] text-black text-[7px] font-black px-1 rounded shadow-sm">VIP</div>
-                   )}
-                 </motion.div>
-               ))}
-               {allEnrichedProducts.filter(p => p.plan === 'vip').length === 0 && (
-                   <div className="text-[10px] text-gray-500 w-full text-center py-4">لا توجد إعلانات بارزة حالياً</div>
-               )}
-             </div>
+           <div className="max-w-xl mx-auto mt-6 mb-4 px-3">
+             <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-gradient-to-tr from-[#111] via-[#0a0a0a] to-[#111] border border-gray-800 rounded-3xl p-5 text-center relative overflow-hidden shadow-2xl"
+             >
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent opacity-50" />
+                <h4 className="text-gray-200 text-sm font-bold mb-2 flex items-center justify-center gap-2">
+                   <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                   رسالة إدارة منصة النخبة
+                   <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                </h4>
+                <p className="text-gray-400 text-xs leading-relaxed max-w-sm mx-auto">
+                   مرحباً بك في الوجهة الأولى للتجارة الإلكترونية الموثوقة. شارك منتجاتك اليوم وارتقِ بمبيعاتك مع باقة النخبة الذهبية لمزيد من الانتشار والتميز!
+                </p>
+             </motion.div>
            </div>
 �
         </div>
@@ -1538,6 +1561,8 @@ export default function App() {
         <Footer />
       </main>
       
+      <BroadcastMarquee queue={broadcastQueue} onDismiss={handleDismissBroadcast} />
+      
       <AnimatePresence>
          <Suspense key="suspense-sidebar" fallback={<ModalFallback />}>
             {showSidebar && <Sidebar 
@@ -1573,7 +1598,7 @@ export default function App() {
             {showAuth && <AuthModal key="auth" onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
          </Suspense>
          <Suspense key="suspense-welcome" fallback={<ModalFallback />}>
-            {showWelcomeSplash && loggedUserObj && (
+            {showWelcomeSplash && (
                <WelcomeSplashModal 
                   key="welcome-splash" 
                   user={loggedUserObj} 

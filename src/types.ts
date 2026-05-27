@@ -35,6 +35,8 @@ export interface UserProfile {
     phone?: string;
     role: 'user' | 'admin';
     subscription: 'free' | 'bronze' | 'vip';
+    subscriptionStartDate?: string;
+    subscriptionEndDate?: string;
     createdAt: string;
 }
 

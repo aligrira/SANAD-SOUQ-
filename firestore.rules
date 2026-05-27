@@ -27,5 +27,8 @@ service cloud.firestore {
     match /systemRequests/{reqId} {
        allow read, write: if true;
     }
+    match /broadcasts/{bid} {
+       allow read, write: if true;
+    }
   }
 }
