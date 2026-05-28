@@ -58,7 +58,7 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
           transition={{
             y: { type: 'spring', stiffness: 100, damping: 15 },
           }}
-          className="fixed top-20 inset-x-2 w-[calc(100%-16px)] h-10 bg-gradient-to-r from-red-500 via-red-600 to-red-700 border-b border-red-900 rounded-lg flex items-center z-[2000] overflow-hidden select-none"
+          className="fixed top-[84px] inset-x-2 w-[calc(100%-16px)] h-9 bg-gradient-to-r from-stone-900 via-red-950/60 to-stone-900 border border-amber-900/30 rounded-full flex items-center z-[2000] overflow-hidden select-none shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
           dir="rtl"
         >
           {/* Animated subtle bottom light beam */}
@@ -72,7 +72,7 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
               animate={{ x: '-100%' }}
               transition={{
                 ease: 'linear',
-                duration: 21, // Much slower scroll speed giving the user comfortable time to read
+                duration: 10, // Reduced speed giving the user enough time to see once and then auto-dismiss
               }}
               onAnimationComplete={handleAnimationComplete}
               className="absolute whitespace-nowrap text-white font-bold text-sm sm:text-base flex items-center gap-3.5 px-6"

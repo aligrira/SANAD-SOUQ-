@@ -16,6 +16,7 @@ import { initialProducts } from './initialData';
 import VipStoriesRow from './components/VipStoriesRow';
 import BroadcastMarquee, { BroadcastMessage } from './components/BroadcastMarquee';
 import ListingCard from './components/ListingCard';
+import PremiumBanner from './components/PremiumBanner';
 
 // Lazy load Modals and heavy components
 const AdminPanel = React.lazy(() => import('./components/AdminPanel'));
@@ -26,8 +27,8 @@ const PublishingTransition = React.lazy(() => import('./components/PublishingTra
 const ProductDetailsModal = React.lazy(() => import('./components/ProductDetailsModal'));
 const ProfileModal = React.lazy(() => import('./components/ProfileModal'));
 const Sidebar = React.lazy(() => import('./components/Sidebar'));
-const PricingPackages = React.lazy(() => import('./components/PricingPackages'));
-
+import PricingPackages from './components/PricingPackages'; // Import synchronously
+import SplashScreen from './components/SplashScreen';
 import ListingSkeleton from './components/ListingSkeleton';
 import EmptyState from './components/EmptyState';
 import Toast from './components/Toast';
@@ -92,8 +93,8 @@ export default function App() {
   });
   
   useEffect(() => {
-    // Listen to products
     const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
+      console.log('--- PRODUCT LOG: received items ---', snapshot.size);
       let prods: Product[] = [];
       if (!snapshot.empty) {
         snapshot.forEach(doc => {
@@ -119,6 +120,8 @@ export default function App() {
            setSelectedProduct(prev => prev ? prev : ad);
          }
       }
+    }, (error) => {
+      console.error("Failed to sync products:", error);
     });
     
     // Listen to users
@@ -183,6 +186,8 @@ export default function App() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [showWelcomeSplash, setShowWelcomeSplash] = useState(() => {
+    // If opening a shared ad link, don't show the Welcome Splash to avoid blocking
+    if (window.location.search.includes('ad=')) return false;
     return !safeStorage.getItem('sanad_current_user_phone');
   });
   const [loggedUserObj, setLoggedUserObj] = useState<any>(() => {
@@ -218,6 +223,7 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isSplashActive, setIsSplashActive] = useState(true);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -253,6 +259,7 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [broadcastQueue, setBroadcastQueue] = useState<BroadcastMessage[]>([]);
+  const [dismissedBroadcastIds, setDismissedBroadcastIds] = useState<Set<string>>(new Set());
 
   const playPremiumGoldChime = () => {
     try {
@@ -844,17 +851,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white relative overflow-hidden" dir="rtl">
-      {/* Removed fancy decorative backgrounds for a cleaner, faster interface */}
-
-
-
-      {/* Removed fancy backgrounds */}
-      {/* <CursorGlow /> */}
-
+      {isSplashActive && <SplashScreen onComplete={() => setIsSplashActive(false)} />}
+      
       {/* Header */}
       <header className="z-40 bg-[#020806]/85 backdrop-blur-xl border-b border-gray-800/80 sticky top-0 shrink-0 w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-[76px] pb-1 pt-3">
             <div className="flex items-center gap-4">
               {/* Profile button directly in top-right corner */}
               <div 
@@ -1087,6 +1089,7 @@ export default function App() {
           </div>
         </div>
       </header>
+      <PremiumBanner onUpgradeClick={() => document.getElementById('paid-packages')?.scrollIntoView({ behavior: 'smooth' })} />
       
       {/* Offline Banner */}
       <AnimatePresence>
@@ -1095,7 +1098,7 @@ export default function App() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="bg-red-500/90 text-white text-xs font-medium py-2 px-4 w-full text-center shadow-lg border-b border-red-600 sticky top-16 z-30"
+            className="bg-red-500/90 text-white text-xs font-medium py-2 px-4 w-full text-center shadow-lg border-b border-red-600 sticky top-[76px] z-30"
           >
             أنت حالياً تعمل في وضع عدم الاتصال (Offline). يرجى التحقق من الشبكة الخاصة بك.
           </motion.div>
@@ -1561,7 +1564,13 @@ export default function App() {
         <Footer />
       </main>
       
-      <BroadcastMarquee queue={broadcastQueue} onDismiss={handleDismissBroadcast} />
+      <BroadcastMarquee 
+        queue={broadcastQueue.filter(b => !dismissedBroadcastIds.has(b.id))} 
+        onDismiss={(id) => { 
+          setDismissedBroadcastIds(prev => new Set(prev).add(id)); 
+          handleDismissBroadcast(id); 
+        }} 
+      />
       
       <AnimatePresence>
          <Suspense key="suspense-sidebar" fallback={<ModalFallback />}>
@@ -1852,12 +1861,12 @@ export default function App() {
             triggerHaptic(30);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className="flex flex-col items-center gap-0.5 group active:scale-95 transition-all w-14 cursor-pointer"
+          className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-b from-[#1c080d] via-neutral-950 to-neutral-950 border border-rose-500/30 border-b-2 border-b-rose-500/50 flex items-center justify-center group-hover:scale-105 transition-all duration-300">
-            <Home className="w-4 h-4 text-rose-400 font-sans" />
+          <div className="flex flex-col items-center group-hover:-translate-y-1 transition-transform duration-300">
+            <Home className="w-5 h-5 text-gray-400 group-hover:text-rose-400 mb-0.5" />
+            <span className="text-[10px] font-medium font-display text-gray-500 group-hover:text-rose-400/90 select-none">الرئيسية</span>
           </div>
-          <span className="text-[8px] font-bold font-display text-rose-400/70 select-none">الرئيسية</span>
         </button>
 
         {/* Tab: Filter (Target Listings) */}
@@ -1868,21 +1877,20 @@ export default function App() {
             const targetEl = document.getElementById('listings-head');
             if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
           }}
-          className="flex flex-col items-center gap-0.5 group active:scale-95 transition-all w-14 cursor-pointer"
+          className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-b from-[#08121a] via-neutral-950 to-neutral-950 border border-sky-500/30 border-b-2 border-b-sky-500/50 flex items-center justify-center group-hover:scale-105 transition-all duration-300">
-            <Grid className="w-4 h-4 text-sky-400" />
+          <div className="flex flex-col items-center group-hover:-translate-y-1 transition-transform duration-300">
+            <Grid className="w-5 h-5 text-gray-400 group-hover:text-sky-400 mb-0.5" />
+            <span className="text-[10px] font-medium font-display text-gray-500 group-hover:text-sky-400/90 select-none">المعروضات</span>
           </div>
-          <span className="text-[8px] font-bold font-display text-sky-400/70 select-none">المعروضات</span>
         </button>
 
         {/* Tab: Central Add Button - Slim Version */}
-        <div className="relative w-12 h-10 flex items-center justify-center -mt-6 group">
-          <div className="absolute inset-0 bg-[#D4AF37]/30 rounded-full blur-xl opacity-80 animate-pulse pointer-events-none" />
+        <div className="relative w-[50px] h-10 flex items-center justify-center -mt-5 group">
+          <div className="absolute inset-0 bg-[#D4AF37]/20 rounded-full blur-md opacity-60 pointer-events-none transition-opacity group-hover:opacity-100" />
           <motion.button
             type="button"
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => {
               triggerHaptic([40, 20]);
               if (currentUserPhone) {
@@ -1891,12 +1899,10 @@ export default function App() {
                 setShowAuth(true);
               }
             }}
-            className="absolute bg-gradient-to-b from-amber-400 via-yellow-200 to-amber-600 text-black w-14 h-14 rounded-full flex items-center justify-center shadow-[0_6px_25px_rgba(212,175,55,0.6),inset_0_3px_5px_rgba(255,255,255,0.6)] active:scale-90 hover:scale-105 transition-transform border-b-4 border-amber-800 border-x border-x-amber-500 border-t border-t-amber-300 cursor-pointer overflow-hidden z-10"
+            className="absolute bg-gradient-to-b from-amber-400 to-amber-600 text-black w-[50px] h-[50px] rounded-full flex items-center justify-center shadow-[0_4px_15px_rgba(212,175,55,0.4)] hover:shadow-[0_6px_20px_rgba(212,175,55,0.6)] hover:-translate-y-1 transition-all border-2 border-amber-300 cursor-pointer overflow-hidden z-10"
           >
-            <div className="absolute top-0 -inset-full h-full w-1/2 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/50 to-transparent group-hover:animate-shine-sweep pointer-events-none" />
-            <PlusCircle className="w-7 h-7 stroke-[2.5]" />
-            <Sparkles className="absolute top-2 right-2 w-2 h-2 text-white animate-ping" />
-            <span className="absolute bottom-2 left-3 w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            <div className="absolute top-0 -inset-full h-full w-1/2 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-shine-sweep pointer-events-none" />
+            <PlusCircle className="w-6 h-6 stroke-[2]" />
           </motion.button>
         </div>
 
@@ -1908,12 +1914,12 @@ export default function App() {
             const targetEl = document.getElementById('free-package');
             if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
           }}
-          className="flex flex-col items-center gap-0.5 group active:scale-95 transition-all w-14 cursor-pointer"
+          className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-b from-[#140b1c] via-neutral-950 to-neutral-950 border border-purple-500/30 border-b-2 border-b-purple-500/50 flex items-center justify-center group-hover:scale-105 transition-all duration-300">
-            <Crown className="w-4 h-4 text-purple-400" />
+          <div className="flex flex-col items-center group-hover:-translate-y-1 transition-transform duration-300">
+            <Crown className="w-5 h-5 text-gray-400 group-hover:text-purple-400 mb-0.5" />
+            <span className="text-[10px] font-medium font-display text-gray-500 group-hover:text-purple-400/90 select-none">العضويات</span>
           </div>
-          <span className="text-[8px] font-bold font-display text-purple-400/70 select-none">العضويات</span>
         </button>
 
         {/* Tab: Profile login or info */}
@@ -1927,12 +1933,12 @@ export default function App() {
               setShowAuth(true);
             }
           }}
-          className="flex flex-col items-center gap-0.5 group active:scale-95 transition-all w-14 cursor-pointer"
+          className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-b from-[#081711] via-neutral-950 to-neutral-950 border border-emerald-500/30 border-b-2 border-b-emerald-500/50 flex items-center justify-center group-hover:scale-105 transition-all duration-300">
-            <User className="w-4 h-4 text-emerald-400" />
+          <div className="flex flex-col items-center group-hover:-translate-y-1 transition-transform duration-300">
+            <User className="w-5 h-5 text-gray-400 group-hover:text-emerald-400 mb-0.5" />
+            <span className="text-[10px] font-medium font-display text-gray-500 group-hover:text-emerald-400/90 select-none">حسابي</span>
           </div>
-          <span className="text-[8px] font-bold font-display text-emerald-400/70 select-none">حسابي</span>
         </button>
       </div>
     </div>

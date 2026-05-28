@@ -105,19 +105,28 @@ export default function ProductDetailsModal({
   };
 
   const handleShare = async () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?ad=${product.id}`;
+    
+    // Update document title for better local sharing context
+    document.title = `سوق سند - ${product.title}`;
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) ogTitle.setAttribute('content', `سوق سند - ${product.title}`);
+    const ogImage = document.querySelector('meta[property="og:image"]');
+    if (ogImage && product.imageUrls && product.imageUrls[0]) ogImage.setAttribute('content', product.imageUrls[0]);
+
     if (navigator.share) {
       try {
         await navigator.share({
           title: `سوق سند - ${product.title}`,
           text: `شاهد هذا الإعلان في سوق سند: ${product.title}\nبسعر: ${product.price} د.ت`,
-          url: window.location.href,
+          url: shareUrl,
         });
       } catch (err) {
         console.log('Error sharing', err);
       }
     } else {
-      navigator.clipboard.writeText(`شاهد هذا الإعلان في سوق سند: ${product.title}\nالسعر: ${product.price} د.ت`);
-      alert('تم نسخ رابط التفاصيل بنجاح!');
+      navigator.clipboard.writeText(`${shareUrl}\n\nشاهد الإعلان: ${product.title}\nالسعر: ${product.price} د.ت`);
+      alert('تم نسخ الرابط بنجاح!');
     }
   };
 

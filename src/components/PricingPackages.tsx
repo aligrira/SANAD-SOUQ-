@@ -173,7 +173,7 @@ export default function PricingPackages({
           return (
             <div 
               key={pkg.id}
-              id={pkg.id === 'free' ? 'free-package' : undefined}
+              id={pkg.id === 'bronze' ? 'paid-packages' : (pkg.id === 'free' ? 'free-package' : undefined)}
               className={`relative rounded-[2rem] p-[2.5px] bg-gradient-to-tr ${outerRingColor} flex flex-col max-w-sm mx-auto w-full transition-all duration-500 hover:scale-[1.05] hover:-translate-y-2 scroll-mt-28 ${glowShadowClass}`}
               style={{ transformStyle: 'preserve-3d', perspective: '1000px' }}
             >
