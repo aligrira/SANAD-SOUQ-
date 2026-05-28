@@ -88,11 +88,48 @@ export default function App() {
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [systemRequests, setSystemRequests] = useState<any[]>(() => {
-    const saved = safeStorage.getItem('sanad_system_requests');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = safeStorage.getItem('sanad_system_requests');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
   
   useEffect(() => {
+    // 1. Instantly fetch using HTTP (getDocs) so WebView shows data immediately even if WebSocket blocks.
+    const fetchInitialData = async () => {
+      try {
+        const prodSnapshot = await getDocs(collection(db, 'products'));
+        let prods: Product[] = [];
+        prodSnapshot.forEach(doc => {
+          prods.push({ id: doc.id, ...doc.data() } as Product);
+        });
+        const sorted = prods.sort((a, b) => {
+            const tA = new Date(a.createdAt).getTime();
+            const tB = new Date(b.createdAt).getTime();
+            return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+        });
+        
+        // Only set products if real-time listener hasn't already fired
+        setProducts(prev => prev.length > 0 ? prev : sorted);
+        setProductsLoaded(true);
+
+        const searchParams = new URLSearchParams(window.location.search);
+        const initialAdId = searchParams.get('ad');
+        if (initialAdId) {
+           const ad = sorted.find(p => p.id === initialAdId);
+           if (ad) {
+             setSelectedProduct(prev => prev ? prev : ad);
+           }
+        }
+      } catch (err) {
+        console.error("Fast fetch failed:", err);
+      }
+    };
+    fetchInitialData();
+
+    // 2. Attach real-time listener
     const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
       console.log('--- PRODUCT LOG: received items ---', snapshot.size);
       let prods: Product[] = [];
@@ -102,7 +139,6 @@ export default function App() {
           prods.push({ id: doc.id, ...data } as Product);
         });
       }
-      // Sort implicitly by createdAt or handle order
       const sorted = prods.sort((a, b) => {
           const tA = new Date(a.createdAt).getTime();
           const tB = new Date(b.createdAt).getTime();
@@ -111,7 +147,6 @@ export default function App() {
       setProducts(sorted);
       setProductsLoaded(true);
       
-      // Handle deep linking for shared ads
       const searchParams = new URLSearchParams(window.location.search);
       const initialAdId = searchParams.get('ad');
       if (initialAdId) {
@@ -122,8 +157,20 @@ export default function App() {
       }
     }, (error) => {
       console.error("Failed to sync products:", error);
+      // Auto-recovery retry
+      setTimeout(fetchInitialData, 3000);
     });
     
+    // GET fallback for users
+    getDocs(collection(db, 'systemUsers')).then(snapshot => {
+      const users: any[] = [];
+      snapshot.forEach(doc => {
+        users.push({ id: doc.id, ...doc.data() });
+      });
+      setSystemUsers(prev => prev.length > 0 ? prev : users);
+      setUsersLoaded(true);
+    }).catch(e => console.error("Users fast fetch failed:", e));
+
     // Listen to users
     const unsubUsers = onSnapshot(collection(db, 'systemUsers'), (snapshot) => {
       const users: any[] = [];
@@ -132,12 +179,22 @@ export default function App() {
       });
       setSystemUsers(users);
       setUsersLoaded(true);
-    });
+    }, (error) => console.error("Listen users failed:", error));
 
     // Safety fallback: Ensure usersLoaded is set to true after 2.5 seconds regardless, in case of network latency or offline mode
     const fallbackTimer = setTimeout(() => {
       setUsersLoaded(true);
+      setProductsLoaded(true); // also fallback products
     }, 2500);
+
+    // GET fallback for requests
+    getDocs(collection(db, 'systemRequests')).then(snapshot => {
+      const reqs: any[] = [];
+      snapshot.forEach(doc => {
+        reqs.push({ id: doc.id, ...doc.data() });
+      });
+      setSystemRequests(prev => prev.length > 0 ? prev : reqs);
+    }).catch(e => console.error("Requests fast fetch failed:", e));
 
     // Listen to requests
     const unsubRequests = onSnapshot(collection(db, 'systemRequests'), (snapshot) => {
@@ -178,8 +235,12 @@ export default function App() {
   });
 
   const [userNotifications, setUserNotifications] = useState<any[]>(() => {
-    const saved = safeStorage.getItem('sanad_user_notifications');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = safeStorage.getItem('sanad_user_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -191,8 +252,12 @@ export default function App() {
     return !safeStorage.getItem('sanad_current_user_phone');
   });
   const [loggedUserObj, setLoggedUserObj] = useState<any>(() => {
-    const saved = safeStorage.getItem('sanad_current_user_obj');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = safeStorage.getItem('sanad_current_user_obj');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
   const [isPublishingTransition, setIsPublishingTransition] = useState(false);
 

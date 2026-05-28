@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, setLogLevel } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, setLogLevel } from "firebase/firestore";
 import firebaseConfig from "../firebase-applet-config.json";
 
 const app = initializeApp(firebaseConfig);
@@ -15,7 +15,8 @@ try {
 } catch (e) {
   console.warn("Firestore persistent offline cache is not supported or was blocked. Falling back to default in-memory behavior.", e);
   firestoreDb = initializeFirestore(app, {
-    experimentalForceLongPolling: true
+    experimentalForceLongPolling: true,
+    localCache: memoryLocalCache()
   }, config.firestoreDatabaseId || undefined);
 }
 
