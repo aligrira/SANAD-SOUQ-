@@ -521,6 +521,38 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Back button handling integration for APKs and mobile browsers
+  const lastStateRef = useRef<boolean>(false);
+  useEffect(() => {
+    const isAnyModalOpen = showAdmin || showSidebar || showAuth || showProfile || showAddProduct || showAIChat || !!storyViewerId;
+    
+    if (isAnyModalOpen && !lastStateRef.current) {
+      window.history.pushState({ modalOpen: true }, '', '#overlay');
+    } else if (!isAnyModalOpen && lastStateRef.current) {
+      if (window.location.hash === '#overlay') {
+        window.history.back();
+      }
+    }
+    lastStateRef.current = isAnyModalOpen;
+    
+    const handlePopState = (e: PopStateEvent) => {
+      if (window.location.hash !== '#overlay') {
+        setShowAdmin(false);
+        setShowSidebar(false);
+        setShowAuth(false);
+        setShowProfile(false);
+        setShowAddProduct(false);
+        setShowAIChat(false);
+        setStoryViewerId(null);
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [showAdmin, showSidebar, showAuth, showProfile, showAddProduct, showAIChat, storyViewerId]);
+
   const getSuggestions = () => {
     if (!searchQuery.trim()) return { productMatches: [], categoryMatches: [] };
     const q = searchQuery.toLowerCase();
