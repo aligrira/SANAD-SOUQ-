@@ -106,7 +106,7 @@ export default function PricingPackages({
         <p className="text-gray-400 text-xs sm:text-sm max-w-lg mx-auto leading-relaxed opacity-80">اختر المستوى الملكي الذي يضمن انتشار عروضك التجارية والعقارية بلمسة مخملية تميز خدماتك وتجعل حضورك في طليعة السوق.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 max-w-5xl mx-auto items-stretch">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 px-4 max-w-5xl mx-auto items-stretch">
         {packages.map((pkg, index) => {
           if (pkg.id === 'vip') {
             // VIP Card Wrapper with a beautifully decorated gold shiny gradient border and layout
@@ -122,29 +122,29 @@ export default function PricingPackages({
                 </div>
 
                 {/* Inner Card Section */}
-                <div className="bg-gradient-to-b from-[#0f0c05] via-[#050505] to-[#010101] rounded-[1.85rem] p-5 flex flex-col flex-1 h-full shadow-inner">
-                  <div className="flex justify-between items-start mb-5">
-                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border shadow-[0_0_20px_rgba(212,175,55,0.2)] ${pkg.iconBg}`}>
+                <div className="bg-gradient-to-b from-[#0f0c05] via-[#050505] to-[#010101] rounded-[1.85rem] p-4 flex flex-col flex-1 h-full shadow-inner">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-[0_0_20px_rgba(212,175,55,0.2)] ${pkg.iconBg}`}>
                       <pkg.icon className={`w-5 h-5 ${pkg.color} animate-pulse-slow`} />
                     </div>
                     {pkg.badge && (
-                      <span className={`text-[10px] py-1 px-3 rounded-full font-bold shadow-[0_0_10px_rgba(212,175,55,0.1)] ${pkg.badgeStyle}`}>
+                      <span className={`text-[9px] py-1 px-2.5 rounded-full font-bold shadow-[0_0_10px_rgba(212,175,55,0.1)] ${pkg.badgeStyle}`}>
                         {pkg.badge}
                       </span>
                     )}
                   </div>
 
-                  <h3 className="text-2xl font-black text-white mb-2 font-display drop-shadow-[0_0_25px_rgba(212,175,55,0.85)] text-shadow-gold">
+                  <h3 className="text-xl font-black text-white mb-1 font-display drop-shadow-[0_0_25px_rgba(212,175,55,0.85)] text-shadow-gold">
                     {pkg.name}
                   </h3>
-                  <p className={`text-2xl font-black mb-6 ${pkg.priceStyle}`}>
+                  <p className={`text-xl font-black mb-3 ${pkg.priceStyle}`}>
                     {pkg.price}
                   </p>
 
-                  <ul className="mb-8 space-y-3.5 flex-1 text-right">
+                  <ul className="mb-4 space-y-2 flex-1 text-right">
                     {pkg.features.map((feature, idx) => (
-                      <li key={`${pkg.id}-${idx}`} className="flex items-start gap-2.5 text-xs sm:text-sm text-gray-200">
-                        <Check className="w-4 h-4 text-[#D3AF37] shrink-0 mt-0.5" />
+                      <li key={`${pkg.id}-${idx}`} className="flex items-start gap-2.5 text-[11px] sm:text-xs text-gray-200">
+                        <Check className="w-3.5 h-3.5 text-[#D3AF37] shrink-0 mt-0.5" />
                         <span>{feature}</span>
                       </li>
                     ))}
@@ -152,7 +152,7 @@ export default function PricingPackages({
 
                   <button 
                     onClick={() => handlePkgClick(pkg.id)} 
-                    className={`w-full py-3.5 rounded-2xl font-extrabold text-sm transition-all ${pkg.buttonStyle}`}
+                    className={`w-full py-2.5 rounded-2xl font-extrabold text-xs transition-all ${pkg.buttonStyle}`}
                   >
                     امتلاك العضوية الذهبية
                   </button>
@@ -194,42 +194,42 @@ export default function PricingPackages({
               )}
 
               {/* Inner container to capture the 3D block model feel */}
-              <div className={`rounded-[1.85rem] p-5 flex flex-col flex-1 h-full w-full ${pkg.cardStyle}`}>
-                <div className="flex justify-between items-start mb-4">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border ${pkg.iconBg}`}>
-                    <pkg.icon className={`w-5 h-5 ${pkg.color}`} />
+              <div className={`rounded-[1.85rem] p-4 flex flex-col flex-1 h-full w-full ${pkg.cardStyle}`}>
+                <div className="flex justify-between items-start mb-2">
+                  <div className={`w-9 h-9 rounded-2xl flex items-center justify-center border ${pkg.iconBg}`}>
+                    <pkg.icon className={`w-4 h-4 ${pkg.color}`} />
                   </div>
                   {pkg.badge && (
-                    <span className={`text-[10px] py-1 px-3 rounded-full font-bold ${pkg.badgeStyle} shadow-sm`}>
+                    <span className={`text-[9px] py-0.5 px-2.5 rounded-full font-bold ${pkg.badgeStyle} shadow-sm`}>
                       {pkg.badge}
                     </span>
                   )}
                 </div>
 
-                <h3 className={`text-xl font-bold text-white mb-2 font-display ${pkg.id === 'free' ? 'drop-shadow-[0_0_20px_rgba(16,185,129,0.9)]' : 'drop-shadow-[0_0_20px_rgba(148,163,184,0.9)]'}`}>
+                <h3 className={`text-lg font-bold text-white mb-1 font-display ${pkg.id === 'free' ? 'drop-shadow-[0_0_20px_rgba(16,185,129,0.9)]' : 'drop-shadow-[0_0_20px_rgba(148,163,184,0.9)]'}`}>
                   {pkg.name}
                 </h3>
-                <p className={`text-xl font-black mb-6 ${pkg.priceStyle}`}>
+                <p className={`text-lg font-black mb-3 ${pkg.priceStyle}`}>
                   {pkg.price}
                 </p>
 
-                <ul className="mb-8 space-y-3.5 flex-1 text-right">
+                <ul className="mb-4 space-y-2 flex-1 text-right">
                   {pkg.features.map((feature, idx) => (
-                    <li key={`${pkg.id}-${idx}`} className="flex items-start gap-2.5 text-xs sm:text-sm text-gray-300">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${isFree ? 'text-emerald-400' : 'text-slate-300'}`} />
+                    <li key={`${pkg.id}-${idx}`} className="flex items-start gap-2.5 text-[11px] sm:text-xs text-gray-300">
+                      <Check className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${isFree ? 'text-emerald-400' : 'text-slate-300'}`} />
                       <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
 
                 {pkg.id === 'free' ? (
-                  <div className="w-full py-3.5 text-center text-emerald-400 text-sm font-extrabold border border-emerald-500/20 bg-emerald-950/10 rounded-2xl shadow-inner font-display">
+                  <div className="w-full py-2.5 text-center text-emerald-400 text-xs font-extrabold border border-emerald-500/20 bg-emerald-950/10 rounded-2xl shadow-inner font-display">
                      مفعلة تلقائياً للحساب ✧
                   </div>
                 ) : (
                   <button 
                     onClick={() => handlePkgClick(pkg.id)} 
-                    className={`w-full py-3.5 rounded-2xl text-sm font-extrabold transition-all duration-200 transform active:scale-95 shadow-md ${pkg.buttonStyle}`}
+                    className={`w-full py-2.5 rounded-2xl text-xs font-extrabold transition-all duration-200 transform active:scale-95 shadow-md ${pkg.buttonStyle}`}
                   >
                     اشتراك وترقية
                   </button>

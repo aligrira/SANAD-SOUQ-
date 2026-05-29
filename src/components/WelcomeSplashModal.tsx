@@ -52,14 +52,15 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
   }, []);
 
   // Determine design characteristics based on user plan
+  const isVisitor = !user;
   const isSuperAdmin = user?.phone === '92942482';
   const isVip = user?.plan === 'vip' || isSuperAdmin;
   const isBronze = user?.plan === 'bronze';
   
-  let headerText = isSuperAdmin ? 'أهلاً بك في منصة النخبة، مدير النظام' : 'أهلاً بك في منصة النخبة';
-  let planNameShared = isSuperAdmin ? 'المدير العام (VIP)' : 'العضوية التأسيسية المجانية';
-  let planThemeClass = 'from-emerald-500/20 via-teal-500/10 to-emerald-600/5 border-emerald-500/30';
-  let badgeColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+  let headerText = isVisitor ? 'مرحباً بك كزائر في سوق سند' : (isSuperAdmin ? 'أهلاً بك في منصة النخبة، مدير النظام' : 'أهلاً بك في منصة النخبة');
+  let planNameShared = isVisitor ? 'حساب زائر' : (isSuperAdmin ? 'المدير العام (VIP)' : 'العضوية التأسيسية المجانية');
+  let planThemeClass = isVisitor ? 'from-gray-500/10 via-gray-400/5 to-gray-600/5 border-gray-500/20' : 'from-emerald-500/20 via-teal-500/10 to-emerald-600/5 border-emerald-500/30';
+  let badgeColor = isVisitor ? 'text-gray-400 bg-gray-500/10 border-gray-500/20' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
   
   if (isVip) {
     headerText = 'أهلاً بك في عالم النخبة الملكي';
@@ -83,7 +84,7 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
     >
       {/* Floating Sparkles in Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -183,7 +184,7 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
             transition={{ delay: 0.4 }}
             className="text-xl sm:text-2xl font-black text-white font-display leading-tight tracking-tight drop-shadow-md"
           >
-            مرحباً بك، <span className={`text-transparent bg-clip-text bg-gradient-to-r ${isVip ? 'from-[#D4AF37] via-yellow-200 to-[#F5ECE2]' : isBronze ? 'from-slate-200 via-white to-slate-400' : 'from-emerald-300 via-teal-100 to-emerald-400'}`}>{user?.name || 'ضيفنا الكريم'}</span>!
+            مرحباً بك، <span className={`text-transparent bg-clip-text bg-gradient-to-r ${isVip ? 'from-[#D4AF37] via-yellow-200 to-[#F5ECE2]' : isBronze ? 'from-slate-200 via-white to-slate-400' : isVisitor ? 'from-gray-300 via-gray-100 to-gray-400' : 'from-emerald-300 via-teal-100 to-emerald-400'}`}>{user?.name || 'ضيفنا الكريم'}</span>!
           </motion.h2>
           
           <motion.p 
@@ -192,7 +193,7 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
             transition={{ delay: 0.5 }}
             className="text-xs sm:text-sm text-gray-400 leading-relaxed max-w-sm mx-auto font-sans"
           >
-            لقد تم تفعيل حسابك بنجاح على سوق سند. المنصة الحصرية لتجربة تداول وعرض راقية للمنتجات الممتازة في تونس.
+            {isVisitor ? 'استكشف سوق سند واكتشف أفضل العروض في تونس. سجل الآن لتتمكن من نشر إعلاناتك والتواصل مع البائعين بحرية!' : 'لقد تم تفعيل حسابك بنجاح على سوق سند. المنصة الحصرية لتجربة تداول وعرض راقية للمنتجات الممتازة في تونس.'}
           </motion.p>
         </div>
 
@@ -208,14 +209,25 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_3s_infinite]" />
           
           <div className="flex items-center justify-between mb-3.5">
-            <h4 className="text-sm font-bold text-gray-300">تفاصيل العضوية المفعّلة</h4>
+            <h4 className="text-sm font-bold text-gray-300">{isVisitor ? 'مميزات تسجيل الدخول' : 'تفاصيل العضوية المفعّلة'}</h4>
             <span className={`text-[10px] sm:text-xs font-black tracking-widest px-3 py-1 rounded-full border ${badgeColor}`}>
               {planNameShared}
             </span>
           </div>
 
           <div className="space-y-2.5">
-            {isVip ? (
+            {isVisitor ? (
+              <>
+                <div className="flex items-center gap-2 text-xs text-gray-300/90 font-display">
+                  <Check className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span>تواصل المباشر مع البائعين وعرض المنتجات.</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-300/90 font-display">
+                  <Check className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span>نشر إعلانات خاصة بك مجاناً بسهولة.</span>
+                </div>
+              </>
+            ) : isVip ? (
               <>
                 <div className="flex items-center gap-2 text-xs text-amber-200/90 font-display">
                   <Check className="w-4 h-4 shrink-0 text-[#D4AF37]" />
@@ -278,6 +290,8 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
               ? 'bg-gradient-to-r from-[#D4AF37] via-yellow-400 to-[#D4AF37] text-black border-yellow-300 shadow-[0_0_30px_rgba(212,175,55,0.4)] animate-pulse'
               : isBronze
               ? 'bg-gradient-to-r from-slate-350 to-slate-100 text-slate-900 border-white shadow-[0_0_30px_rgba(148,163,184,0.4)] animate-pulse'
+              : isVisitor
+              ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-white border-gray-400 shadow-[0_0_30px_rgba(156,163,175,0.4)] hover:brightness-110'
               : 'bg-gradient-to-r from-emerald-500 to-teal-400 text-white border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)] animate-pulse hover:animate-none'
           }`}
         >
@@ -285,7 +299,7 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
           
           <User className="w-5 h-5 shrink-0" />
-          <span>الدخول كزائر للمتجر</span>
+          <span>{isVisitor ? 'استكشاف المتجر كزائر' : 'الدخول إلى المتجر'}</span>
           <ArrowRight className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
         </motion.button>
       </motion.div>

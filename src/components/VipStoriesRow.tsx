@@ -65,8 +65,8 @@ export default function VipStoriesRow({ stories, onStoryClick }: VipStoriesRowPr
                 )}
               </div>
               
-              <span className="text-[10px] text-gray-300 w-full text-center px-0.5 truncate leading-tight font-medium" dir="auto" title={story.sellerName}>
-                  {story.sellerName || story.title}
+              <span className="text-[10px] text-gray-300 w-full text-center px-0.5 line-clamp-2 leading-tight font-medium" dir="auto" title={story.title}>
+                  {story.title}
               </span>
             </motion.div>
           );

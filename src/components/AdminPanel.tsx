@@ -4,6 +4,7 @@ import confetti from 'canvas-confetti';
 import { safeStorage } from '../lib/safeStorage';
 import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { playSubscriptionClapSound } from '../lib/audioEffects';
 import { 
   ShieldAlert, Users, LayoutList, CheckCircle, X, Settings, 
   DollarSign, Bell, Trash2, Search, Download, LayoutDashboard, 
@@ -140,9 +141,10 @@ export default function AdminPanel({
       }
 
       setSelectedRequest(null);
-      // Trigger visual confetti
+      // Trigger visual confetti and satisfying applause sound
       setTimeout(() => {
         triggerSuccessConfetti();
+        try { playSubscriptionClapSound(); } catch (err) { console.error(err); }
       }, 100);
 
       // Now run the DB operations in background

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets, Mic, Tag, Facebook, Loader2 } from 'lucide-react';
+import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets, Mic, Tag, Facebook, Loader2, LogIn } from 'lucide-react';
 import { Product, Story } from './types';
 import { safeStorage } from './lib/safeStorage';
 import { cleanUndefined } from './lib/utils';
@@ -37,6 +37,7 @@ import Toast from './components/Toast';
 import confetti from 'canvas-confetti';
 
 import Footer from './components/Footer';
+import { playLoginSound, playListingSound, playSubscriptionClapSound } from './lib/audioEffects';
 
 // Fallback loader for Suspense
 const ModalFallback = () => (
@@ -248,7 +249,11 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-  const [showWelcomeSplash, setShowWelcomeSplash] = useState(false);
+  const [showWelcomeSplash, setShowWelcomeSplash] = useState(() => {
+    // Show welcome message to everyone (visitor/logged in). Shared ad links hide it.
+    if (window.location.search.includes('ad=')) return false;
+    return true;
+  });
   const [loggedUserObj, setLoggedUserObj] = useState<any>(() => {
     try {
       const saved = safeStorage.getItem('sanad_current_user_obj');
@@ -672,6 +677,7 @@ export default function App() {
               const loggedUser = {...user, plan: finalPlan, password: code};
               setLoggedUserObj(loggedUser);
               setShowWelcomeSplash(true);
+              try { playLoginSound(); } catch (e) { console.error(e); }
               return true;
           } else {
               return 'بيانات الدخول غير صحيحة';
@@ -711,6 +717,7 @@ export default function App() {
                   const loggedUser = { ...existingUser, id: existingUser.id || phone };
                   setLoggedUserObj(loggedUser);
                   setShowWelcomeSplash(true);
+                  try { playLoginSound(); } catch (e) { console.error(e); }
                   return true;
               }
               return `رقم الهاتف مسجل مسبقاً (Matches: ${existingUser.name || 'No Name'} | Phone: ${existingUser.phone || 'No Phone'} | ID: ${existingUser.id})`;
@@ -738,6 +745,7 @@ export default function App() {
           const loggedUser = {...newUser, id: phone};
           setLoggedUserObj(loggedUser);
           setShowWelcomeSplash(true);
+          try { playLoginSound(); } catch (e) { console.error(e); }
           return true;
       }
   };
@@ -805,6 +813,13 @@ export default function App() {
           colors: ['#D4AF37', '#10B981', '#ffffff']
       });
 
+      // Play tailored confirmation sound (royal/vip, bronze, or free)
+      try {
+        playListingSound(newProduct.plan || 'free');
+      } catch (e) {
+        console.error(e);
+      }
+
       // 7. Show modern floating success toast
       showToast('تم نشر إعلانك وبث الإشعار وحفظ تفاصيله للمعاينة!', 'success');
 
@@ -863,6 +878,13 @@ export default function App() {
     };
     try {
         await setDoc(doc(db, 'systemRequests', newId), newReq);
+        try { playSubscriptionClapSound(); } catch (e) { console.error(e); }
+        confetti({
+           particleCount: 88,
+           spread: 60,
+           origin: { y: 0.7 },
+           colors: ['#D4AF37', '#ffffff']
+        });
         showToast('تم إرسال طلب الاشتراك، سيتم تفعيل باقتك بعد تأكيد الدفع', 'success');
     } catch (e) {
         console.error("Failed to add subscription request to Firestore:", e);
@@ -905,7 +927,7 @@ export default function App() {
   const enrichedProducts = filteredProducts;
 
   const [generalPage, setGeneralPage] = useState(1);
-  const PAGE_SIZE = 12;
+  const PAGE_SIZE = 1000;
 
   useEffect(() => {
     setGeneralPage(1);
@@ -1165,18 +1187,16 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              <a 
-                href="https://wa.me/21692942482" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="flex items-center justify-center gap-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/20 hover:border-emerald-500/40 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full font-bold transition-all text-[11px] sm:text-xs shadow-sm hover:scale-[1.03] active:scale-[0.97] shrink-0"
-                title="واتساب الإدارة"
-              >
-                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current shrink-0">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-                  </svg>
-                 <span>واتساب الإدارة</span>
-              </a>
+              {!currentUserPhone && (
+                <button 
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowAuth(true); }}
+                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white px-4 py-2 sm:px-6 sm:py-2.5 rounded-full font-bold transition-all text-sm sm:text-base shadow-lg shadow-emerald-500/30 hover:scale-[1.03] active:scale-[0.97] shrink-0 border border-emerald-400/50 cursor-pointer animate-pulse-slow"
+                >
+                  <LogIn className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <span>دخول</span>
+                </button>
+              )}
 
               <button 
                 type="button"
@@ -1956,7 +1976,7 @@ export default function App() {
       </a>
 
       {/* Decorative Interactive Premium Floating Bottom Navigation Bar - New Slim 3D Design */}
-      <div className="fixed bottom-4 left-4 right-4 z-40 md:hidden bg-black/75 backdrop-blur-md border border-[#D4AF37]/10 rounded-[2rem] p-2 px-4 shadow-[0_10px_35px_rgba(212,175,55,0.06)] flex items-center justify-between" style={{ perspective: '800px' }}>
+      <div className="fixed bottom-4 left-4 right-4 z-40 md:hidden bg-black/90 backdrop-blur-lg border border-[#D4AF37]/25 rounded-[2rem] p-2 px-4 shadow-[0_12px_40px_rgba(212,175,55,0.12)] flex items-center justify-between" style={{ perspective: '800px' }}>
         {/* Tab: Home */}
         <button
           type="button"
@@ -1978,8 +1998,8 @@ export default function App() {
           className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >
           <div className="flex flex-col items-center group-hover:-translate-y-1 transition-transform duration-300">
-            <Home className="w-5 h-5 text-gray-400 group-hover:text-rose-400 mb-0.5" />
-            <span className="text-[10px] font-medium font-display text-gray-500 group-hover:text-rose-400/90 select-none">الرئيسية</span>
+            <Home className="w-5.5 h-5.5 text-rose-400 mb-0.5 filter drop-shadow-[0_0_8px_rgba(244,63,94,0.3)]" />
+            <span className="text-[11px] font-black font-display text-gray-100 group-hover:text-rose-300 select-none">الرئيسية</span>
           </div>
         </button>
 
@@ -1994,14 +2014,14 @@ export default function App() {
           className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >
           <div className="flex flex-col items-center group-hover:-translate-y-1 transition-transform duration-300">
-            <Grid className="w-5 h-5 text-gray-400 group-hover:text-sky-400 mb-0.5" />
-            <span className="text-[10px] font-medium font-display text-gray-500 group-hover:text-sky-400/90 select-none">المعروضات</span>
+            <Grid className="w-5.5 h-5.5 text-sky-400 mb-0.5 filter drop-shadow-[0_0_8px_rgba(56,189,248,0.3)]" />
+            <span className="text-[11px] font-black font-display text-gray-100 group-hover:text-sky-300 select-none">المعروضات</span>
           </div>
         </button>
 
         {/* Tab: Central Add Button - Slim Version */}
         <div className="relative w-[50px] h-10 flex items-center justify-center -mt-5 group">
-          <div className="absolute inset-0 bg-[#D4AF37]/20 rounded-full blur-md opacity-60 pointer-events-none transition-opacity group-hover:opacity-100" />
+          <div className="absolute inset-0 bg-[#D4AF37]/25 rounded-full blur-md opacity-70 pointer-events-none transition-opacity group-hover:opacity-100" />
           <motion.button
             type="button"
             whileTap={{ scale: 0.95 }}
@@ -2026,13 +2046,13 @@ export default function App() {
           onClick={() => {
             triggerHaptic(30);
             const targetEl = document.getElementById('paid-packages') || document.getElementById('pricing-packages');
-            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }}
           className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >
           <div className="flex flex-col items-center group-hover:-translate-y-1 transition-transform duration-300">
-            <Crown className="w-5 h-5 text-gray-400 group-hover:text-purple-400 mb-0.5" />
-            <span className="text-[10px] font-medium font-display text-gray-500 group-hover:text-purple-400/90 select-none">العضويات</span>
+            <Crown className="w-5.5 h-5.5 text-[#D4AF37] mb-0.5 filter drop-shadow-[0_0_8px_rgba(212,175,55,0.4)]" />
+            <span className="text-[11px] font-black font-display text-[#D4AF37] group-hover:text-amber-300 select-none">العضويات</span>
           </div>
         </button>
 
@@ -2050,8 +2070,14 @@ export default function App() {
           className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >
           <div className="flex flex-col items-center group-hover:-translate-y-1 transition-transform duration-300">
-            <User className="w-5 h-5 text-gray-400 group-hover:text-emerald-400 mb-0.5" />
-            <span className="text-[10px] font-medium font-display text-gray-500 group-hover:text-emerald-400/90 select-none">حسابي</span>
+            {currentUserPhone ? (
+               <User className="w-5.5 h-5.5 text-emerald-400 mb-0.5 filter drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]" />
+            ) : (
+               <LogIn className="w-5.5 h-5.5 text-emerald-400 mb-0.5 filter drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]" />
+            )}
+            <span className="text-[11px] font-black font-display text-gray-100 group-hover:text-emerald-300 select-none">
+              {currentUserPhone ? 'حسابي' : 'الدخول'}
+            </span>
           </div>
         </button>
       </div>
