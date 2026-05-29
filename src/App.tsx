@@ -16,7 +16,7 @@ import { initialProducts } from './initialData';
 import VipStoriesRow from './components/VipStoriesRow';
 import BroadcastMarquee, { BroadcastMessage } from './components/BroadcastMarquee';
 import ListingCard from './components/ListingCard';
-import PremiumBanner from './components/PremiumBanner';
+
 
 // Lazy load Modals and heavy components
 const AdminPanel = React.lazy(() => import('./components/AdminPanel'));
@@ -28,7 +28,8 @@ const ProductDetailsModal = React.lazy(() => import('./components/ProductDetails
 const ProfileModal = React.lazy(() => import('./components/ProfileModal'));
 const Sidebar = React.lazy(() => import('./components/Sidebar'));
 const StoryViewerModal = React.lazy(() => import('./components/StoryViewerModal'));
-import PricingPackages from './components/PricingPackages'; // Import synchronously
+import PricingPackages from './components/PricingPackages';
+import PaymentModal from './components/PaymentModal';
 import SplashScreen from './components/SplashScreen';
 import ListingSkeleton from './components/ListingSkeleton';
 import EmptyState from './components/EmptyState';
@@ -247,11 +248,7 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-  const [showWelcomeSplash, setShowWelcomeSplash] = useState(() => {
-    // If opening a shared ad link, don't show the Welcome Splash to avoid blocking
-    if (window.location.search.includes('ad=')) return false;
-    return !safeStorage.getItem('sanad_current_user_phone');
-  });
+  const [showWelcomeSplash, setShowWelcomeSplash] = useState(false);
   const [loggedUserObj, setLoggedUserObj] = useState<any>(() => {
     try {
       const saved = safeStorage.getItem('sanad_current_user_obj');
@@ -490,6 +487,7 @@ export default function App() {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
   const [storyViewerId, setStoryViewerId] = useState<string | null>(null);
+  const [directPaymentPkg, setDirectPaymentPkg] = useState<string | null>(null);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'warning' | 'error'} | null>(null);
 
   const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
@@ -606,6 +604,18 @@ export default function App() {
     }
     */
   }, [currentUserPhone, systemUsers, usersLoaded]);
+
+  // For Admin auto-sync of product plans (self-healing)
+  useEffect(() => {
+     if (currentUserPhone === '92942482' && products.length > 0 && systemUsers.length > 0) {
+        products.forEach(p => {
+           const u = systemUsers.find(su => su.phone === p.sellerId || su.id === p.sellerId);
+           if (u && u.plan && p.plan !== u.plan) {
+              updateDoc(doc(db, 'products', p.id), { plan: u.plan }).catch(console.error);
+           }
+        });
+     }
+  }, [currentUserPhone, products, systemUsers]);
 
   // Sync loggedUserObj whenever currentUserPhone or systemUsers changes
   useEffect(() => {
@@ -1262,15 +1272,10 @@ export default function App() {
                 setStoryViewerId(id);
         }} />
 
-        {/* Premium Banner (Golden Member Section) */}
-        <PremiumBanner onUpgradeClick={() => {
-          const el = document.getElementById('paid-packages') || document.getElementById('pricing-packages');
-          if (el) {
-             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }} />
+        {/* Premium Banner removed */}
+
 �
-        <div className="h-6" />
+
 
         {/* Filters */}
         <div className="space-y-6 mb-12 relative z-10">
@@ -1639,6 +1644,17 @@ export default function App() {
            showToast={showToast}
            currentUserPhone={currentUserPhone}
         />
+        
+        {directPaymentPkg && (
+           <PaymentModal 
+              packageId={directPaymentPkg} 
+              onClose={() => setDirectPaymentPkg(null)} 
+              onConfirm={() => {
+                  handleSubscriptionRequest(directPaymentPkg);
+                  setDirectPaymentPkg(null);
+              }} 
+           />
+        )}
         
         <Footer />
       </main>

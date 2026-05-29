@@ -157,6 +157,15 @@ export default function AdminPanel({
           if (reqIdStr) {
               await deleteDoc(doc(db, 'systemRequests', reqIdStr));
           }
+
+          // Auto-upgrade user's existing products
+          const userProducts = products.filter(p => p.sellerId === targetUserId || p.phone === targetUserId || p.sellerId === phoneStr);
+          for (const p of userProducts) {
+              if (p.plan !== req.plan) {
+                  await updateDoc(doc(db, 'products', p.id), { plan: req.plan }).catch(e => console.error("Failed to update product plan", e));
+              }
+          }
+
           if (showToast) showToast('تم تأكيد وتفعيل الاشتراك بنجاح ✦', 'success');
       } catch (e) {
           console.error("Failed to update user plan or delete request in Firestore:", e);
