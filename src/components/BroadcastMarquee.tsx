@@ -20,23 +20,55 @@ interface BroadcastMarqueeProps {
 
 export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeProps) {
   const [current, setCurrent] = useState<BroadcastMessage | null>(null);
+  const [iteration, setIteration] = useState(0);
 
-  // Pick the next message when the current one is finished, or cancel current and play the newest one
+  // We load the view counts from localStorage to persist them across sessions
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('sanad_broadcast_views');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Pick the next message when the current one is finished
   useEffect(() => {
     if (queue.length > 0) {
-      // Always prioritize the most recently added message in the queue (first in the array because of descending order)
-      const latestMessage = queue[0];
-      if (current?.id !== latestMessage.id) {
-        setCurrent(latestMessage);
+      // Find the first message that hasn't reached its max views (e.g., 3)
+      const pendingMessage = queue.find(msg => (viewCounts[msg.id] || 0) < 3);
+      if (pendingMessage) {
+        if (current?.id !== pendingMessage.id) {
+          setCurrent(pendingMessage);
+          setIteration(0);
+        }
+      } else {
+        setCurrent(null);
       }
     } else {
       setCurrent(null);
     }
-  }, [queue, current?.id]);
+  }, [queue, current?.id, viewCounts]);
 
   const handleNext = () => {
     if (current) {
-      onDismiss(current.id);
+      const newCount = (viewCounts[current.id] || 0) + 1;
+      const updatedCounts = { ...viewCounts, [current.id]: newCount };
+      
+      setViewCounts(updatedCounts);
+      try {
+        localStorage.setItem('sanad_broadcast_views', JSON.stringify(updatedCounts));
+      } catch (e) {
+        console.error('Failed to save broadcast view count', e);
+      }
+
+      if (newCount >= 3) {
+        setCurrent(null); // Instantly hide
+        onDismiss(current.id);
+      } else {
+        // Just increment iteration to restart inner animation cleanly without removing outer bar
+        setIteration(prev => prev + 1);
+      }
     }
   };
 
@@ -49,57 +81,52 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
       {current && (
         <motion.div
           key="marquee-bar"
-          initial={{ y: '-100%', opacity: 0 }}
-          animate={{
-            y: 0,
-            opacity: 1,
-          }}
-          exit={{ y: '-100%', opacity: 0 }}
-          transition={{
-            y: { type: 'spring', stiffness: 100, damping: 15 },
-          }}
-          className="fixed top-[84px] inset-x-2 w-[calc(100%-16px)] h-9 bg-gradient-to-r from-stone-900 via-red-950/60 to-stone-900 border border-amber-900/30 rounded-full flex items-center z-[2000] overflow-hidden select-none shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4 }}
+          className="w-full h-8 bg-gradient-to-r from-[#050505] via-[#1a1405] to-[#050505] border-b border-[#D4AF37]/20 flex items-center overflow-hidden select-none relative shadow-[0_1px_5px_rgba(212,175,55,0.05)]"
           dir="rtl"
         >
-          {/* Animated subtle bottom light beam */}
-          <div className="absolute inset-x-0 bottom-0 h-[1.5px] bg-gradient-to-r from-transparent via-black/20 to-transparent" />
+          {/* Animated subtle gold light beam */}
+          <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-[#D4AF37]/10 to-transparent" />
 
           {/* Scrolling text wrapper */}
           <div className="relative w-full h-full flex items-center overflow-hidden">
             <motion.div
-              key={current.id}
+              key={`${current.id}-${iteration}`}
               initial={{ x: '100%' }}
               animate={{ x: '-100%' }}
               transition={{
                 ease: 'linear',
-                duration: 10, // Reduced speed giving the user enough time to see once and then auto-dismiss
+                duration: 18, // Extra smooth and slower elegant speed
               }}
               onAnimationComplete={handleAnimationComplete}
-              className="absolute whitespace-nowrap text-white font-bold text-sm sm:text-base flex items-center gap-3.5 px-6"
+              className="absolute whitespace-nowrap text-white font-medium text-xs sm:text-sm flex items-center gap-3 px-6"
             >
               <div className="inline-flex items-center gap-1.5 shrink-0">
                 {current.plan === 'vip' ? (
-                  <span className="bg-white text-red-600 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-sm">
-                    <Crown className="w-2.5 h-2.5 fill-red-600" />
-                    VIP ملكي
+                  <span className="bg-[#D4AF37] text-black text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-sm">
+                    <Crown className="w-2.5 h-2.5 fill-black" />
+                    VIP
                   </span>
                 ) : current.plan === 'bronze' ? (
-                  <span className="bg-amber-100 text-amber-900 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-sm">
-                    <Flame className="w-2.5 h-2.5 fill-amber-900" />
-                    متميز ✦
+                  <span className="bg-amber-500/20 text-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-amber-500/20">
+                    <Flame className="w-2.5 h-2.5 fill-amber-300" />
+                    متميز
                   </span>
                 ) : (
-                  <span className="bg-white/20 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded">
-                    باقة عادية
+                  <span className="bg-white/10 text-gray-300 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                    إعلان مميز
                   </span>
                 )}
               </div>
 
-              <span className="text-white tracking-wide">
-                <span className="text-yellow-200 font-extrabold">{current.sellerName}</span> من <span className="text-white font-extrabold">{current.location}</span> ؛ أعلن عن: <span className="text-white underline decoration-white/40 underline-offset-4 font-black">{current.title}</span> 👑🔥
+              <span className="text-gray-200">
+                <span className="text-[#D4AF37] font-bold">{current.sellerName}</span> من <span className="text-gray-300 font-medium">{current.location}</span> ؛ أعلن عن: <span className="text-white font-semibold">{current.title}</span> 👑
               </span>
 
-              <Sparkles className="w-3.5 h-3.5 text-yellow-200 animate-pulse shrink-0" />
+              <Sparkles className="w-3 h-3 text-[#D4AF37] animate-pulse shrink-0" />
             </motion.div>
           </div>
         </motion.div>

@@ -12,14 +12,77 @@
   --color-sanad-green: #10b981;
 }
 
+/* Strict Box Sizing on ALL elements */
+*, 
+*::before, 
+*::after {
+  box-sizing: border-box !important;
+}
+
+/* Tighten layout to prevent any horizontal overflow and eliminate any white margins on the sides */
 html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
+body,
+#root,
+.main-container {
+  width: 100% !important;
+  max-width: 100vw !important;
+  min-width: 100% !important;
+  overflow-x: hidden !important;
   font-family: var(--font-sans);
-  background-color: var(--color-base-black);
+  background-color: var(--color-base-black) !important;
   color: #ededed;
   direction: rtl; 
+  margin: 0 !important;
+  padding: 0 !important;
+  touch-action: pan-y; /* Prevent two finger horizontal swipes or scrolling gestures */
+  scrollbar-width: none !important; /* Hide Firefox scrollbars entirely */
+  -ms-overflow-style: none !important;  /* Hide IE scrollbars entirely */
+}
+
+/* Force-hide scrollbars globally for a premium native feeling app */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent !important;
+  width: 0px !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent !important;
+  width: 0px !important;
+}
+
+/* Ensure images and components stay bounded */
+img, svg, video, iframe, canvas {
+  max-width: 100%;
+}
+
+/* Prevent horizontal overflow on sliders, banners or glow elements */
+div, section, header, footer, main, aside {
+  max-width: 100%;
+}
+
+/* Hide scrollbar on x-axis always for native feeling */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 0px; /* Hide horizontal scrollbar track completely */
 }
 
 .text-gold-gradient {
@@ -34,6 +97,33 @@ body {
   border-radius: 20px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   transition: all 0.3s ease;
+}
+
+.premium-card.vip-border {
+  border: 2px solid #D4AF37 !important;
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.25) !important;
+}
+.premium-card.vip-border:hover {
+  border-color: #FFF3C5 !important;
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.45) !important;
+}
+
+.premium-card.bronze-border {
+  border: 2px solid #94a3b8 !important;
+  box-shadow: 0 0 12px rgba(148, 163, 184, 0.2) !important;
+}
+.premium-card.bronze-border:hover {
+  border-color: #ffffff !important;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.35) !important;
+}
+
+.premium-card.free-border {
+  border: 2px solid #10B981 !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15) !important;
+}
+.premium-card.free-border:hover {
+  border-color: #34d399 !important;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.3) !important;
 }
 
 .premium-card:hover {

@@ -47,7 +47,11 @@ export interface Story {
     title?: string;
     sellerAvatar: string;
     imageUrl: string;
+    imageUrls?: string[];
     createdAt: string;
     expiresAt: string;
     isVip?: boolean;
+    views?: number;
+    price?: number;
+    category?: string;
 }

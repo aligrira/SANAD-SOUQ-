@@ -27,6 +27,7 @@ const PublishingTransition = React.lazy(() => import('./components/PublishingTra
 const ProductDetailsModal = React.lazy(() => import('./components/ProductDetailsModal'));
 const ProfileModal = React.lazy(() => import('./components/ProfileModal'));
 const Sidebar = React.lazy(() => import('./components/Sidebar'));
+const StoryViewerModal = React.lazy(() => import('./components/StoryViewerModal'));
 import PricingPackages from './components/PricingPackages'; // Import synchronously
 import SplashScreen from './components/SplashScreen';
 import ListingSkeleton from './components/ListingSkeleton';
@@ -287,6 +288,16 @@ export default function App() {
   });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [initialRenderComplete, setInitialRenderComplete] = useState(false);
+  useEffect(() => {
+    // Defer heavy DOM rendering after the first paint
+    const timer = setTimeout(() => {
+      setInitialRenderComplete(true);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isSplashActive, setIsSplashActive] = useState(true);
 
@@ -478,6 +489,7 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
+  const [storyViewerId, setStoryViewerId] = useState<string | null>(null);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'warning' | 'error'} | null>(null);
 
   const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
@@ -857,26 +869,43 @@ export default function App() {
     setGeneralPage(1);
   }, [selectedCategory, selectedRegion, searchQuery]);
 
-  const vipProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'vip'), [enrichedProducts]);
-  const bronzeProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'bronze'), [enrichedProducts]);
+  const vipProducts = useMemo(() => {
+    const list = enrichedProducts.filter(p => p.plan === 'vip');
+    return initialRenderComplete ? list : list.slice(0, 4);
+  }, [enrichedProducts, initialRenderComplete]);
+
+  const bronzeProducts = useMemo(() => {
+    const list = enrichedProducts.filter(p => p.plan === 'bronze');
+    return initialRenderComplete ? list : list.slice(0, 4);
+  }, [enrichedProducts, initialRenderComplete]);
+  
   const allGeneralProducts = useMemo(() => enrichedProducts.filter(p => p.plan === 'free' || !p.plan), [enrichedProducts]);
   
-  const generalProducts = useMemo(() => allGeneralProducts.slice(0, generalPage * PAGE_SIZE), [allGeneralProducts, generalPage]);
+  const generalProducts = useMemo(() => allGeneralProducts.slice(0, initialRenderComplete ? generalPage * PAGE_SIZE : 4), [allGeneralProducts, generalPage, initialRenderComplete]);
 
   const stories: Story[] = useMemo(() => allEnrichedProducts
-    .filter(p => p.plan === 'vip' || p.plan === 'bronze')
+    .filter(p => {
+       if (p.plan !== 'vip' && p.plan !== 'bronze') return false;
+       // Also filter out older than 48 hours to act as stories!
+       const tA = new Date(p.createdAt).getTime();
+       const now = Date.now();
+       const diffHours = (now - tA) / (1000 * 60 * 60);
+       return diffHours <= 48; // Expire after 48h
+    })
     .sort((a, b) => {
        const score = (x: any) => {
-          if (x.plan === 'vip') return 2;
-          if (x.plan === 'bronze') return 1;
+          if (x.plan === 'vip') return 20000;
+          if (x.plan === 'bronze') return 10000;
           return 0;
        };
-       const scoreDiff = score(b) - score(a);
-       if (scoreDiff !== 0) return scoreDiff;
+       // Rotation: score + (views) + random jitter if views are similar, but keeping dates relevant
+       const timeWeightA = new Date(a.createdAt).getTime() / 100000000;
+       const timeWeightB = new Date(b.createdAt).getTime() / 100000000;
        
-       const tA = new Date(a.createdAt).getTime();
-       const tB = new Date(b.createdAt).getTime();
-       return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+       const finalA = score(a) + (a.views || 0) * 10 + timeWeightA;
+       const finalB = score(b) + (b.views || 0) * 10 + timeWeightB;
+
+       return finalB - finalA;
     })
     .map(p => {
        return {
@@ -886,9 +915,13 @@ export default function App() {
           title: p.title,
           sellerAvatar: p.sellerAvatar || 'https://via.placeholder.com/150',
           imageUrl: p.imageUrls?.[0] || 'https://via.placeholder.com/400',
+          imageUrls: p.imageUrls || [],
           createdAt: p.createdAt,
-          expiresAt: p.createdAt,
-          isVip: p.plan === 'vip'
+          expiresAt: p.createdAt, // Just for typing, we do custom logic
+          isVip: p.plan === 'vip',
+          views: p.views || 0,
+          price: p.price,
+          category: p.category
        };
     }), [allEnrichedProducts]);
 
@@ -915,14 +948,14 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white relative overflow-hidden" dir="rtl">
+    <div id="app-root" className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#050505] text-white relative" dir="rtl">
       {isSplashActive && <SplashScreen onComplete={() => setIsSplashActive(false)} />}
       
       {/* Header */}
-      <header className="z-40 bg-[#020806]/85 backdrop-blur-xl border-b border-gray-800/80 sticky top-0 shrink-0 w-full">
+      <header className="z-40 bg-[#050505]/75 backdrop-blur-md border-b border-white/5 sticky top-0 shrink-0 w-full shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-[76px] pb-1 pt-3">
-            <div className="flex items-center gap-4">
+          <div className="flex justify-between items-center h-[60px]">
+            <div className="flex items-center gap-3">
               {/* Profile button directly in top-right corner */}
               <div 
                 className="flex flex-col items-center justify-center cursor-pointer group select-none relative shrink-0"
@@ -939,12 +972,12 @@ export default function App() {
                 {currentUserPhone ? (
                   <div className="flex flex-col items-center">
                     {/* Royal Frame according to package */}
-                    <div className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-full p-[2px] transition-all duration-300 group-hover:scale-105 ${
+                    <div className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-full p-[2px] transition-all duration-300 group-hover:scale-105 ${
                       currentUserPlan === 'vip' 
-                        ? 'bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow shadow-[0_0_15px_rgba(212,175,55,0.45)]' 
+                        ? 'bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow shadow-[0_0_12px_rgba(212,175,55,0.4)]' 
                         : currentUserPlan === 'bronze' 
-                          ? 'bg-gradient-to-tr from-amber-600 via-amber-500 to-orange-400 shadow-[0_0_12px_rgba(217,119,6,0.3)] border border-amber-500/30' 
-                          : 'bg-gradient-to-tr from-[#10B981] via-gray-750 to-gray-850 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
+                          ? 'bg-gradient-to-tr from-amber-600 via-amber-500 to-orange-400 shadow-[0_0_8px_rgba(217,119,6,0.25)] border border-amber-500/30' 
+                          : 'bg-gradient-to-tr from-[#10B981] via-gray-750 to-gray-850 shadow-[0_0_6px_rgba(16,185,129,0.1)]'
                     }`}>
                       <div className="w-full h-full rounded-full bg-gray-950 overflow-hidden relative flex items-center justify-center">
                         {currentUserObj?.avatar ? (
@@ -955,7 +988,7 @@ export default function App() {
                           />
                         ) : (
                           // Stunning royal letter monogram
-                          <span className={`text-xs font-black tracking-tighter uppercase ${
+                          <span className={`text-[10px] font-black tracking-tighter uppercase ${
                             currentUserPlan === 'vip' 
                               ? 'text-gradient-gold' 
                               : currentUserPlan === 'bronze' 
@@ -968,50 +1001,37 @@ export default function App() {
                       </div>
 
                       {/* Overlapping micro-badge of the tier under the photo inside the frame */}
-                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-10 flex items-center scale-75 sm:scale-100">
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 z-10 flex items-center scale-75">
                         {currentUserPlan === 'vip' ? (
-                          <span className="bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black text-[7px] font-black px-1.5 py-0.5 rounded-full border border-white/40 shadow-lg whitespace-nowrap tracking-wide leading-none flex items-center gap-0.5">
+                          <span className="bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black text-[6.5px] font-black px-1.5 py-0.5 rounded-full border border-white/40 shadow-lg whitespace-nowrap tracking-wide leading-none flex items-center gap-0.5">
                             👑 VIP
                           </span>
                         ) : currentUserPlan === 'bronze' ? (
-                          <span className="bg-gradient-to-r from-amber-600 to-orange-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full border border-orange-400/30 shadow-md whitespace-nowrap leading-none">
+                          <span className="bg-gradient-to-r from-amber-600 to-orange-500 text-white text-[6.5px] font-black px-1.5 py-0.5 rounded-full border border-orange-400/30 shadow-md whitespace-nowrap leading-none">
                             🥉 متميز
                           </span>
                         ) : (
-                          <span className="bg-gray-900 text-emerald-400 text-[6.5px] font-bold px-1 py-0.5 rounded-full border border-emerald-500/20 shadow-sm whitespace-nowrap leading-none">
+                          <span className="bg-gray-900 text-emerald-400 text-[6px] font-bold px-1 py-0.5 rounded-full border border-emerald-500/20 shadow-sm whitespace-nowrap leading-none">
                             عضو
                           </span>
                         )}
                       </div>
                     </div>
-                    {/* The Subscriber's name under the photo */}
-                    <span 
-                      className={`text-[8.5px] sm:text-[9.5px] font-extrabold mt-1.5 max-w-[50px] sm:max-w-[70px] truncate block text-center leading-none transition-colors ${
-                        currentUserPlan === 'vip' ? 'text-[#D4AF37] group-hover:text-yellow-200' : currentUserPlan === 'bronze' ? 'text-amber-500/90 group-hover:text-amber-400' : 'text-gray-400 group-hover:text-gray-300'
-                      }`}
-                      dir="auto"
-                    >
-                      {currentUserObj?.name || 'حسابي'}
-                    </span>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center">
                     <button 
                       type="button"
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-700 bg-[#050505] flex items-center justify-center group-hover:border-[#D4AF37] group-hover:shadow-[0_0_10px_rgba(212,175,55,0.3)] transition-all overflow-hidden relative"
+                      className="w-8 h-8 rounded-full border border-gray-800 bg-[#050505] flex items-center justify-center group-hover:border-[#D4AF37] group-hover:shadow-[0_0_8px_rgba(212,175,55,0.2)] transition-all overflow-hidden relative"
                     >
-                      <User className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-gray-400 group-hover:text-[#D4AF37] transition-colors" />
+                      <User className="w-4 h-4 text-gray-400 group-hover:text-[#D4AF37] transition-colors" />
                     </button>
-                    <span className="text-[8.5px] sm:text-[9.5px] text-gray-400 font-bold mt-1 scale-90 sm:scale-100 group-hover:text-white transition-colors">دخول</span>
                   </div>
                 )}
               </div>
 
-              <button onClick={() => setShowSidebar(true)} className="p-2 -ml-2 text-gray-400 hover:text-white transition-colors" title="القائمة">
-                <Menu className="w-6 h-6" />
-              </button>
-              <span className="text-2xl font-bold font-display tracking-tight text-white">
-                سوق <span className="text-gradient-gold">سند</span>
+              <span className="text-[20px] font-black font-display tracking-tight text-white flex items-center gap-1 select-none pr-1">
+                سوق <span className="bg-gradient-to-r from-[#D4AF37] via-yellow-250 to-[#9e7a2f] text-transparent bg-clip-text">سند</span>
               </span>
             </div>
 
@@ -1154,8 +1174,6 @@ export default function App() {
           </div>
         </div>
       </header>
-      <PremiumBanner onUpgradeClick={() => document.getElementById('paid-packages')?.scrollIntoView({ behavior: 'smooth' })} />
-      
       {/* Offline Banner */}
       <AnimatePresence>
         {isOffline && (
@@ -1176,7 +1194,7 @@ export default function App() {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-1 sm:pt-2 pb-28 md:pb-8 relative z-10"
+        className="max-w-7xl mx-auto px-4.5 sm:px-6 lg:px-8 pt-1 sm:pt-2 pb-28 md:pb-8 relative z-10 w-full overflow-x-hidden"
       >
         {isRefreshing && (
            <div className="flex justify-center mb-6">
@@ -1196,67 +1214,13 @@ export default function App() {
                 }
              }}
              onStoryClick={(id) => {
-                const prod = products.find(p => p.id === id);
-                if (prod) handleProductClick(prod);
+                setStoryViewerId(id);
         }} />
 
-        {/* Broadcast Marquee Ticker */}
-        {/* Removed as requested */}
-
-        {/* Intro Section */}
-        <div className="mb-6 text-center mx-auto space-y-3 max-w-4xl mt-1 px-2 relative">
-           {/* Futuristic Radial decorative flows in the background */}
-           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-gradient-to-tr from-[#D4AF37]/5 via-[#10B981]/5 to-transparent rounded-full blur-3xl pointer-events-none" />
-
-           {/* Personalized Greeting banner if logged in */}
-           {currentUserPhone ? (
-             <motion.div 
-               initial={{ opacity: 0, scale: 0.95 }}
-               animate={{ opacity: 1, scale: 1 }}
-               className="inline-flex items-center gap-3 bg-gradient-to-r from-gray-950 via-[#0a0f0d] to-gray-950 px-5 py-2 rounded-2xl border border-gray-800/80 shadow-inner text-right mb-3 -mt-9 sm:-mt-11"
-             >
-               <div className="relative w-8 h-8 rounded-full overflow-hidden border border-[#D4AF37]/40 ring-2 ring-[#D4AF37]/10 bg-gray-900 shrink-0">
-                 {currentUserObj?.avatar ? (
-                   <img src={currentUserObj.avatar} alt="Profile" className="w-full h-full object-cover" />
-                 ) : (
-                   <User className="w-4 h-4 text-gray-400 absolute inset-0 m-auto" />
-                 )}
-                 <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#10B981] rounded-full border border-black" />
-               </div>
-               <div>
-                  <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">لوحة النخبة الرقمية</div>
-                  <div className="text-xs sm:text-sm text-gray-200 font-bold">
-                     مرحباً بك، <span className="text-[#D4AF37] font-extrabold">{currentUserObj?.name || 'عضو سوق سند'}</span>
-                  </div>
-               </div>
-             </motion.div>
-           ) : (
-             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-gray-950 via-[#0a120e] to-gray-950 border border-[#D4AF37]/30 shadow-[0_4px_15px_rgba(212,175,55,0.08)] mb-2.5 -mt-2 sm:-mt-4 py-2 px-5">
-                <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] animate-pulse" />
-                <span className="text-[10px] sm:text-xs text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-gray-200 to-[#F3E5AB] uppercase tracking-widest font-black">منصة تونس الأولى للعروض الملكية</span>
-             </div>
-           )}
-
-           <div className="max-w-xl mx-auto mt-6 mb-4 px-3">
-             <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-gradient-to-tr from-[#111] via-[#0a0a0a] to-[#111] border border-gray-800 rounded-3xl p-5 text-center relative overflow-hidden shadow-2xl"
-             >
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent opacity-50" />
-                <h4 className="text-gray-200 text-sm font-bold mb-2 flex items-center justify-center gap-2">
-                   <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-                   رسالة إدارة منصة النخبة
-                   <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-                </h4>
-                <p className="text-gray-400 text-xs leading-relaxed max-w-sm mx-auto">
-                   مرحباً بك في الوجهة الأولى للتجارة الإلكترونية الموثوقة. شارك منتجاتك اليوم وارتقِ بمبيعاتك مع باقة النخبة الذهبية لمزيد من الانتشار والتميز!
-                </p>
-             </motion.div>
-           </div>
+        {/* Premium Banner (Golden Member Section) */}
+        <PremiumBanner onUpgradeClick={() => document.getElementById('paid-packages')?.scrollIntoView({ behavior: 'smooth' })} />
 �
-        </div>
+        <div className="h-6" />
 
         {/* Filters */}
         <div className="space-y-6 mb-12 relative z-10">
@@ -1682,6 +1646,22 @@ export default function App() {
                />
             )}
          </Suspense>
+         <Suspense key="suspense-storyviewer" fallback={<ModalFallback />}>
+            {storyViewerId && (
+               <StoryViewerModal
+                  stories={stories}
+                  initialStoryId={storyViewerId}
+                  onClose={() => setStoryViewerId(null)}
+                  onActionClick={(story) => {
+                     const prod = products.find(p => p.id === story.id);
+                     if (prod) {
+                        handleProductClick(prod);
+                        setStoryViewerId(null);
+                     }
+                  }}
+               />
+            )}
+         </Suspense>
          <Suspense key="suspense-profile" fallback={<ModalFallback />}>
             {showProfile && <ProfileModal 
                onClose={() => setShowProfile(false)} 
@@ -1918,13 +1898,24 @@ export default function App() {
       </a>
 
       {/* Decorative Interactive Premium Floating Bottom Navigation Bar - New Slim 3D Design */}
-      <div className="fixed bottom-4 left-4 right-4 z-40 md:hidden bg-neutral-950/85 backdrop-blur-2xl border border-white/5 rounded-2xl p-1.5 px-3.5 shadow-[0_15px_40px_rgba(0,0,0,0.8)] flex items-center justify-between" style={{ perspective: '800px' }}>
+      <div className="fixed bottom-4 left-4 right-4 z-40 md:hidden bg-black/75 backdrop-blur-md border border-[#D4AF37]/10 rounded-[2rem] p-2 px-4 shadow-[0_10px_35px_rgba(212,175,55,0.06)] flex items-center justify-between" style={{ perspective: '800px' }}>
         {/* Tab: Home */}
         <button
           type="button"
           onClick={() => {
             triggerHaptic(30);
+            setShowProfile(false);
+            setShowAdmin(false);
+            setShowAddProduct(false);
+            setShowAIChat(false);
+            setShowAuth(false);
+            setStoryViewerId(null);
+            setSelectedCategory('الكل');
+            setSelectedRegion('الكل');
+            setSearchQuery('');
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+            document.getElementById('app-root')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }}
           className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >

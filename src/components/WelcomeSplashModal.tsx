@@ -122,13 +122,13 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.9, y: 30, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 120, damping: 15 }}
-        className="bg-gradient-to-b from-[#0a0f0d] to-black rounded-[2.5rem] p-6 sm:p-8 border border-gray-800 shadow-2xl w-full max-w-md relative text-center overflow-y-auto max-h-[90vh]"
+        className="bg-gradient-to-b from-[#0a0f0d] to-black rounded-[2rem] p-5 sm:p-6 border border-gray-800 shadow-2xl w-full max-w-[380px] relative text-center overflow-y-auto max-h-[85vh]"
       >
         {/* Subtle radial golden background light */}
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 bg-gradient-to-r from-amber-500/20 to-yellow-400/5 rounded-full blur-[80px] pointer-events-none" />
 
         {/* Celebration Badges */}
-        <div className="relative z-10 flex justify-center mb-6">
+        <div className="relative z-10 flex justify-center mb-5">
           <motion.div 
             initial={{ scale: 0, rotate: -45 }}
             animate={{ scale: 1, rotate: 0 }}
@@ -139,13 +139,13 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
             <div className={`absolute inset-0 rounded-full blur-xl scale-125 opacity-70 animate-pulse ${isVip ? 'bg-amber-400/30' : isBronze ? 'bg-slate-300/30' : 'bg-emerald-500/30'}`} />
             
             {/* Main Avatar Container */}
-            <div className={`w-28 h-28 rounded-full p-[3px] bg-gradient-to-tr ${isVip ? 'from-[#D4AF37] via-amber-200 to-[#D4AF37]' : isBronze ? 'from-slate-400 via-white to-slate-500' : 'from-emerald-500 via-teal-200 to-emerald-600'} shadow-2xl relative z-10`}>
+            <div className={`w-24 h-24 rounded-full p-[3px] bg-gradient-to-tr ${isVip ? 'from-[#D4AF37] via-amber-200 to-[#D4AF37]' : isBronze ? 'from-slate-400 via-white to-slate-500' : 'from-emerald-500 via-teal-200 to-emerald-600'} shadow-2xl relative z-10`}>
               <div className="w-full h-full bg-[#050907] rounded-full flex items-center justify-center overflow-hidden">
                 {user?.avatar ? (
                   <img src={user.avatar} alt={user?.name || ''} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center">
-                    <span className={`text-2xl font-black font-display tracking-widest ${isVip ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-yellow-100' : isBronze ? 'text-slate-100' : 'text-emerald-300'}`}>
+                    <span className={`text-xl font-black font-display tracking-widest ${isVip ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-yellow-100' : isBronze ? 'text-slate-100' : 'text-emerald-300'}`}>
                       {initials}
                     </span>
                   </div>
@@ -156,23 +156,23 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
               <motion.div 
                 animate={{ y: [0, -4, 0] }}
                 transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                className={`absolute -top-3 -right-3 rounded-full p-2.5 shadow-2xl ${isVip ? 'bg-gradient-to-tr from-[#D4AF37] to-amber-300 text-black' : isBronze ? 'bg-gradient-to-tr from-slate-300 to-white text-slate-950' : 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-white'}`}
+                className={`absolute -top-3 -right-3 rounded-full p-2 shadow-2xl ${isVip ? 'bg-gradient-to-tr from-[#D4AF37] to-amber-300 text-black' : isBronze ? 'bg-gradient-to-tr from-slate-300 to-white text-slate-950' : 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-white'}`}
               >
-                {isVip && <Crown className="w-5 h-5 fill-amber-900/30" />}
-                {isBronze && <Crown className="w-5 h-5 fill-slate-700" />}
-                {!isVip && !isBronze && <Zap className="w-5 h-5 fill-emerald-800/20" />}
+                {isVip && <Crown className="w-4 h-4 fill-amber-900/30" />}
+                {isBronze && <Crown className="w-4 h-4 fill-slate-700" />}
+                {!isVip && !isBronze && <Zap className="w-4 h-4 fill-emerald-800/20" />}
               </motion.div>
             </div>
           </motion.div>
         </div>
 
         {/* Welcome Messages */}
-        <div className="relative z-10 space-y-3 mb-8" dir="rtl">
+        <div className="relative z-10 space-y-2 mb-6" dir="rtl">
           <motion.p 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className={`text-sm font-bold tracking-wider uppercase font-display select-none ${isVip ? 'text-[#D4AF37]' : isBronze ? 'text-slate-300' : 'text-emerald-400'}`}
+            className={`text-[11px] font-bold tracking-wider uppercase font-display select-none ${isVip ? 'text-[#D4AF37]' : isBronze ? 'text-slate-300' : 'text-emerald-400'}`}
           >
             ✦ {headerText} ✦
           </motion.p>
@@ -181,7 +181,7 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-2xl sm:text-3xl font-black text-white font-display leading-tight tracking-tight drop-shadow-md"
+            className="text-xl sm:text-2xl font-black text-white font-display leading-tight tracking-tight drop-shadow-md"
           >
             مرحباً بك، <span className={`text-transparent bg-clip-text bg-gradient-to-r ${isVip ? 'from-[#D4AF37] via-yellow-200 to-[#F5ECE2]' : isBronze ? 'from-slate-200 via-white to-slate-400' : 'from-emerald-300 via-teal-100 to-emerald-400'}`}>{user?.name || 'ضيفنا الكريم'}</span>!
           </motion.h2>
@@ -252,6 +252,19 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
           </div>
         </motion.div>
 
+        {/* Guiding text / Visual helper */}
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1, repeat: Infinity, repeatType: 'reverse', duration: 1.5 }}
+          className="text-center mb-2"
+        >
+          <span className="text-xs text-gray-400/80 font-medium font-sans flex justify-center items-center gap-1">
+            <ArrowRight className="w-3 h-3 -rotate-90" />
+            اضغط هنا للدخول إلى المتجر
+          </span>
+        </motion.div>
+
         {/* Primary Call To Action Button */}
         <motion.button
           initial={{ opacity: 0, y: 15 }}
@@ -260,19 +273,20 @@ export default function WelcomeSplashModal({ user, onClose }: WelcomeSplashModal
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onClose}
-          className={`w-full relative py-4 px-6 rounded-2xl flex items-center justify-center gap-2 font-bold font-display text-sm sm:text-base border transition-all shadow-xl group overflow-hidden ${
+          className={`w-full relative py-4 px-6 rounded-2xl flex items-center justify-center gap-2 font-bold font-display text-base border transition-all shadow-xl group overflow-hidden ${
             isVip
-              ? 'bg-gradient-to-r from-[#D4AF37] via-yellow-400 to-[#D4AF37] text-black border-yellow-300 shadow-[#D4AF37]/20 hover:brightness-110'
+              ? 'bg-gradient-to-r from-[#D4AF37] via-yellow-400 to-[#D4AF37] text-black border-yellow-300 shadow-[0_0_30px_rgba(212,175,55,0.4)] animate-pulse'
               : isBronze
-              ? 'bg-gradient-to-r from-slate-350 to-slate-100 text-slate-900 border-white shadow-slate-500/20 hover:brightness-110'
-              : 'bg-gradient-to-r from-emerald-500 to-teal-400 text-white border-emerald-400 shadow-emerald-500/20 hover:brightness-110'
+              ? 'bg-gradient-to-r from-slate-350 to-slate-100 text-slate-900 border-white shadow-[0_0_30px_rgba(148,163,184,0.4)] animate-pulse'
+              : 'bg-gradient-to-r from-emerald-500 to-teal-400 text-white border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)] animate-pulse hover:animate-none'
           }`}
         >
           {/* Shine Sweep animation effect */}
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
           
-          <span>دخول معرض سند وتصفّح العروض</span>
-          <ArrowRight className="w-5 h-5 animate-bounce group-hover:translate-x-0.5 transition-transform" />
+          <User className="w-5 h-5 shrink-0" />
+          <span>الدخول كزائر للمتجر</span>
+          <ArrowRight className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
         </motion.button>
       </motion.div>
     </motion.div>
