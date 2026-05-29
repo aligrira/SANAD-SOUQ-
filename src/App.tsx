@@ -1206,6 +1206,19 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      <BroadcastMarquee 
+        queue={broadcastQueue.filter(b => !dismissedBroadcastIds.has(b.id))} 
+        onDismiss={(id) => { 
+          setDismissedBroadcastIds(prev => {
+            const updated = new Set(prev);
+            updated.add(id);
+            return updated;
+          });
+          handleDismissBroadcast(id); 
+        }} 
+      />
+
       {/* Offline Banner */}
       <AnimatePresence>
         {isOffline && (
@@ -1250,7 +1263,12 @@ export default function App() {
         }} />
 
         {/* Premium Banner (Golden Member Section) */}
-        <PremiumBanner onUpgradeClick={() => document.getElementById('paid-packages')?.scrollIntoView({ behavior: 'smooth' })} />
+        <PremiumBanner onUpgradeClick={() => {
+          const el = document.getElementById('paid-packages') || document.getElementById('pricing-packages');
+          if (el) {
+             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }} />
 �
         <div className="h-6" />
 
@@ -1625,14 +1643,6 @@ export default function App() {
         <Footer />
       </main>
       
-      <BroadcastMarquee 
-        queue={broadcastQueue.filter(b => !dismissedBroadcastIds.has(b.id))} 
-        onDismiss={(id) => { 
-          setDismissedBroadcastIds(prev => new Set(prev).add(id)); 
-          handleDismissBroadcast(id); 
-        }} 
-      />
-      
       <AnimatePresence>
          <Suspense key="suspense-sidebar" fallback={<ModalFallback />}>
             {showSidebar && <Sidebar 
@@ -1999,8 +2009,8 @@ export default function App() {
           type="button"
           onClick={() => {
             triggerHaptic(30);
-            const targetEl = document.getElementById('free-package');
-            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
+            const targetEl = document.getElementById('paid-packages') || document.getElementById('pricing-packages');
+            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }}
           className="flex flex-col items-center gap-1 group active:scale-95 transition-all w-14 cursor-pointer"
         >

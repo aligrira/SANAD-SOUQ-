@@ -35,8 +35,8 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
   // Pick the next message when the current one is finished
   useEffect(() => {
     if (queue.length > 0) {
-      // Find the first message that hasn't reached its max views (e.g., 3)
-      const pendingMessage = queue.find(msg => (viewCounts[msg.id] || 0) < 3);
+      // Find the first message that hasn't reached its max views (e.g., 10)
+      const pendingMessage = queue.find(msg => (viewCounts[msg.id] || 0) < 10);
       if (pendingMessage) {
         if (current?.id !== pendingMessage.id) {
           setCurrent(pendingMessage);
@@ -62,7 +62,7 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
         console.error('Failed to save broadcast view count', e);
       }
 
-      if (newCount >= 3) {
+      if (newCount >= 10) {
         setCurrent(null); // Instantly hide
         onDismiss(current.id);
       } else {
@@ -85,11 +85,11 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.4 }}
-          className="w-full h-8 bg-gradient-to-r from-[#050505] via-[#1a1405] to-[#050505] border-b border-[#D4AF37]/20 flex items-center overflow-hidden select-none relative shadow-[0_1px_5px_rgba(212,175,55,0.05)]"
+          className="w-full h-9 bg-gradient-to-r from-[#200202] via-[#8B0000] to-[#200202] border-b border-[#D4AF37]/35 flex items-center overflow-hidden select-none sticky top-[60px] z-30 shadow-[0_2px_12px_rgba(239,68,68,0.25)]"
           dir="rtl"
         >
           {/* Animated subtle gold light beam */}
-          <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-[#D4AF37]/10 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-[#D4AF37]/15 to-transparent" />
 
           {/* Scrolling text wrapper */}
           <div className="relative w-full h-full flex items-center overflow-hidden">
