@@ -1,3 +1,4 @@
+import React from 'react';
 import { motion } from 'motion/react';
 import { Story } from '../types';
 import { Sparkles } from 'lucide-react';
@@ -9,7 +10,7 @@ interface VipStoriesRowProps {
   onProfileClick?: () => void;
 }
 
-export default function VipStoriesRow({ stories, onStoryClick }: VipStoriesRowProps) {
+const VipStoriesRow: React.FC<VipStoriesRowProps> = ({ stories, onStoryClick }) => {
   if (!stories.length) return null;
 
   return (
@@ -74,4 +75,6 @@ export default function VipStoriesRow({ stories, onStoryClick }: VipStoriesRowPr
       </div>
     </div>
   );
-}
+};
+
+export default React.memo(VipStoriesRow);

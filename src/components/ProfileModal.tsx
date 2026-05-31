@@ -1,8 +1,38 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, User, Settings, LogOut, Package, Camera, Check, Eye, EyeOff, Crown, MapPin, Calendar, Smartphone, ShieldCheck } from 'lucide-react';
+import { X, User, Settings, LogOut, Package, Camera, Check, Eye, EyeOff, Crown, MapPin, Calendar, Smartphone, ShieldCheck, Bell } from 'lucide-react';
 
-export default function ProfileModal({ onClose, onOpenAdmin, phone, onLogout, currentUserPlan, pendingPlan, currentUser, onSaveProfile, stats }: { key?: React.Key, onClose: () => void, onOpenAdmin?: () => void, phone?: string, onLogout?: () => void, currentUserPlan?: string, pendingPlan?: string | null, currentUser?: any, onSaveProfile?: (name: string, avatar: string | null) => void, stats?: { active: number, views: number, sold: number } }) {
+export default function ProfileModal({ 
+  onClose, 
+  onOpenAdmin, 
+  phone, 
+  onLogout, 
+  currentUserPlan, 
+  pendingPlan, 
+  currentUser, 
+  onSaveProfile, 
+  stats,
+  favoriteCategories = [],
+  onToggleFavoriteCategory = () => {},
+  notificationPermissionStatus = 'default',
+  onRequestNotificationPermission = () => {}
+}: { 
+  key?: React.Key, 
+  onClose: () => void, 
+  onOpenAdmin?: () => void, 
+  phone?: string, 
+  onLogout?: () => void, 
+  currentUserPlan?: string, 
+  pendingPlan?: string | null, 
+  currentUser?: any, 
+  onSaveProfile?: (name: string, avatar: string | null) => void, 
+  stats?: { active: number, views: number, sold: number },
+  favoriteCategories?: string[],
+  onToggleFavoriteCategory?: (category: string) => void,
+  notificationPermissionStatus?: string,
+  onRequestNotificationPermission?: () => void
+}) {
+
   const [isEditing, setIsEditing] = useState(false);
   const [profileName, setProfileName] = useState(currentUser?.name || 'المستخدم الحالي');
   const [originalName, setOriginalName] = useState(currentUser?.name || 'المستخدم الحالي');
@@ -281,6 +311,59 @@ export default function ProfileModal({ onClose, onOpenAdmin, phone, onLogout, cu
                             طلب العضوية قيد المراجعة...
                         </motion.div>
                     )}
+
+                    {/* Favorite Categories / FCM Push Notifications Dashboard */}
+                    <div className="bg-[#050505] rounded-[1.8rem] p-4 border border-[#D4AF37]/30 shadow-inner mt-2">
+                       <div className="flex items-center justify-between mb-2 px-1">
+                          <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">تنبيهات الأقسام المفضلة</span>
+                          <Bell className={`w-3.5 h-3.5 ${notificationPermissionStatus === 'granted' ? 'text-[#10B981]' : 'text-[#D4AF37]'}`} />
+                       </div>
+                       
+                       <p className="text-[9.5px] text-gray-400 mb-3 text-right leading-relaxed">
+                         اختر أقسامك المفضلة لتلقي تنبيهات وإشعارات لحظية مخصصة فور إضافة أي معروضات جديدة من أي بائع آخر بالسوق!
+                       </p>
+
+                       {/* Notification Permission Enabler */}
+                       <div className="mb-3">
+                         {notificationPermissionStatus === 'granted' ? (
+                           <div className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-[10px] font-black">
+                             <Check className="w-3.5 h-3.5" />
+                             <span>نظام التنبيهات الفورية (FCM) نشط الآن 🟢</span>
+                           </div>
+                         ) : (
+                           <button
+                             type="button"
+                             onClick={onRequestNotificationPermission}
+                             className="w-full py-2 px-3 bg-gradient-to-r from-[#D4AF37] to-[#b38f2e] text-black rounded-xl text-[10px] font-black flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-transform"
+                           >
+                             <Bell className="w-3.5 h-3.5" />
+                             <span>تفعيل الإشعارات الفورية بالمتصفح 🔔</span>
+                           </button>
+                         )}
+                       </div>
+
+                       {/* Favorite Category Toggles */}
+                       <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto no-scrollbar pt-1 pr-0.5">
+                         {['ملابس رجال', 'ملابس نساء', 'ملابس اطفال', 'ماكياج و اكسسوارات', 'عطورات', 'عقارات', 'سيارات و دراجات', 'إلكترونيات', 'أثاث', 'أدوات منزلية', 'حيوانات', 'تحف و هدايا'].map((cat) => {
+                           const isFav = favoriteCategories.includes(cat);
+                           return (
+                             <button
+                               key={cat}
+                               type="button"
+                               onClick={() => onToggleFavoriteCategory(cat)}
+                               className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-all flex items-center gap-1 cursor-pointer select-none ${
+                                 isFav 
+                                   ? 'bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37] shadow-sm' 
+                                   : 'bg-black border-white/5 text-gray-400 hover:text-white hover:border-[#D4AF37]/25'
+                               }`}
+                             >
+                               <span className="text-[10px]">{isFav ? '★' : '☆'}</span>
+                               {cat}
+                             </button>
+                           );
+                         })}
+                       </div>
+                    </div>
                 </div>
 
                 <div className="space-y-2 mt-2">

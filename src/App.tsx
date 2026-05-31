@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets, Mic, Tag, Facebook, Loader2, LogIn } from 'lucide-react';
+import { Menu, Search, User, Filter, Globe, PlusCircle, Crown, Star, ShoppingBag, ShieldCheck, MessageCircle, Bot, Sparkles, Grid, List, Shirt, Baby, Car, Smartphone, Home, Coffee, PawPrint, Package, BrainCircuit, X, Trash2, ChevronDown, Droplets, Mic, Tag, Facebook, Loader2, LogIn, Bell } from 'lucide-react';
 import { Product, Story } from './types';
 import { safeStorage } from './lib/safeStorage';
 import { cleanUndefined } from './lib/utils';
 import { collection, onSnapshot, doc, setDoc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, getDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, messaging } from './firebase';
 import { initialProducts } from './initialData';
 // Removed CursorGlow import
 import VipStoriesRow from './components/VipStoriesRow';
@@ -18,17 +18,18 @@ import BroadcastMarquee, { BroadcastMessage } from './components/BroadcastMarque
 import ListingCard from './components/ListingCard';
 
 
-// Static imports of Modals and components to guarantee zero fetching delays or dynamic chunk errors
-import AdminPanel from './components/AdminPanel';
+// Lazy imports for heavy components to improve TTI
+const AdminPanel = React.lazy(() => import('./components/AdminPanel'));
+const ProfileModal = React.lazy(() => import('./components/ProfileModal'));
+const AddProductModal = React.lazy(() => import('./components/AddProductModal'));
+const ProductDetailsModal = React.lazy(() => import('./components/ProductDetailsModal'));
+const PricingPackages = React.lazy(() => import('./components/PricingPackages'));
+const StoryViewerModal = React.lazy(() => import('./components/StoryViewerModal'));
+
 import AuthModal from './components/AuthModal';
 import WelcomeSplashModal from './components/WelcomeSplashModal';
-import AddProductModal from './components/AddProductModal';
 import PublishingTransition from './components/PublishingTransition';
-import ProductDetailsModal from './components/ProductDetailsModal';
-import ProfileModal from './components/ProfileModal';
 import Sidebar from './components/Sidebar';
-import StoryViewerModal from './components/StoryViewerModal';
-import PricingPackages from './components/PricingPackages';
 import PaymentModal from './components/PaymentModal';
 import SplashScreen from './components/SplashScreen';
 import ListingSkeleton from './components/ListingSkeleton';
@@ -162,6 +163,64 @@ export default function App() {
           const tB = new Date(b.createdAt).getTime();
           return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
       });
+      // Check for newly added products to trigger favorite category notifications
+      if (productsRef.current.length > 0) {
+        const previousIds = new Set(productsRef.current.map(p => p.id));
+        const newProducts = sorted.filter(p => !previousIds.has(p.id));
+        
+        newProducts.forEach(item => {
+          const createdTime = new Date(item.createdAt).getTime();
+          // Added within recent time after app opened and not uploaded by this user themselves
+          if (createdTime > appOpenTimeRef.current - 120000 && item.sellerId !== safeStorage.getItem('sanad_current_user_phone')) {
+            const isFavorite = favoriteCategoriesRef.current.includes(item.category);
+            if (isFavorite) {
+              // 1. Core Native Browser Notification
+              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                new Notification('🔔 إعلان جديد في أقسامك المفضلة!', {
+                  body: `تم إضافة "${item.title}" في قسم: ${item.category} بسعر ${item.price} د.ت`,
+                  icon: '/apple-touch-icon.png'
+                });
+              }
+
+              // 2. Add to local userNotifications array
+              const customNotifId = 'fcm-' + item.id + '-' + Date.now();
+              const pushNotif = {
+                id: customNotifId,
+                userPhone: safeStorage.getItem('sanad_current_user_phone') || 'visitor',
+                message: `🎯 إشعار الأقسام المفضلة: تم إضافة إعلان جديد في قسم "${item.category}"! المنتج: "${item.title}" بسعر ${item.price} د.ت. اضغط هنا للمعاينة الفورية!`,
+                read: false,
+                createdAt: new Date().toISOString(),
+                productId: item.id
+              };
+
+              setUserNotifications(prev => {
+                if (prev.some(n => n.productId === item.id && n.message.includes('🎯'))) return prev;
+                const updated = [pushNotif, ...prev];
+                safeStorage.setItem('sanad_user_notifications', JSON.stringify(updated));
+                return updated;
+              });
+
+              // 3. Play elegant notification chime sound
+              try {
+                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/1423/1423-84.wav');
+                audio.volume = 0.4;
+                audio.play().catch(() => {});
+              } catch (soundErr) {
+                console.warn("Could not play chime:", soundErr);
+              }
+
+              // 4. Trigger premium in-app Live Product Alert modal
+              setLiveProductAlert({
+                title: item.title,
+                category: item.category,
+                price: item.price,
+                product: item
+              });
+            }
+          }
+        });
+      }
+
       setProducts(sorted);
       setProductsLoaded(true);
       safeStorage.setItem('sanad_cached_products', JSON.stringify(sorted));
@@ -304,6 +363,37 @@ export default function App() {
     const saved = safeStorage.getItem('sanad_recently_viewed');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [favoriteCategories, setFavoriteCategories] = useState<string[]>(() => {
+    try {
+      const saved = safeStorage.getItem('sanad_favorite_categories');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<string>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'unsupported';
+  });
+
+  const [liveProductAlert, setLiveProductAlert] = useState<any>(null);
+
+  const appOpenTimeRef = useRef<number>(Date.now());
+  const favoriteCategoriesRef = useRef<string[]>(favoriteCategories);
+  const productsRef = useRef<Product[]>([]);
+
+  useEffect(() => {
+    favoriteCategoriesRef.current = favoriteCategories;
+  }, [favoriteCategories]);
+
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -521,10 +611,10 @@ export default function App() {
   const [directPaymentPkg, setDirectPaymentPkg] = useState<string | null>(null);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'warning' | 'error'} | null>(null);
 
-  const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
       setToast({ message, type });
       setTimeout(() => setToast(null), 4000);
-  };
+  }, []);
 
   useEffect(() => {
     if (currentUserPhone) {
@@ -654,6 +744,10 @@ export default function App() {
       const user = systemUsers.find(u => u.phone === currentUserPhone || u.id === currentUserPhone);
       if (user) {
         setLoggedUserObj(user);
+        if (user.favoriteCategories && Array.isArray(user.favoriteCategories)) {
+          setFavoriteCategories(user.favoriteCategories);
+          safeStorage.setItem('sanad_favorite_categories', JSON.stringify(user.favoriteCategories));
+        }
       }
     } else {
       setLoggedUserObj(null);
@@ -776,6 +870,64 @@ export default function App() {
       }
   };
 
+  const handleToggleFavoriteCategory = async (category: string) => {
+    const updated = favoriteCategories.includes(category)
+      ? favoriteCategories.filter(c => c !== category)
+      : [...favoriteCategories, category];
+      
+    setFavoriteCategories(updated);
+    safeStorage.setItem('sanad_favorite_categories', JSON.stringify(updated));
+    
+    if (currentUserPhone) {
+      try {
+        await setDoc(doc(db, 'systemUsers', currentUserPhone), { favoriteCategories: updated }, { merge: true });
+        showToast(`تم التحديث: ${category}`, 'success');
+      } catch (dbErr) {
+        console.error("Failed to save remote favorite categories:", dbErr);
+      }
+    } else {
+      showToast(`تم حفظ القسم في المفضلة المحلية بالمتصفح 🌟`, 'success');
+    }
+  };
+
+  const handleRequestNotificationPermission = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      showToast('المتصفح لا يدعم التنبيهات الفورية', 'error');
+      return;
+    }
+    
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationPermissionStatus(permission);
+      if (permission === 'granted') {
+        showToast('تم تفعيل التنبيهات بنجاح! ستصلك إشعارات فورية عن أقسامك المفضلة 🎉', 'success');
+        
+        if (messaging) {
+          try {
+            const { getToken } = await import('firebase/messaging');
+            const token = await getToken(messaging, {
+              vapidKey: 'BM-S9S3P9s-fscXl157e_5y1x3Yn9r-r9s-zXl8z1z...'
+            }).catch(err => {
+              console.warn("Could not retrieve FCM registration token:", err);
+              return null;
+            });
+            
+            if (token && currentUserPhone) {
+              await setDoc(doc(db, 'systemUsers', currentUserPhone), { fcmToken: token }, { merge: true });
+            }
+          } catch (swErr) {
+            console.warn("FCM registration error wrapper:", swErr);
+          }
+        }
+      } else if (permission === 'denied') {
+        showToast('تم رفض الإشعارات. يرجى تفعيلها من إعدادات المتصفح لتلقي التنبيهات.', 'warning');
+      }
+    } catch (err) {
+      console.error('Error requesting notification permission:', err);
+      showToast('حدث خطأ أثناء طلب الإذن بالتنبيهات.', 'error');
+    }
+  };
+
   const handleAddProduct = async (newProduct: Product) => {
     const isAdmin = currentUserPhone === '92942482';
     if (isAdmin) {
@@ -865,29 +1017,32 @@ export default function App() {
     }, 1800);
   };
 
-  const toggleFavorite = async (productId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const isAdding = !favorites.includes(productId);
-    
-    setFavorites(prev => 
-      isAdding 
-        ? [...prev, productId]
-        : prev.filter(id => id !== productId)
-    );
-
-    // Update the real likes count on the product in firestore if requested
-    const prod = products.find(p => p.id === productId);
-    if (prod) {
-       const newLikes = Math.max(0, (prod.likes || 0) + (isAdding ? 1 : -1));
-       try {
-         await updateDoc(doc(db, 'products', productId), { likes: newLikes });
-       } catch (err) {
-         console.error('Could not update likes', err);
-       }
-    }
-
-    showToast(isAdding ? 'تم الإعجاب بالمنتج' : 'تمت إزالة الإعجاب', 'info');
-  };
+  const toggleFavorite = useCallback(async (productId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setFavorites(prev => {
+      const isAdding = !prev.includes(productId);
+      const newFavs = isAdding ? [...prev, productId] : prev.filter(id => id !== productId);
+      
+      // We can't access `products` easily in the memoized version without adding it to deps,
+      // but we can update the db asynchronously
+      const updateDB = async () => {
+         try {
+           const productDoc = await getDoc(doc(db, 'products', productId));
+           if (productDoc.exists()) {
+             const prodData = productDoc.data();
+             const newLikes = Math.max(0, (prodData.likes || 0) + (isAdding ? 1 : -1));
+             await updateDoc(doc(db, 'products', productId), { likes: newLikes });
+           }
+         } catch (err) {
+           console.error('Could not update likes', err);
+         }
+      };
+      updateDB();
+      
+      showToast(isAdding ? 'تم الإعجاب بالمنتج' : 'تمت إزالة الإعجاب', 'info');
+      return newFavs;
+    });
+  }, [showToast]);
 
   const handleSubscriptionRequest = async (plan: string) => {
     if (!currentUserPhone) {
@@ -973,47 +1128,63 @@ export default function App() {
   
   const generalProducts = useMemo(() => allGeneralProducts.slice(0, initialRenderComplete ? generalPage * PAGE_SIZE : 4), [allGeneralProducts, generalPage, initialRenderComplete]);
 
-  const stories: Story[] = useMemo(() => allEnrichedProducts
-    .filter(p => {
+  const stories: Story[] = useMemo(() => {
+    // Filter active VIP/Bronze products from allEnrichedProducts
+    let filtered = allEnrichedProducts.filter(p => {
        if (p.plan !== 'vip' && p.plan !== 'bronze') return false;
-       // Also filter out older than 48 hours to act as stories!
+       if (p.status === 'sold') return false;
+       
        const tA = new Date(p.createdAt).getTime();
+       if (isNaN(tA)) return true; // keep if invalid/missing date
+       
        const now = Date.now();
        const diffHours = (now - tA) / (1000 * 60 * 60);
-       return diffHours <= 48; // Expire after 48h
-    })
-    .sort((a, b) => {
-       const score = (x: any) => {
-          if (x.plan === 'vip') return 20000;
-          if (x.plan === 'bronze') return 10000;
-          return 0;
-       };
-       // Rotation: score + (views) + random jitter if views are similar, but keeping dates relevant
-       const timeWeightA = new Date(a.createdAt).getTime() / 100000000;
-       const timeWeightB = new Date(b.createdAt).getTime() / 100000000;
-       
-       const finalA = score(a) + (a.views || 0) * 10 + timeWeightA;
-       const finalB = score(b) + (b.views || 0) * 10 + timeWeightB;
+       return diffHours <= 360; // Keep in stories for 15 days (360 hours) instead of only 48h
+    });
 
-       return finalB - finalA;
-    })
-    .map(p => {
-       return {
-          id: p.id,
-          sellerId: p.sellerId,
-          sellerName: p.sellerName,
-          title: p.title,
-          sellerAvatar: p.sellerAvatar || 'https://via.placeholder.com/150',
-          imageUrl: p.imageUrls?.[0] || 'https://via.placeholder.com/400',
-          imageUrls: p.imageUrls || [],
-          createdAt: p.createdAt,
-          expiresAt: p.createdAt, // Just for typing, we do custom logic
-          isVip: p.plan === 'vip',
-          views: p.views || 0,
-          price: p.price,
-          category: p.category
-       };
-    }), [allEnrichedProducts]);
+    // Fallback: if there are no VIP or Bronze products in the last 15 days, show all active VIP/Bronze products so the list is never empty
+    if (filtered.length === 0) {
+       filtered = allEnrichedProducts.filter(p => {
+          if (p.plan !== 'vip' && p.plan !== 'bronze') return false;
+          if (p.status === 'sold') return false;
+          return true;
+       });
+    }
+
+    return filtered
+     .sort((a, b) => {
+        const score = (x: any) => {
+           if (x.plan === 'vip') return 20000;
+           if (x.plan === 'bronze') return 10000;
+           return 0;
+        };
+        // Rotation: score + (views) + random jitter if views are similar, but keeping dates relevant
+        const timeWeightA = new Date(a.createdAt).getTime() / 100000000;
+        const timeWeightB = new Date(b.createdAt).getTime() / 100000000;
+        
+        const finalA = score(a) + (a.views || 0) * 10 + (isNaN(timeWeightA) ? 0 : timeWeightA);
+        const finalB = score(b) + (b.views || 0) * 10 + (isNaN(timeWeightB) ? 0 : timeWeightB);
+
+        return finalB - finalA;
+     })
+     .map(p => {
+        return {
+           id: p.id,
+           sellerId: p.sellerId,
+           sellerName: p.sellerName,
+           title: p.title,
+           sellerAvatar: p.sellerAvatar || 'https://via.placeholder.com/150',
+           imageUrl: p.imageUrls?.[0] || 'https://via.placeholder.com/400',
+           imageUrls: p.imageUrls || [],
+           createdAt: p.createdAt,
+           expiresAt: p.createdAt, // Just for typing, we do custom logic
+           isVip: p.plan === 'vip',
+           views: p.views || 0,
+           price: p.price,
+           category: p.category
+        };
+     });
+  }, [allEnrichedProducts]);
 
   const currentUserStats = {
     active: products.filter(p => p.sellerId === currentUserPhone && p.status === 'active').length,
@@ -1021,21 +1192,21 @@ export default function App() {
     sold: products.filter(p => p.sellerId === currentUserPhone && p.status === 'sold').length
   };
 
-  const handleProductClick = async (product: Product) => {
+  const handleProductClick = useCallback(async (productId: string, product: Product) => {
     // Determine the updated product with incremented views
     const updatedProduct = { ...product, views: (product.views || 0) + 1 };
     
     // Set the selected product for the modal with the latest stats
     setSelectedProduct(updatedProduct);
     
-    window.history.pushState(null, '', `?ad=${updatedProduct.id}`);
+    window.history.pushState(null, '', `?ad=${productId}`);
 
     try {
-      await updateDoc(doc(db, 'products', product.id), { views: updatedProduct.views });
+      await updateDoc(doc(db, 'products', productId), { views: updatedProduct.views });
     } catch(err) {
       console.error('Error updating views', err);
     }
-  };
+  }, []);
 
   const hasActiveBroadcast = (() => {
     try {
@@ -1066,182 +1237,99 @@ export default function App() {
       />
       
       {/* Header */}
-      <header className={`z-40 bg-[#050505]/75 backdrop-blur-md border-b border-white/5 sticky ${hasActiveBroadcast ? 'top-[36px]' : 'top-0'} shrink-0 w-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all duration-300`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-[60px]">
-            <div className="flex items-center gap-3">
-              {/* Profile button directly in top-right corner */}
-              <div 
-                className="flex flex-col items-center justify-center cursor-pointer group select-none relative shrink-0"
-                onClick={(e) => { 
-                    e.preventDefault(); 
-                    e.stopPropagation(); 
-                    if (currentUserPhone) { 
-                      setShowProfile(true); 
-                    } else { 
-                      setShowAuth(true); 
-                    } 
-                }} 
-              >
-                {currentUserPhone ? (
-                  <div className="flex flex-col items-center">
-                    {/* Royal Frame according to package */}
-                    <div className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-full p-[2px] transition-all duration-300 group-hover:scale-105 ${
-                      currentUserPlan === 'vip' 
-                        ? 'bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow shadow-[0_0_12px_rgba(212,175,55,0.4)]' 
-                        : currentUserPlan === 'bronze' 
-                          ? 'bg-gradient-to-tr from-amber-600 via-amber-500 to-orange-400 shadow-[0_0_8px_rgba(217,119,6,0.25)] border border-amber-500/30' 
-                          : 'bg-gradient-to-tr from-[#10B981] via-gray-750 to-gray-850 shadow-[0_0_6px_rgba(16,185,129,0.1)]'
-                    }`}>
-                      <div className="w-full h-full rounded-full bg-gray-950 overflow-hidden relative flex items-center justify-center">
-                        {currentUserObj?.avatar ? (
-                          <img 
-                            src={currentUserObj.avatar} 
-                            alt={currentUserObj.name || 'Profile'} 
-                            className="w-full h-full object-cover rounded-full" 
-                          />
-                        ) : (
-                          // Stunning royal letter monogram
-                          <span className={`text-[10px] font-black tracking-tighter uppercase ${
-                            currentUserPlan === 'vip' 
-                              ? 'text-gradient-gold' 
-                              : currentUserPlan === 'bronze' 
-                                ? 'text-amber-500' 
-                                : 'text-emerald-400'
-                          }`}>
-                            {currentUserObj?.name?.[0] || 'س'}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Overlapping micro-badge of the tier under the photo inside the frame */}
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 z-10 flex items-center scale-75">
-                        {currentUserPlan === 'vip' ? (
-                          <span className="bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black text-[6.5px] font-black px-1.5 py-0.5 rounded-full border border-white/40 shadow-lg whitespace-nowrap tracking-wide leading-none flex items-center gap-0.5">
-                            👑 VIP
-                          </span>
-                        ) : currentUserPlan === 'bronze' ? (
-                          <span className="bg-gradient-to-r from-amber-600 to-orange-500 text-white text-[6.5px] font-black px-1.5 py-0.5 rounded-full border border-orange-400/30 shadow-md whitespace-nowrap leading-none">
-                            🥉 متميز
-                          </span>
-                        ) : (
-                          <span className="bg-gray-900 text-emerald-400 text-[6px] font-bold px-1 py-0.5 rounded-full border border-emerald-500/20 shadow-sm whitespace-nowrap leading-none">
-                            عضو
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center">
-                    <button 
-                      type="button"
-                      className="w-8 h-8 rounded-full border border-gray-800 bg-[#050505] flex items-center justify-center group-hover:border-[#D4AF37] group-hover:shadow-[0_0_8px_rgba(212,175,55,0.2)] transition-all overflow-hidden relative"
-                    >
-                      <User className="w-4 h-4 text-gray-400 group-hover:text-[#D4AF37] transition-colors" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <span className="text-[20px] font-black font-display tracking-tight text-white flex items-center gap-1 select-none pr-1">
-                سوق <span className="bg-gradient-to-r from-[#D4AF37] via-yellow-250 to-[#9e7a2f] text-transparent bg-clip-text">سند</span>
-              </span>
-            </div>
-
-            {/* Desktop Search Engine & AutoSuggest */}
-            <div className="hidden md:flex flex-1 max-w-xl mx-8 relative" ref={autoSuggestRef}>
-              <div className="relative w-full">
-                <input 
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setShowAutoSuggest(true);
-                  }}
-                  onFocus={() => setShowAutoSuggest(true)}
-                  placeholder="البحث الذكي بالسوق (مثال: فستان، سيارة، شقة)..."
-                  className="w-full bg-[#050505]/90 text-white pl-10 pr-4 py-2.5 rounded-full border border-gray-800/80 focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20 outline-none transition-all text-xs text-right pr-10 shadow-[0_2px_12px_rgba(0,0,0,0.5)] focus:shadow-[0_0_15px_rgba(212,175,55,0.15)]"
-                  dir="rtl"
-                />
-                <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-              </div>
-              
-              <AnimatePresence>
-                {showAutoSuggest && searchQuery.trim() && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full left-0 right-0 mt-2 bg-[#050505]/95 backdrop-blur-xl border border-gray-800 rounded-2xl p-4 shadow-2xl z-50 text-right"
-                  >
-                    {(() => {
-                      const { productMatches, categoryMatches } = getSuggestions();
-                      if (productMatches.length === 0 && categoryMatches.length === 0) {
-                        return <p className="text-gray-500 text-xs">لا توجد نتائج مطابقة</p>;
-                      }
-                      return (
-                        <div className="space-y-4">
-                          {categoryMatches.length > 0 && (
-                            <div>
-                              <div className="text-[10px] text-gray-500 font-bold mb-2">أقسام مطابقة</div>
-                              <div className="flex flex-wrap gap-2">
-                                {categoryMatches.map(cat => (
-                                  <button 
-                                    key={cat}
-                                    onClick={() => {
-                                      setSelectedCategory(cat);
-                                      setShowAutoSuggest(false);
-                                      setSearchQuery('');
-                                    }}
-                                    className="px-2.5 py-1 bg-white/5 hover:bg-[#D4AF37]/10 text-xs rounded-lg border border-white/5 hover:border-[#D4AF37]/30 text-gray-300 hover:text-[#D4AF37] transition-all"
-                                  >
-                                    {cat}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {productMatches.length > 0 && (
-                            <div>
-                              <div className="text-[10px] text-gray-500 font-bold mb-2">إعلانات معروضة</div>
-                              <div className="space-y-2">
-                                {productMatches.map(p => (
-                                  <div 
-                                    key={p.id}
-                                    onClick={() => {
-                                      handleProductClick(p);
-                                      setShowAutoSuggest(false);
-                                      setSearchQuery('');
-                                    }}
-                                    className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl border border-transparent hover:border-white/5 transition-all cursor-pointer"
-                                  >
-                                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-950 border border-white/10 shrink-0">
-                                      <img src={p.imageUrls?.[0] || 'https://via.placeholder.com/150'} alt="" className="w-full h-full object-cover" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-xs font-bold text-gray-200 truncate">{p.title}</div>
-                                      <div className="text-[10px] text-gray-400 mt-0.5">{p.price} د.ت</div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+      <div className={`pt-20 sm:pt-28 md:pt-36 lg:pt-40 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full transition-all duration-300 relative z-40 ${hasActiveBroadcast ? 'mt-[36px]' : ''}`}>
+        <header className="bg-[#050505]/75 backdrop-blur-xl border border-white/10 rounded-2xl shrink-0 w-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all duration-300">
+          <div className="px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-[70px] sm:h-[80px] relative">
+              <div className="flex items-center gap-3 z-10">
+                {/* Profile button directly in top-right corner */}
+                <div 
+                  className="flex flex-col items-center justify-center cursor-pointer group select-none relative shrink-0"
+                  onClick={(e) => { 
+                      e.preventDefault(); 
+                      e.stopPropagation(); 
+                      if (currentUserPhone) { 
+                        setShowProfile(true); 
+                      } else { 
+                        setShowAuth(true); 
+                      } 
+                  }} 
+                >
+                  {currentUserPhone ? (
+                    <div className="flex flex-col items-center">
+                      {/* Royal Frame according to package */}
+                      <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[2px] transition-all duration-300 group-hover:scale-105 ${
+                        currentUserPlan === 'vip' 
+                          ? 'bg-gradient-to-tr from-[#D4AF37] via-[#FFD700] to-[#F3E5AB] animate-rainbow-glow shadow-[0_0_18px_rgba(212,175,55,0.6)]' 
+                          : currentUserPlan === 'bronze' 
+                            ? 'bg-gradient-to-tr from-amber-600 via-amber-500 to-orange-400 shadow-[0_0_12px_rgba(217,119,6,0.4)] border border-amber-500/30' 
+                            : 'bg-gradient-to-tr from-[#10B981] via-gray-750 to-gray-850 shadow-[0_0_10px_rgba(16,185,129,0.2)] border border-emerald-500/20'
+                      }`}>
+                        <div className="w-full h-full rounded-full bg-[#0a0f0d] overflow-hidden relative flex items-center justify-center">
+                          {currentUserObj?.avatar ? (
+                            <img 
+                              src={currentUserObj.avatar} 
+                              alt={currentUserObj.name || 'Profile'} 
+                              className="w-full h-full object-cover rounded-full transition-transform duration-500 group-hover:scale-110" 
+                            />
+                          ) : (
+                            // Stunning royal letter monogram
+                            <span className={`text-[16px] sm:text-[18px] font-black tracking-tighter uppercase ${
+                              currentUserPlan === 'vip' 
+                                ? 'text-gradient-gold' 
+                                : currentUserPlan === 'bronze' 
+                                  ? 'text-amber-500' 
+                                  : 'text-emerald-400'
+                            }`}>
+                              {currentUserObj?.name?.[0] || 'س'}
+                            </span>
                           )}
                         </div>
-                      );
-                    })()}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
 
-            <div className="flex items-center gap-2 sm:gap-3">
+                        {/* Overlapping micro-badge of the tier under the photo inside the frame */}
+                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-10 flex items-center scale-90 sm:scale-100">
+                          {currentUserPlan === 'vip' ? (
+                            <span className="bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black text-[7px] font-black px-2 py-0.5 rounded-full border border-white/40 shadow-xl whitespace-nowrap tracking-wide leading-none flex items-center gap-0.5">
+                              👑 VIP
+                            </span>
+                          ) : currentUserPlan === 'bronze' ? (
+                            <span className="bg-gradient-to-r from-amber-600 to-orange-500 text-white text-[7px] font-black px-2 py-0.5 rounded-full border border-orange-400/50 shadow-md whitespace-nowrap leading-none">
+                              🥉 متميز
+                            </span>
+                          ) : (
+                            <span className="bg-[#050505] text-emerald-400 text-[6.5px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/30 shadow-sm whitespace-nowrap leading-none">
+                              عضو
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <button 
+                        type="button"
+                        className="w-11 h-11 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-full border-2 border-gray-800 bg-[#050505] flex items-center justify-center group-hover:border-[#D4AF37] group-hover:bg-[#1a1a1a] group-hover:shadow-[0_0_12px_rgba(212,175,55,0.3)] transition-all duration-300 overflow-hidden relative"
+                      >
+                        <User className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 text-gray-400 group-hover:text-[#D4AF37] transition-colors" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Centered Title */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-visible">
+                <span className="text-[26px] sm:text-[30px] lg:text-[36px] font-black font-display tracking-tight text-white flex items-center gap-1.5 select-none drop-shadow-[0_0_12px_rgba(212,175,55,0.2)] whitespace-nowrap">
+                  سوق <span className="bg-gradient-to-r from-[#D4AF37] via-yellow-250 to-[#9e7a2f] text-transparent bg-clip-text">سند</span>
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 sm:gap-4 z-10">
               {!currentUserPhone && (
                 <button 
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowAuth(true); }}
-                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white px-4 py-2 sm:px-6 sm:py-2.5 rounded-full font-bold transition-all text-sm sm:text-base shadow-lg shadow-emerald-500/30 hover:scale-[1.03] active:scale-[0.97] shrink-0 border border-emerald-400/50 cursor-pointer animate-pulse-slow"
+                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white px-4 py-2 sm:px-6 sm:py-2.5 rounded-full font-bold transition-all text-sm sm:text-base shadow-lg shadow-emerald-500/30 hover:scale-[1.03] active:scale-[0.97] shrink-0 border border-emerald-400/50 cursor-pointer animate-pulse-slow lg:px-8 lg:py-3"
                 >
                   <LogIn className="w-5 h-5 sm:w-6 sm:h-6" />
                   <span>دخول</span>
@@ -1251,10 +1339,10 @@ export default function App() {
               <button 
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (currentUserPhone) { setShowAddProduct(true); } else { setShowAuth(true); } }}
-                className="hidden md:flex items-center gap-2 bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black px-4 py-2 rounded-full font-bold shadow-lg shadow-[#D4AF37]/20 hover:opacity-90 transition-opacity"
+                className="hidden md:flex items-center gap-2 bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black px-4 py-2 lg:px-6 lg:py-3 rounded-full font-bold shadow-lg shadow-[#D4AF37]/20 hover:opacity-90 hover:scale-105 transition-all"
               >
-                <PlusCircle className="w-5 h-5" />
-                <span>إضافة إعلان</span>
+                <PlusCircle className="w-5 h-5 lg:w-6 lg:h-6" />
+                <span className="lg:text-lg">إضافة إعلان</span>
               </button>
 
               {currentUserPhone && (
@@ -1265,15 +1353,15 @@ export default function App() {
                     e.stopPropagation(); 
                     setShowNotificationsModal(true);
                   }} 
-                  className="relative w-10 h-10 rounded-full border border-gray-700 bg-[#050505] flex items-center justify-center hover:border-[#D4AF37] transition-colors"
+                  className="relative w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-full border-2 border-[#D4AF37]/30 bg-[#0a0a0a] flex items-center justify-center hover:border-[#D4AF37] hover:bg-[#151515] hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all duration-300 group"
                   title="الإشعارات"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 hover:text-white"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                  <Bell className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-[#D4AF37] drop-shadow-[0_0_5px_rgba(212,175,55,0.3)] group-hover:scale-110 transition-transform duration-300" />
                   {(() => {
                     const unreadCount = userNotifications.filter(n => n.userPhone === currentUserPhone && !n.read).length + 
                        (currentUserPhone === '92942482' ? notificationsCount : 0);
                     return unreadCount > 0 ? (
-                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 text-[10px] text-white font-extrabold flex items-center justify-center rounded-full ring-2 ring-[#020806] shadow-lg animate-pulse font-sans">
+                      <span className="absolute -top-1 -right-1 sm:-top-1.5 sm:-right-1.5 min-w-[22px] h-[22px] sm:min-w-[24px] sm:h-[24px] px-1 bg-gradient-to-r from-red-600 to-rose-500 text-[12px] sm:text-[13px] text-white font-extrabold flex items-center justify-center rounded-full ring-2 ring-[#020806] shadow-[0_0_12px_rgba(220,38,38,0.6)] animate-vibrate font-sans">
                         {unreadCount}
                       </span>
                     ) : null;
@@ -1286,6 +1374,7 @@ export default function App() {
           </div>
         </div>
       </header>
+    </div>
 
       {/* Offline Banner */}
       <AnimatePresence>
@@ -1316,19 +1405,21 @@ export default function App() {
         )}
 
         {/* VIP Stories Section */}
-        <VipStoriesRow 
-             stories={stories} 
-             currentUserObj={currentUserObj}
-             onProfileClick={() => {
-                if (currentUserPhone) {
-                   setShowProfile(true);
-                } else {
-                   setShowAuth(true);
-                }
-             }}
-             onStoryClick={(id) => {
-                setStoryViewerId(id);
-        }} />
+        <div className="mt-8 sm:mt-12 mb-6">
+          <VipStoriesRow 
+               stories={stories} 
+               currentUserObj={currentUserObj}
+               onProfileClick={() => {
+                  if (currentUserPhone) {
+                     setShowProfile(true);
+                  } else {
+                     setShowAuth(true);
+                  }
+               }}
+               onStoryClick={(id) => {
+                  setStoryViewerId(id);
+          }} />
+        </div>
 
         {/* Premium Banner removed */}
 
@@ -1337,101 +1428,7 @@ export default function App() {
 
         {/* Filters */}
         <div className="space-y-6 mb-12 relative z-10">
-           {/* Mobile Search Bar inside Filters */}
-           <div className="md:hidden flex flex-col gap-2 relative">
-              <span className="text-xs font-bold text-gray-500 mr-2">البحث الذكي</span>
-              <div className="relative w-full">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setShowAutoSuggest(true);
-                  }}
-                  onFocus={() => setShowAutoSuggest(true)}
-                  placeholder="ابحث عن هاتف، سيارة، شقة..."
-                  className="w-full bg-[#050505]/90 border border-gray-800/80 rounded-2xl py-3.5 pr-12 pl-24 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30 transition-all text-sm shadow-[0_4px_20px_rgba(0,0,0,0.6)] focus:shadow-[0_0_15px_rgba(212,175,55,0.12)]"
-                  dir="rtl"
-                />
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                {searchQuery && (
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setShowAutoSuggest(false);
-                    }} 
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors p-1"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              {/* Autocomplete Dropdown - Mobile */}
-              <AnimatePresence>
-                {showAutoSuggest && searchQuery.trim() && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-[80px] left-0 w-full bg-[#0a0f0d] border border-gray-800 rounded-2xl shadow-3xl overflow-hidden z-[60] text-right"
-                    dir="rtl"
-                  >
-                    {(() => {
-                       const { productMatches, categoryMatches } = getSuggestions();
-                       if (productMatches.length === 0 && categoryMatches.length === 0) {
-                         return <div className="p-4 text-gray-500 text-sm text-center">لا توجد نتائج مطابقة</div>;
-                       }
-                       return (
-                         <div className="flex flex-col py-2 max-h-[60vh] overflow-y-auto no-scrollbar">
-                           {categoryMatches.length > 0 && (
-                             <div className="px-4 py-2 bg-gray-900/50">
-                               <span className="text-xs font-bold text-[#D4AF37] mb-2 block">الأقسام</span>
-                               <div className="flex flex-col gap-1">
-                                 {categoryMatches.map(c => (
-                                   <button 
-                                     key={c}
-                                     onClick={() => {
-                                       setSelectedCategory(c);
-                                       setSearchQuery('');
-                                       setShowAutoSuggest(false);
-                                     }}
-                                     className="text-right text-sm text-gray-300 hover:text-white hover:bg-white/5 px-2 py-2 rounded-lg transition-colors flex items-center gap-2"
-                                   >
-                                     <Tag className="w-4 h-4 text-gray-500" />
-                                     {c}
-                                   </button>
-                                 ))}
-                               </div>
-                             </div>
-                           )}
-                           {productMatches.length > 0 && (
-                             <div className="px-4 py-2 mt-1">
-                               <span className="text-xs font-bold text-[#D4AF37] mb-2 block">المنتجات</span>
-                               <div className="flex flex-col gap-2">
-                                 {productMatches.map(p => (
-                                   <button 
-                                     key={p.id}
-                                     onClick={() => {
-                                       setShowAutoSuggest(false);
-                                       handleProductClick(p);
-                                     }}
-                                     className="text-right text-sm text-gray-300 hover:text-white hover:bg-white/5 px-2 py-2.5 rounded-lg transition-colors flex items-center justify-between group border-b border-gray-800/50 last:border-0"
-                                   >
-                                     <span className="truncate max-w-[80%] font-medium">{p.title}</span>
-                                     <span className="text-[#10B981] font-bold text-xs whitespace-nowrap">{p.price} د.ت</span>
-                                   </button>
-                                 ))}
-                               </div>
-                             </div>
-                           )}
-                         </div>
-                       );
-                    })()}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-           </div>
+
 
            {/* Regions Selector */}
            <div className="flex flex-col gap-2">
@@ -1441,7 +1438,8 @@ export default function App() {
                     <Globe className="w-4 h-4 text-[#10B981]" />
                  </div>
                  {REGIONS.map((reg, index) => (
-                    <button
+                    <motion.button
+                       whileTap={{ scale: 0.95 }}
                        type="button"
                        key={reg}
                        ref={(el) => { if (el) regionRefs.current[reg] = el; }}
@@ -1453,7 +1451,7 @@ export default function App() {
                        }`}
                     >
                        {reg}
-                    </button>
+                    </motion.button>
                  ))}
               </div>
            </div>
@@ -1554,10 +1552,10 @@ export default function App() {
                      <ListingCard 
                       key={`vip-${product.id}-${index}`} 
                       product={product} 
-                      onClick={() => handleProductClick(product)} 
+                      onClick={handleProductClick} 
                       searchQuery={searchQuery} 
                       isFavorite={favorites.includes(product.id)}
-                      onToggleFavorite={(e) => toggleFavorite(product.id, e)}
+                      onToggleFavorite={toggleFavorite}
                       viewMode={viewMode}
                      />
                   ))}
@@ -1590,10 +1588,10 @@ export default function App() {
                      <ListingCard 
                       key={`bronze-${product.id}-${index}`} 
                       product={product} 
-                      onClick={() => handleProductClick(product)} 
+                      onClick={handleProductClick} 
                       searchQuery={searchQuery} 
                       isFavorite={favorites.includes(product.id)}
-                      onToggleFavorite={(e) => toggleFavorite(product.id, e)}
+                      onToggleFavorite={toggleFavorite}
                       viewMode={viewMode}
                      />
                   ))}
@@ -1627,10 +1625,10 @@ export default function App() {
                        <ListingCard 
                         key={`general-${product.id}-${index}`} 
                         product={product} 
-                        onClick={() => handleProductClick(product)} 
+                        onClick={handleProductClick} 
                         searchQuery={searchQuery} 
                         isFavorite={favorites.includes(product.id)}
-                        onToggleFavorite={(e) => toggleFavorite(product.id, e)}
+                        onToggleFavorite={toggleFavorite}
                         viewMode={viewMode}
                        />
                     ))}
@@ -1657,7 +1655,7 @@ export default function App() {
                   {recentlyViewed.map((id, index) => {
                         const p = products.find(prod => prod.id === id);
                         if (!p) return null;
-                        return <div key={`recent-${p.id}-${index}`} className="cursor-pointer shrink-0 transition-transform hover:scale-105" onClick={() => handleProductClick(p)}><img src={p.imageUrls?.[0] || 'https://via.placeholder.com/150'} className="w-20 h-20 rounded-2xl object-cover border border-gray-800" /></div>;
+                        return <div key={`recent-${p.id}-${index}`} className="cursor-pointer shrink-0 transition-transform hover:scale-105" onClick={() => handleProductClick(p.id, p)}><img src={p.imageUrls?.[0] || 'https://via.placeholder.com/150'} className="w-20 h-20 rounded-2xl object-cover border border-gray-800" /></div>;
                   })}
               </div>
           </div>
@@ -1686,15 +1684,18 @@ export default function App() {
       </main>
       
       <AnimatePresence>
-         <Suspense key="suspense-sidebar" fallback={<ModalFallback />}>
-            {showSidebar && <Sidebar 
-               selectedCategory={selectedCategory} 
-               setSelectedCategory={setSelectedCategory} 
-               onClose={() => setShowSidebar(false)} />}
-         </Suspense>
-         <Suspense key="suspense-admin" fallback={<ModalFallback />}>
-            {showAdmin && <AdminPanel 
-               onClose={() => setShowAdmin(false)}
+         {showSidebar && (
+            <Suspense key="suspense-sidebar" fallback={<ModalFallback />}>
+               <Sidebar 
+                  selectedCategory={selectedCategory} 
+                  setSelectedCategory={setSelectedCategory} 
+                  onClose={() => setShowSidebar(false)} />
+            </Suspense>
+         )}
+         {showAdmin && (
+            <Suspense key="suspense-admin" fallback={<ModalFallback />}>
+               <AdminPanel 
+                  onClose={() => setShowAdmin(false)}
                systemUsers={systemUsers}
                setSystemUsers={setSystemUsers}
                systemRequests={systemRequests}
@@ -1714,13 +1715,64 @@ export default function App() {
                notificationsCount={notificationsCount}
                setNotificationsCount={setNotificationsCount}
                showToast={showToast}
-            />}
+            />
          </Suspense>
-         <Suspense key="suspense-auth" fallback={<ModalFallback />}>
-            {showAuth && <AuthModal key="auth" onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
-         </Suspense>
-         <Suspense key="suspense-welcome" fallback={<ModalFallback />}>
-            {showWelcomeSplash && (
+         )}
+         {showAuth && (
+            <Suspense key="suspense-auth" fallback={<ModalFallback />}>
+               <AuthModal key="auth" onClose={() => setShowAuth(false)} onAuth={handleAuth} />
+            </Suspense>
+         )}
+            
+            {/* Premium Live FCM Notification Popup Card */}
+            <AnimatePresence>
+              {liveProductAlert && (
+                <motion.div
+                  initial={{ opacity: 0, y: -50, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                  className="fixed top-24 left-4 right-4 md:left-auto md:right-8 z-50 max-w-sm w-full bg-[#050505]/95 backdrop-blur-2xl border border-[#D4AF37] rounded-3xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
+                  dir="rtl"
+                >
+                  <div className="flex gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-[#D4AF37]/10 flex items-center justify-center shrink-0 border border-[#D4AF37]/20">
+                      <Bell className="w-6 h-6 text-[#D4AF37] animate-bounce" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] bg-[#D4AF37]/10 text-[#D4AF37] px-2.5 py-0.5 rounded-full font-black">إشعار فوري للأقسام المفضلة</span>
+                        <button onClick={() => setLiveProductAlert(null)} className="text-gray-500 hover:text-white">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <h4 className="text-sm font-black text-white mt-2 leading-snug">{liveProductAlert.title}</h4>
+                      <p className="text-[11px] text-[#10B981] mt-1 font-black">بسعر: {liveProductAlert.price} د.ت  •  قسم: {liveProductAlert.category}</p>
+                      
+                      <div className="flex gap-2 mt-4">
+                        <button
+                          onClick={() => {
+                            setSelectedProduct(liveProductAlert.product);
+                            setLiveProductAlert(null);
+                          }}
+                          className="flex-1 py-2 bg-[#D4AF37] text-black text-xs font-black rounded-xl hover:bg-[#b59223] transition-colors cursor-pointer text-center"
+                        >
+                          معاينة الإعلان الفورية 👁️
+                        </button>
+                        <button
+                          onClick={() => setLiveProductAlert(null)}
+                          className="px-3 py-2 bg-white/5 border border-white/10 text-white text-xs font-bold rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                          تجاهل
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+         {showWelcomeSplash && (
+            <Suspense key="suspense-welcome" fallback={<ModalFallback />}>
                <WelcomeSplashModal 
                   key="welcome-splash" 
                   user={loggedUserObj} 
@@ -1728,10 +1780,10 @@ export default function App() {
                      setShowWelcomeSplash(false);
                   }} 
                />
-            )}
-         </Suspense>
-         <Suspense key="suspense-storyviewer" fallback={<ModalFallback />}>
-            {storyViewerId && (
+            </Suspense>
+         )}
+         {storyViewerId && (
+            <Suspense key="suspense-storyviewer" fallback={<ModalFallback />}>
                <StoryViewerModal
                   stories={stories}
                   initialStoryId={storyViewerId}
@@ -1739,21 +1791,26 @@ export default function App() {
                   onActionClick={(story) => {
                      const prod = products.find(p => p.id === story.id);
                      if (prod) {
-                        handleProductClick(prod);
+                        handleProductClick(prod.id, prod);
                         setStoryViewerId(null);
                      }
                   }}
                />
-            )}
-         </Suspense>
-         <Suspense key="suspense-profile" fallback={<ModalFallback />}>
-            {showProfile && <ProfileModal 
-               onClose={() => setShowProfile(false)} 
-               phone={currentUserPhone ?? undefined} 
-               currentUserPlan={currentUserPlan}
-               pendingPlan={pendingRequest?.plan}
-               stats={currentUserStats}
+            </Suspense>
+         )}
+         {showProfile && (
+            <Suspense key="suspense-profile" fallback={<ModalFallback />}>
+               <ProfileModal 
+                  onClose={() => setShowProfile(false)} 
+                  phone={currentUserPhone ?? undefined} 
+                  currentUserPlan={currentUserPlan}
+                  pendingPlan={pendingRequest?.plan}
+                  stats={currentUserStats}
                currentUser={loggedUserObj}
+               favoriteCategories={favoriteCategories}
+               onToggleFavoriteCategory={handleToggleFavoriteCategory}
+               notificationPermissionStatus={notificationPermissionStatus}
+               onRequestNotificationPermission={handleRequestNotificationPermission}
                onSaveProfile={async (name, avatar) => {
                    if (!currentUserPhone) return;
                    try {
@@ -1766,10 +1823,12 @@ export default function App() {
                }}
                onOpenAdmin={currentUserPhone === '92942482' ? () => { setShowAdmin(true); setShowProfile(false); } : undefined} 
                onLogout={() => { setCurrentUserPhone(null); setCurrentUserPlan('free'); setLoggedUserObj(null); }} 
-            />}
-         </Suspense>
+            />
+            </Suspense>
+         )}
+         {showAddProduct && (
          <Suspense key="suspense-addproduct" fallback={<ModalFallback />}>
-            {showAddProduct && <AddProductModal key="addproduct" onClose={() => { setShowAddProduct(false); setEditingProduct(null); }} onAdd={(p) => handleAddProduct({...p, plan: currentUserPlan })} onEdit={async (p) => {
+            <AddProductModal key="addproduct" onClose={() => { setShowAddProduct(false); setEditingProduct(null); }} onAdd={(p) => handleAddProduct({...p, plan: currentUserPlan })} onEdit={async (p) => {
                  try {
                    await updateDoc(doc(db, 'products', p.id), cleanUndefined({
                       ...p
@@ -1781,10 +1840,12 @@ export default function App() {
                    console.error("Failed to edit ad", err);
                    showToast('حدث خطأ أثناء تعديل الإعلان', 'error');
                  }
-             }} currentUserPhone={currentUserPhone} currentUser={loggedUserObj} initialProduct={editingProduct} showToast={showToast} />}
+             }} currentUserPhone={currentUserPhone} currentUser={loggedUserObj} initialProduct={editingProduct} showToast={showToast} />
          </Suspense>
+         )}
+         {selectedProduct && (
          <Suspense key="suspense-details" fallback={<ModalFallback />}>
-            {selectedProduct && <ProductDetailsModal 
+            <ProductDetailsModal 
               product={products.find(p => p.id === selectedProduct.id) || selectedProduct} 
               isFavorite={favorites.includes(selectedProduct.id)}
               onToggleFavorite={(e) => toggleFavorite(selectedProduct.id, e)}
@@ -1822,8 +1883,9 @@ export default function App() {
              };
              setUserNotifications(prev => [newNotif, ...prev]);
              showToast('تنبيه: تم تلقي تعليق جديد على إعلانك! 🔔', 'success');
-         }} />}
+         }} />
          </Suspense>
+         )}
          {/* Notifications Modal for Regular Users */}
          {showNotificationsModal && (
             <motion.div 
@@ -1886,7 +1948,7 @@ export default function App() {
                                    if (n.productId) {
                                       const p = products.find(prod => prod.id === n.productId);
                                       if (p) {
-                                         handleProductClick(p);
+                                         handleProductClick(p.id, p);
                                          setShowNotificationsModal(false);
                                       }
                                    }
@@ -1955,7 +2017,7 @@ export default function App() {
       <Toast toast={toast} onClose={() => setToast(null)} />
       
       {/* Facebook Page Trigger - Replaces the AI Assistant */}
-      <div className="fixed bottom-28 md:bottom-16 right-12 md:right-20 z-40 animate-float-dance">
+      <div className="fixed bottom-28 md:bottom-16 right-12 md:right-20 z-40 animate-float-smooth">
          <div className="absolute inset-0 bg-[#1877F2]/30 rounded-full blur-xl opacity-45 animate-pulse pointer-events-none" />
          <a 
             href="https://www.facebook.com/share/1ENN1nm6tn/" 
@@ -1973,8 +2035,8 @@ export default function App() {
         href="https://wa.me/21692942482" 
         target="_blank" 
         rel="noopener noreferrer" 
-        className="fixed bottom-28 md:bottom-16 left-12 md:left-20 z-40 p-3 bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white rounded-2xl shadow-[0_8px_30px_rgba(37,211,102,0.4)] border border-white/20 hover:scale-110 transition-all animate-float-dance"
-        style={{ animationDelay: '1s' }}
+        className="fixed bottom-28 md:bottom-16 left-12 md:left-20 z-40 p-3 bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white rounded-2xl shadow-[0_8px_30px_rgba(37,211,102,0.4)] border border-white/20 hover:scale-110 transition-all animate-float-smooth"
+        style={{ animationDelay: '1.5s' }}
       >
          <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current">
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>

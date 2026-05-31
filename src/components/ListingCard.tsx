@@ -6,10 +6,10 @@ import { HighlightText } from './HighlightText';
 
 interface ListingCardProps {
   product: Product;
-  onClick: () => void;
+  onClick: (id: string, product: Product) => void;
   searchQuery?: string;
   isFavorite: boolean;
-  onToggleFavorite: (e: React.MouseEvent) => void;
+  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   viewMode?: 'grid' | 'list';
 }
 
@@ -24,8 +24,9 @@ const ListingCard: React.FC<ListingCardProps> = ({ product, onClick, searchQuery
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.2 }}
-      onClick={onClick}
+      onClick={() => onClick(product.id, product)}
       className={`premium-card overflow-hidden transition-all duration-300 cursor-pointer group w-full ${
         isVip ? 'vip-border' : (isBronze ? 'bronze-border' : 'free-border')
       } ${
@@ -76,7 +77,7 @@ const ListingCard: React.FC<ListingCardProps> = ({ product, onClick, searchQuery
           </div>
           
           <button 
-            onClick={onToggleFavorite}
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite(product.id, e); }}
             className="flex items-center gap-1 select-none group/like bg-gray-900/40 hover:bg-gray-800/70 p-1 px-1.5 rounded-full transition-colors shrink-0"
           >
             <Heart className={`w-3 h-3 transition-transform group-hover/like:scale-110 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-400 group-hover/like:text-red-400'}`} />

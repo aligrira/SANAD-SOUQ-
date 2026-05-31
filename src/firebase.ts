@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, setLogLevel } from "firebase/firestore";
+import { getMessaging } from "firebase/messaging";
 import firebaseConfig from "../firebase-applet-config.json";
 
 const app = initializeApp(firebaseConfig);
@@ -20,5 +21,16 @@ try {
   }, config.firestoreDatabaseId || undefined);
 }
 
+let messagingInstance: any = null;
+try {
+  if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+    messagingInstance = getMessaging(app);
+  }
+} catch (e) {
+  console.warn("Firebase Messaging is not supported or blocked in this environment.", e);
+}
+
 export const db = firestoreDb;
+export const messaging = messagingInstance;
+export { app };
 
