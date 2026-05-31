@@ -1139,6 +1139,10 @@ export default function App() {
   const generalProducts = useMemo(() => allGeneralProducts.slice(0, initialRenderComplete ? generalPage * PAGE_SIZE : 4), [allGeneralProducts, generalPage, initialRenderComplete]);
 
   const stories: Story[] = useMemo(() => {
+    console.log("SanadSouq Stories Engine: Calculating stories. Length of allEnrichedProducts is:", allEnrichedProducts.length);
+    const rawVipAndBronze = allEnrichedProducts.filter(p => p.plan === 'vip' || p.plan === 'bronze');
+    console.log("SanadSouq Stories Engine: Total products with plan 'vip' or 'bronze' is:", rawVipAndBronze.length, rawVipAndBronze);
+
     // Filter active VIP/Bronze products from allEnrichedProducts
     let filtered = allEnrichedProducts.filter(p => {
        if (p.plan !== 'vip' && p.plan !== 'bronze') return false;
@@ -1152,16 +1156,20 @@ export default function App() {
        return diffHours <= 360; // Keep in stories for 15 days (360 hours) instead of only 48h
     });
 
+    console.log("SanadSouq Stories Engine: Filtered active/recent stories count:", filtered.length);
+
     // Fallback: if there are no VIP or Bronze products in the last 15 days, show all active VIP/Bronze products so the list is never empty
     if (filtered.length === 0) {
+       console.log("SanadSouq Stories Engine: Active recent list is empty. Triggering non-expiry active VIP/Bronze fallback...");
        filtered = allEnrichedProducts.filter(p => {
           if (p.plan !== 'vip' && p.plan !== 'bronze') return false;
           if (p.status === 'sold') return false;
           return true;
        });
+       console.log("SanadSouq Stories Engine: Fallback found active VIP/Bronze count:", filtered.length);
     }
 
-    return filtered
+    const result = filtered
      .sort((a, b) => {
         const score = (x: any) => {
            if (x.plan === 'vip') return 20000;
@@ -1194,6 +1202,9 @@ export default function App() {
            category: p.category
         };
      });
+
+    console.log("SanadSouq Stories Engine: Final mapped stories list length:", result.length, result);
+    return result;
   }, [allEnrichedProducts]);
 
   const currentUserStats = {

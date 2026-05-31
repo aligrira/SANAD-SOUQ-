@@ -6,15 +6,40 @@ import firebaseConfigJson from "../firebase-applet-config.json";
 // Support both AI Studio JSON config and Netlify/Vercel Environment Variables
 const env = (import.meta as any).env || {};
 
-const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY || (firebaseConfigJson as any).apiKey,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || (firebaseConfigJson as any).authDomain,
-  projectId: env.VITE_FIREBASE_PROJECT_ID || (firebaseConfigJson as any).projectId,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || (firebaseConfigJson as any).storageBucket,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || (firebaseConfigJson as any).messagingSenderId,
-  appId: env.VITE_FIREBASE_APP_ID || (firebaseConfigJson as any).appId,
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || (firebaseConfigJson as any).measurementId
+const cleanVal = (val: any): string | undefined => {
+  if (typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null' || trimmed === '[object Object]') return undefined;
+  return trimmed;
 };
+
+const resolvedApiKey = cleanVal(env.VITE_FIREBASE_API_KEY) || (firebaseConfigJson as any).apiKey;
+const resolvedProjectId = cleanVal(env.VITE_FIREBASE_PROJECT_ID) || (firebaseConfigJson as any).projectId;
+
+const firebaseConfig = {
+  apiKey: resolvedApiKey,
+  authDomain: cleanVal(env.VITE_FIREBASE_AUTH_DOMAIN) || (firebaseConfigJson as any).authDomain,
+  projectId: resolvedProjectId,
+  storageBucket: cleanVal(env.VITE_FIREBASE_STORAGE_BUCKET) || (firebaseConfigJson as any).storageBucket,
+  messagingSenderId: cleanVal(env.VITE_FIREBASE_MESSAGING_SENDER_ID) || (firebaseConfigJson as any).messagingSenderId,
+  appId: cleanVal(env.VITE_FIREBASE_APP_ID) || (firebaseConfigJson as any).appId,
+  measurementId: cleanVal(env.VITE_FIREBASE_MEASUREMENT_ID) || (firebaseConfigJson as any).measurementId
+};
+
+// Mask sensitive key for secure diagnostic logging in the browser console
+const maskKey = (key: string) => {
+  if (!key) return "NONE";
+  if (key.length <= 8) return "***";
+  return key.slice(0, 4) + "..." + key.slice(-4);
+};
+
+console.log("SanadSouq - Firebase Init Diagnostics:", {
+  resolvedProjectId,
+  hasApiKey: !!resolvedApiKey,
+  maskedApiKey: maskKey(resolvedApiKey || ""),
+  usingEnvVars: !!(cleanVal(env.VITE_FIREBASE_PROJECT_ID) || cleanVal(env.VITE_FIREBASE_API_KEY)),
+  firebaseConfigKeys: Object.keys(firebaseConfig).filter(k => !!(firebaseConfig as any)[k])
+});
 
 const app = initializeApp(firebaseConfig);
 setLogLevel('error');
