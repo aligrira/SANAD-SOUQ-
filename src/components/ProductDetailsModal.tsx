@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown, ChevronLeft, ChevronRight, Eye, Heart, Share2, AlertTriangle, Star, Bot } from 'lucide-react';
+import { X, MapPin, Tag, Phone, MessageCircle, Send, Trash2, Sparkles, ChevronDown, ChevronLeft, ChevronRight, Eye, Heart, Share2, AlertTriangle, Star, Bot, Download, Loader2, Camera, ImageIcon } from 'lucide-react';
 import { Product } from '../types';
 import { triggerPushNotification, requestPushPermission } from '../lib/pushNotifications';
 
@@ -15,7 +15,9 @@ export default function ProductDetailsModal({
   onAddNotification, 
   isFavorite, 
   onToggleFavorite,
-  currentUserPlan = 'free'
+  currentUserPlan = 'free',
+  showToast,
+  currentUser
 }: { 
   key?: React.Key, 
   onClose: () => void, 
@@ -28,7 +30,9 @@ export default function ProductDetailsModal({
   onAddNotification?: (phone: string, message: string) => void,
   isFavorite?: boolean,
   onToggleFavorite?: (e: React.MouseEvent) => void,
-  currentUserPlan?: 'free' | 'bronze' | 'vip'
+  currentUserPlan?: 'free' | 'bronze' | 'vip',
+  showToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void,
+  currentUser?: any
 }) {
   const [commentText, setCommentText] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -36,6 +40,151 @@ export default function ProductDetailsModal({
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
   const [isReported, setIsReported] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Advanced comment feature states
+  const [commentImage, setCommentImage] = useState<string | null>(null);
+  const [isCompressingImage, setIsCompressingImage] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  
+  const handleDownloadImage = async () => {
+    const urls = product.imageUrls?.length ? product.imageUrls : [product.imageUrls?.[0] || 'https://via.placeholder.com/400'];
+    const imgUrl = urls[currentImageIndex];
+    if (!imgUrl) return;
+
+    setIsDownloading(true);
+    
+    const triggerDirectDownload = (url: string) => {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `sanad_ad_${product.id}_img_${currentImageIndex + 1}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
+    try {
+      const imgObj = new Image();
+      // Set anonymous crossOrigin to prevent canvas tainted security errors
+      imgObj.crossOrigin = "anonymous";
+      
+      const loadPromise = new Promise<void>((resolve, reject) => {
+        imgObj.onload = () => resolve();
+        imgObj.onerror = (e) => reject(e);
+      });
+
+      imgObj.src = imgUrl;
+      await loadPromise;
+
+      // Recreate image onto canvas with high definition scale
+      const canvas = document.createElement('canvas');
+      const width = imgObj.naturalWidth || imgObj.width || 800;
+      const height = imgObj.naturalHeight || imgObj.height || 1000;
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Draw the main image
+        ctx.drawImage(imgObj, 0, 0, width, height);
+
+        // 1. DIAGONAL REPEATING WATERMARK OVERLAY
+        ctx.save();
+        ctx.globalAlpha = 0.15; // highly visible but transparent
+        ctx.fillStyle = '#ffffff';
+        const diagFontSize = Math.max(16, Math.floor(width * 0.04));
+        ctx.font = `bold ${diagFontSize}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Translate to center and rotate
+        ctx.translate(width / 2, height / 2);
+        ctx.rotate(-28 * Math.PI / 180);
+        ctx.translate(-width / 2, -height / 2);
+
+        // Paint grid pattern
+        const stepX = 280;
+        const stepY = 200;
+        for (let x = -width; x < width * 2; x += stepX) {
+          for (let y = -height; y < height * 2; y += stepY) {
+            ctx.fillText("سوق سند ✦ SANAD SOUK", x, y);
+          }
+        }
+        ctx.restore();
+
+        // 2. CORNER GOLDEN BADGE STAMP
+        ctx.save();
+        const stampFontSize = Math.max(14, Math.floor(width * 0.045));
+        ctx.font = `bold ${stampFontSize}px sans-serif`;
+        
+        const watermarkText = "سوق سند ✦ SANAD SOUK";
+        const textWidth = ctx.measureText(watermarkText).width;
+        
+        // Positioning details
+        const xpos = width - textWidth - 22;
+        const ypos = height - 24;
+        
+        // Draw solid opaque background for extreme readability
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+        const padX = 14;
+        const padY = 10;
+        const rx = xpos - padX;
+        const ry = ypos - stampFontSize - padY + 4;
+        const rw = textWidth + padX * 2;
+        const rh = stampFontSize + padY * 2;
+        
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(rx, ry, rw, rh, 8);
+        } else {
+          ctx.rect(rx, ry, rw, rh);
+        }
+        ctx.fill();
+        
+        // Solid bold Gold border structure
+        ctx.strokeStyle = "#D4AF37";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        
+        // Shadowing Text
+        ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(watermarkText, xpos, ypos);
+        
+        // Highlights
+        ctx.fillStyle = "#D4AF37";
+        ctx.shadowBlur = 0;
+        ctx.fillText("سوق سند", xpos, ypos);
+        ctx.restore();
+
+        // Convert the watermarked canvas back to dataUrl
+        const watermarkedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        triggerDirectDownload(watermarkedDataUrl);
+        if (showToast) {
+          showToast('تم تحميل الصورة بشعار سوق سند الموثق! 📥', 'success');
+        }
+      } else {
+        triggerDirectDownload(imgUrl);
+      }
+    } catch (err) {
+      console.error('Error drawing watermarked download canvas, falling back to direct:', err);
+      try {
+        triggerDirectDownload(imgUrl);
+        if (showToast) {
+          showToast('تم تحميل الصورة بنجاح! 📥', 'success');
+        }
+      } catch (fallbackErr) {
+        if (showToast) {
+          showToast('اضغط باستمرار على الصورة لحفظها مباشرة في جهازك.', 'warning');
+        }
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const clickBuffer = React.useRef<number>(0);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const [permissionStatus, setPermissionStatus] = useState<string>(
@@ -126,27 +275,113 @@ export default function ProductDetailsModal({
       }
     } else {
       navigator.clipboard.writeText(`${shareUrl}\n\nشاهد الإعلان: ${product.title}\nالسعر: ${product.price} د.ت`);
-      alert('تم نسخ الرابط بنجاح!');
+      if (showToast) {
+        showToast('تم نسخ رابط الإعلان بنجاح إلى الحافظة! 🔗', 'success');
+      } else {
+        alert('تم نسخ الرابط بنجاح!');
+      }
     }
   };
 
   const handleReport = () => {
     setIsReported(true);
-    alert('تم إرسال بلاغك وسيقوم فريق سوق سند بمراجعته. شكراً لاهتمامك.');
+    if (showToast) {
+      showToast('تم إرسال بلاغك وسيقوم فريق سوق سند بمراجعته قريباً. شكراً لتعاونك! 🛡️', 'success');
+    } else {
+      alert('تم إرسال بلاغك وسيقوم فريق سوق سند بمراجعته. شكراً لاهتمامك.');
+    }
+  };
+
+  const handleCommentImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setIsCompressingImage(true);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.src = reader.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 600; // Compact but legible for comment media
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height *= maxDim / width;
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width *= maxDim / height;
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Subtly stamp comment photo at bottom center as watermark proof
+            ctx.save();
+            ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+            ctx.fillRect(0, height - 24, width, 24);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 11px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("استفسار سوق سند ✦ SOUK SANAD", width / 2, height - 8);
+            ctx.restore();
+
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            setCommentImage(compressedBase64);
+          } else {
+            setCommentImage(reader.result as string);
+          }
+          setIsCompressingImage(false);
+        };
+      };
+      reader.onerror = () => {
+        setIsCompressingImage(false);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAddComment = () => {
-    if (!commentText.trim()) return;
+    if (!commentText.trim() && !commentImage) return;
+    
+    // Dynamic naming and badge identity determination
+    const displayName = currentUser?.name || (currentUserPhone ? `مستعمل (${currentUserPhone})` : 'زائر سوق سند ✦');
+    let userRole = 'free';
+    if (isPhoneAdmin(currentUserPhone)) {
+      userRole = 'admin';
+    } else if (currentUserPhone && product.sellerId && normalizePhone(currentUserPhone) === normalizePhone(product.sellerId)) {
+      userRole = 'seller';
+    } else {
+      userRole = currentUserPlan || 'free';
+    }
+
     const newComment = { 
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9), 
       userId: currentUserPhone || 'me', 
-      userName: currentUserPhone ? currentUserPhone : 'أنا', 
+      userName: displayName, 
+      userRole: userRole,
+      avatar: currentUser?.avatar || '',
       text: commentText, 
+      image: commentImage, // Base64 compressed, watermarked comment photo
       createdAt: 'الآن' 
     };
+
     const newComments = [...comments, newComment];
     setComments(newComments);
     setCommentText('');
+    setCommentImage(null);
+
+    // Trigger subtle shake response for visual feedback
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 550);
+
     if (onUpdateComments) {
       onUpdateComments(product.id, newComments);
     }
@@ -398,9 +633,17 @@ export default function ProductDetailsModal({
           <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
 
           {/* Floating Actions inside image top */}
-          <div className="absolute top-6 left-6 z-20">
-             <button onClick={onClose} className="p-3 bg-black/40 hover:bg-black/80 backdrop-blur-md rounded-full text-white transition-all scale-100 hover:scale-105 active:scale-95 shadow-lg border border-white/10">
+          <div className="absolute top-6 left-6 z-20 flex flex-col gap-3">
+             <button onClick={onClose} className="p-3 bg-black/40 hover:bg-black/80 backdrop-blur-md rounded-full text-white transition-all scale-100 hover:scale-105 active:scale-95 shadow-lg border border-white/10 cursor-pointer" title="إغلاق">
                 <X className="w-6 h-6" />
+             </button>
+             <button 
+                onClick={(e) => { e.stopPropagation(); handleDownloadImage(); }} 
+                disabled={isDownloading}
+                className="p-3 bg-black/40 hover:bg-black/80 backdrop-blur-md rounded-full text-[#D4AF37] hover:text-[#fcdb71] transition-all scale-100 hover:scale-105 active:scale-95 shadow-lg border border-white/10 cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="تحميل هذه الصورة"
+             >
+                {isDownloading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
              </button>
           </div>
 
@@ -517,25 +760,25 @@ export default function ProductDetailsModal({
                     <img src={product.sellerAvatar || 'https://via.placeholder.com/150'} alt={product.sellerName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     <div className="absolute bottom-1 right-1 w-2.5 h-2.5 bg-[#10B981] rounded-full border-2 border-[#0A0A0A] shadow animate-pulse"></div>
                  </div>
-                 <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm truncate">{product.sellerName}</p>
-                    <p className="text-[11px] text-[#10B981] font-bold mt-0.5 tracking-wider">بائع نشط في سوق سند</p>
-                    <div className="flex items-center gap-0.5 mt-1">
-                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                      <Star className="w-3 h-3 text-gray-600 fill-gray-600" />
-                      <span className="text-[10px] text-gray-400 ml-1 mr-1.5">(4.0)</span>
-                    </div>
-                    <p className="text-xs text-gray-500 font-mono mt-1">{product.sellerId}</p>
-                 </div>
+                  <div className="flex-1 min-w-0 text-right">
+                     <p className="text-white font-bold text-sm truncate">{product.sellerName}</p>
+                     <p className="text-[11px] text-[#10B981] font-bold mt-0.5 tracking-wider">بائع نشط في سوق سند</p>
+                     <div className="flex items-center gap-0.5 mt-1">
+                       <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                       <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                       <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                       <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                       <Star className="w-3 h-3 text-gray-600 fill-gray-600" />
+                       <span className="text-[10px] text-gray-400 ml-1 mr-1.5">(4.0)</span>
+                     </div>
+                     <p className="text-xs text-gray-500 font-mono mt-1">{product.sellerId}</p>
+                  </div>
               </div>
               
-               <div className="grid grid-cols-2 gap-3 mt-1">
+              <div className="grid grid-cols-2 gap-3 mt-1">
                  <a 
-                   href={`tel:${product.sellerId}`} 
-                   className="flex items-center justify-center gap-2 bg-[#10B981]/10 hover:bg-[#10B981] text-[#10B981] hover:text-white border border-[#10B981]/20 px-4 py-3 rounded-2xl font-bold transition-all text-xs shadow-sm hover:scale-102 active:scale-98"
+                    href={`tel:${product.sellerId}`} 
+                    className="flex items-center justify-center gap-2 bg-[#10B981]/10 hover:bg-[#10B981] text-[#10B981] hover:text-white border border-[#10B981]/20 px-4 py-3 rounded-2xl font-bold transition-all text-xs shadow-sm hover:scale-102 active:scale-98"
                  >
                     <Phone className="w-4 h-4 shrink-0" />
                     <span>اتصال ({product.sellerId})</span>
@@ -570,78 +813,251 @@ export default function ProductDetailsModal({
                     const waUrl = `https://wa.me/216${product.sellerId?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(aiMessage)}`;
                     window.open(waUrl, '_blank');
                 }}
-                className="mt-1 flex flex-col items-center justify-center py-2.5 px-4 bg-gradient-to-r from-[#D4AF37]/10 to-amber-500/5 hover:from-[#D4AF37]/20 hover:to-amber-500/10 text-[#D4AF37] border border-[#D4AF37]/30 rounded-2xl transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95"
+                className="mt-1 flex flex-col items-center justify-center py-2.5 px-4 bg-gradient-to-r from-[#D4AF37]/10 to-amber-500/5 hover:from-[#D4AF37]/20 hover:to-amber-500/10 text-[#D4AF37] border border-[#D4AF37]/30 rounded-2xl transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95 w-full"
               >
                  <div className="flex items-center gap-2 font-bold text-xs">
-                    <Bot className="w-4 h-4 shrink-0" />
-                    <span>فاوض باحترافية عبر الذكاء الاصطناعي</span>
+                     <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                     <span>رسالة مجهزة بالذكاء الاصطناعي للبائع ✨</span>
                  </div>
-                 <span className="text-[9px] text-[#D4AF37]/70 mt-0.5 font-medium">سيقوم بكتابة رسالة تفاوض احترافية عبر واتساب</span>
-              </button>
-              <button
-                onClick={handleReport}
-                disabled={isReported}
-                className={`mt-1.5 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${isReported ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700/50' : 'bg-red-500/5 hover:bg-red-500/15 text-red-400 border border-red-500/20 cursor-pointer'}`}
-              >
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>{isReported ? 'تم رفع البلاغ للمراجعة من قبل الإدارة' : 'الإبلاغ عن الإعلان (مخالف / احتيال)'}</span>
               </button>
            </div>
 
-            {/* Interactive Comments system */}
-           <div className="pt-2 border-t border-gray-900 space-y-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <MessageCircle className="w-5 h-5 text-gray-500" />
-                  أسئلة واستفسارات ({comments.length})
-              </h3>
+           {/* Interactive Comments system */}
+           <div className="pt-4 border-t border-gray-900 space-y-5">
+              <div className="flex justify-between items-center text-right">
+                <h3 className="text-base font-bold text-white flex items-center gap-2.5">
+                    <MessageCircle className="w-5 h-5 text-amber-500" />
+                    <span>الأسئلة والتعليقات ({comments.length})</span>
+                </h3>
+                <span className="text-[10px] text-gray-500 font-medium">سري وآمن 🔒</span>
+              </div>
               
-              <div className="space-y-3 font-sans text-xs">
+              {/* Shaking Container for visual feedback when adding comments */}
+              <motion.div 
+                animate={isShaking ? { x: [-10, 10, -7, 7, -3, 3, 0], scale: [1, 1.01, 1] } : {}}
+                transition={{ duration: 0.52 }}
+                className="space-y-4 font-sans"
+              >
                  {comments.length > 0 ? (
                     comments.map((c, index) => {
                         const canDelete = isAdmin || currentUserPhone === '92942482' || currentUserPhone === c.userId || currentUserPhone === product.sellerId;
+                        
+                        const normalizedRole = c.userRole || 'free';
+                        let badgeNode = null;
+
+                        if (normalizedRole === 'admin') {
+                          badgeNode = (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-600/35 via-yellow-500/30 to-amber-600/35 text-[#ffdf7b] border border-[#D4AF37]/50 shadow-[0_0_10px_rgba(212,175,55,0.15)] shrink-0">
+                              <span>إدارة سوق سند 🛡️</span>
+                            </span>
+                          );
+                        } else if (normalizedRole === 'seller') {
+                          badgeNode = (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#10B981]/15 text-[#6ee7b7] border border-[#10B981]/30 shrink-0">
+                              <span>صاحب الإعلان ✦</span>
+                            </span>
+                          );
+                        } else if (normalizedRole === 'vip') {
+                          badgeNode = (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-600/35 to-indigo-500/35 text-purple-300 border border-purple-500/40 shadow-[0_0_10px_rgba(147,51,234,0.15)] shrink-0">
+                              <span>عضو VIP 💎</span>
+                            </span>
+                          );
+                        } else if (normalizedRole === 'bronze') {
+                          badgeNode = (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-700/15 text-amber-300 border border-amber-600/30 shrink-0">
+                              <span>متميز ⚡</span>
+                            </span>
+                          );
+                        }
+
+                        const userInitial = c.userName ? c.userName.charAt(0).toUpperCase() : 'س';
+                        
                         return (
-                        <div key={c.id} className="bg-gray-950 border border-gray-900 rounded-2xl p-4 space-y-2 text-right">
-                            <div className="flex justify-between items-center text-[11px]">
-                               <span className="font-bold text-gray-300">{c.userName}</span>
-                               <div className='flex items-center gap-2'>
-                                   <span className="text-gray-500 font-mono">{c.createdAt}</span>
+                        <motion.div 
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.4) }}
+                          key={c.id} 
+                          className={`group/comment p-4 rounded-2xl border transition-all duration-300 flex flex-col gap-2 text-right ${
+                            normalizedRole === 'admin' 
+                              ? 'bg-[#150e02]/70 border-amber-500/20 shadow-[0_4px_15px_rgba(212,175,55,0.04)]'
+                              : normalizedRole === 'seller'
+                              ? 'bg-[#030a06]/70 border-emerald-500/20'
+                              : 'bg-[#090909]/95 border-gray-900/80 hover:border-gray-800'
+                          }`}
+                        >
+                            <div className="flex items-center justify-between gap-2 text-[11px]">
+                               <div className="flex items-center gap-2.5 min-w-0">
+                                 <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-inner shrink-0 ${
+                                   normalizedRole === 'admin' 
+                                     ? 'bg-amber-500/20 text-[#D4AF37] border border-amber-500/30'
+                                     : normalizedRole === 'seller'
+                                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                     : 'bg-zinc-800 text-zinc-300'
+                                 }`}>
+                                   {c.avatar ? (
+                                     <img src={c.avatar} className="w-full h-full object-cover rounded-full" referrerPolicy="no-referrer" />
+                                   ) : (
+                                     <span>{userInitial}</span>
+                                   )}
+                                 </div>
+                                 <div className="flex flex-col text-right justify-center shrink-0">
+                                    <span className="font-bold text-gray-200 text-xs tracking-wide">{c.userName}</span>
+                                 </div>
+                                 {badgeNode}
+                               </div>
+
+                               <div className="flex items-center gap-1.5 shrink-0">
+                                   <span className="text-[10px] text-gray-500 font-mono font-medium">{c.createdAt}</span>
                                    {canDelete && (
-                                       <button onClick={() => handleDeleteComment(c.id)} className="text-red-500 hover:text-red-400 p-1">
+                                       <button 
+                                         onClick={() => handleDeleteComment(c.id)} 
+                                         className="text-gray-600 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/5 transition-all opacity-70 group-hover/comment:opacity-100 cursor-pointer"
+                                         title="حذف التعليق"
+                                       >
                                            <Trash2 className="w-3.5 h-3.5" />
                                        </button>
                                    )}
                                </div>
                             </div>
-                            <p className="text-gray-400 text-sm leading-relaxed">{c.text}</p>
-                        </div>
+                            
+                            <p className="text-gray-300 text-xs sm:text-sm leading-relaxed pr-9 pl-4 whitespace-pre-wrap selection:bg-[#D4AF37]/35 select-text" dir="auto" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' as any }}>{c.text}</p>
+                            
+                            {c.image && (
+                              <div className="pr-9 pt-1.5">
+                                <div 
+                                  onClick={() => setZoomedImage(c.image)}
+                                  className="relative inline-block overflow-hidden rounded-xl border border-gray-800/80 cursor-zoom-in group/img shadow-md hover:border-[#D4AF37]/50 transition-all max-w-[170px] aspect-[4/3] sm:max-w-[200px]"
+                                >
+                                  <img 
+                                    src={c.image} 
+                                    alt="مرفق بالتعليق" 
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover/img:scale-105" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span className="text-[10px] text-white font-bold px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm border border-white/10">اضغط للتكبير 🔍</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                        </motion.div>
                     )})
                  ) : (
-                    <div className="text-center py-6 text-gray-500 bg-gray-950 rounded-2xl border border-gray-900">
-                       لا توجد تعليقات بعد. كن أول من يسأل البائع!
+                    <div className="text-center py-7 text-gray-400 bg-[#070707] rounded-2xl border border-gray-900/60 shadow-inner">
+                       <MessageCircle className="w-7 h-7 mx-auto mb-2 text-gray-600 animate-pulse" />
+                       <p className="text-xs font-bold text-gray-400">لا توجد أسئلة أو تعليقات بعد</p>
+                       <p className="text-[10px] text-gray-600 mt-1">كن أول من يطرح استفساراً وسيقوم البائع بالرد عليك فورا!</p>
                     </div>
                  )}
-              </div>
+              </motion.div>
+              
+              {commentImage && (
+                <div className="p-2.5 rounded-xl bg-gray-950 border border-gray-900 flex items-center justify-between gap-3 animate-fade-in text-sm text-right">
+                   <div className="flex items-center gap-2.5 min-w-0">
+                     <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-gray-800 shrink-0 font-sans">
+                        <img src={commentImage} className="w-full h-full object-cover animate-pulse" />
+                        <button 
+                          onClick={() => setCommentImage(null)}
+                          className="absolute inset-0 bg-black/65 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-red-400 group cursor-pointer"
+                          title="إلغاء المرفق"
+                        >
+                          <X className="w-5 h-5 shrink-0" />
+                        </button>
+                     </div>
+                     <span className="text-xs text-[#10B981] font-bold truncate">تم إرفاق صورة بالتعليق بنجاح 👍</span>
+                   </div>
+                   <button 
+                     onClick={() => setCommentImage(null)} 
+                     className="text-xs text-red-400 underline p-1 hover:text-red-300 shrink-0 cursor-pointer"
+                   >
+                     حذف المرفق
+                   </button>
+                </div>
+              )}
 
-              {/* Add Comment input frame */}
-              <div className="relative pt-2 pb-6">
+              <div className="relative pt-1 pb-6">
+                  <input 
+                    type="file" 
+                    id="comment-photo-file-input" 
+                    accept="image/*" 
+                    onChange={handleCommentImageChange} 
+                    className="hidden" 
+                  />
+                  
                   <input 
                      type="text" 
                      value={commentText}
                      onChange={(e) => setCommentText(e.target.value)}
                      onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                     className="w-full bg-[#020806] border border-gray-900 rounded-2xl py-3.5 pr-4 pl-12 text-white focus:border-[#D4AF37] outline-none text-xs transition-colors text-right" 
-                     placeholder="اسأل البائع أو اترك تعليقاً..." 
+                     disabled={isCompressingImage}
+                     className="w-full bg-[#030303] border border-gray-800 hover:border-gray-700 focus:border-[#D4AF37] outline-none text-xs text-right text-white rounded-2xl py-3.5 pr-4 pl-[88px] transition-all duration-300" 
+                     placeholder={isCompressingImage ? "جاري تشفير وضغط الصورة المرفقة... ⏳" : "اسأل البائع أو اترك استفساراً..."} 
                   />
-                  <button 
-                     onClick={handleAddComment}
-                     className="absolute left-1.5 bottom-[14px] p-2 bg-[#10B981] rounded-xl text-white hover:bg-[#059669] hover:scale-105 active:scale-95 transition-all shadow-md shadow-[#10B981]/15"
-                  >
-                      <Send className="w-3.5 h-3.5" />
-                  </button>
+                  
+                  <div className="absolute left-2.5 bottom-[14.5px] flex items-center gap-2">
+                      <button 
+                         onClick={() => {
+                           const el = document.getElementById('comment-photo-file-input');
+                           if (el) el.click();
+                         }}
+                         disabled={isCompressingImage}
+                         type="button"
+                         className={`p-2 rounded-xl text-gray-400 hover:text-[#D4AF37] transition-all hover:bg-white/5 active:scale-95 cursor-pointer flex items-center justify-center shrink-0 ${commentImage ? 'text-[#D4AF37]' : ''}`}
+                         title="إرفاق صورة استفسار"
+                      >
+                         {isCompressingImage ? (
+                           <Loader2 className="w-4 h-4 animate-spin text-[#D4AF37]" />
+                         ) : (
+                           <Camera className="w-4 h-4" />
+                         )}
+                      </button>
+
+                      <button 
+                         onClick={handleAddComment}
+                         disabled={(!commentText.trim() && !commentImage) || isCompressingImage}
+                         className="p-2 bg-[#10B981] hover:bg-[#059669] disabled:opacity-50 disabled:hover:bg-[#10B981] text-white rounded-xl transition-all hover:scale-105 active:scale-95 shadow-md shadow-[#10B981]/15 cursor-pointer flex items-center justify-center shrink-0"
+                         title="نشر التعليق"
+                      >
+                         <Send className="w-4 h-4" />
+                      </button>
+                  </div>
               </div>
            </div>
         </div>
-      </div>
-    </motion.div>
-  );
+     </div>
+
+     {/* Zoomed Image Lightbox Modal */}
+     <AnimatePresence>
+       {zoomedImage && (
+         <motion.div 
+           initial={{ opacity: 0 }}
+           animate={{ opacity: 1 }}
+           exit={{ opacity: 0 }}
+           onClick={() => setZoomedImage(null)}
+           className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-lg flex items-center justify-center p-4 cursor-zoom-out"
+         >
+           <button 
+             onClick={() => setZoomedImage(null)} 
+             className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all scale-100 hover:scale-105"
+           >
+             <X className="w-6 h-6" />
+           </button>
+           <motion.img 
+             initial={{ scale: 0.92, opacity: 0 }}
+             animate={{ scale: 1, opacity: 1 }}
+             exit={{ scale: 0.92, opacity: 0 }}
+             src={zoomedImage} 
+             alt="صورة مكبرة" 
+             className="max-w-full max-h-[85vh] object-contain rounded-2xl border border-white/10 shadow-2xl" 
+             referrerPolicy="no-referrer"
+             onClick={(e) => e.stopPropagation()}
+           />
+           <div className="absolute bottom-6 inset-x-0 text-center text-xs text-gray-500 font-medium">سوق سند ✦ SANAD SOUK</div>
+         </motion.div>
+       )}
+     </AnimatePresence>
+   </motion.div>
+ );
 }

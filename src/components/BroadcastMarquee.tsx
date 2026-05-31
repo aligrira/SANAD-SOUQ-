@@ -85,7 +85,7 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.4 }}
-          className="w-full h-9 bg-gradient-to-r from-[#200202] via-[#8B0000] to-[#200202] border-b border-[#D4AF37]/35 flex items-center overflow-hidden select-none sticky top-[60px] z-30 shadow-[0_2px_12px_rgba(239,68,68,0.25)]"
+          className="w-full h-9 bg-gradient-to-r from-[#200202] via-[#8B0000] to-[#200202] border-b border-[#D4AF37]/35 flex items-center overflow-hidden select-none fixed top-0 left-0 right-0 z-50 shadow-[0_2px_12px_rgba(239,68,68,0.25)]"
           dir="rtl"
         >
           {/* Animated subtle gold light beam */}

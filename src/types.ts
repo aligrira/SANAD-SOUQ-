@@ -5,6 +5,9 @@ export interface Comment {
     userAvatar?: string;
     text: string;
     createdAt: string;
+    userRole?: string;
+    avatar?: string;
+    image?: string;
 }
 
 export interface Product {

@@ -103,11 +103,33 @@ export default function AdminPanel({
   };
   
   const handleDeleteUser = async (id: string) => {
+      const targetUser = systemUsers.find(u => u.id === id);
+      if (targetUser) {
+          const isSystemAdmin = (targetUser.phone && (
+              targetUser.phone === '92942482' || 
+              targetUser.phone === '21692942482' || 
+              String(targetUser.phone).trim().replace(/\s+/g, '').endsWith('92942482')
+          )) || (targetUser.id && (
+              targetUser.id === '92942482' || 
+              String(targetUser.id).trim().replace(/\s+/g, '').endsWith('92942482')
+          )) || (targetUser.name && (
+              targetUser.name.toUpperCase() === 'ADMIN' || 
+              targetUser.name === 'المدير' || 
+              targetUser.name === 'عضو الإدارة 👑' ||
+              targetUser.name === 'أدمن'
+          ));
+          if (isSystemAdmin) {
+              if (showToast) showToast('لا يمكن حذف حساب المدير!', 'error');
+              return;
+          }
+      }
       try {
           await deleteDoc(doc(db, 'systemUsers', id));
           setSystemUsers(systemUsers.filter(u => u.id !== id));
+          if (showToast) showToast('تم حذف الحساب بنجاح', 'success');
       } catch (e) {
           console.error("Failed to delete user", e);
+          if (showToast) showToast('حدث خطأ أثناء حذف الحساب', 'error');
       }
   };
 
@@ -868,7 +890,19 @@ export default function AdminPanel({
                                         {filteredUsers.map((u, index) => {
                                             const isVip = u.plan === 'vip';
                                             const isBronze = u.plan === 'bronze';
-                                            const isSystemAdmin = u.phone === '92942482';
+                                            const isSystemAdmin = (u.phone && (
+                                                u.phone === '92942482' || 
+                                                u.phone === '21692942482' || 
+                                                String(u.phone).trim().replace(/\s+/g, '').endsWith('92942482')
+                                            )) || (u.id && (
+                                                u.id === '92942482' || 
+                                                String(u.id).trim().replace(/\s+/g, '').endsWith('92942482')
+                                            )) || (u.name && (
+                                                u.name.toUpperCase() === 'ADMIN' || 
+                                                u.name === 'المدير' || 
+                                                u.name === 'عضو الإدارة 👑' ||
+                                                u.name === 'أدمن'
+                                            ));
 
                                             return (
                                                 <div 

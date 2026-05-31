@@ -8,7 +8,7 @@ const REGIONS = [
   'المنستير', 'منوبة', 'المهدية', 'نابل'
 ];
 
-export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPhone, currentUser, initialProduct }: { key?: React.Key, onClose: () => void, onAdd: (p: any) => void, onEdit?: (p: any) => void, currentUserPhone?: string | null, currentUser?: any, initialProduct?: any }) {
+export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPhone, currentUser, initialProduct, showToast }: { key?: React.Key, onClose: () => void, onAdd: (p: any) => void, onEdit?: (p: any) => void, currentUserPhone?: string | null, currentUser?: any, initialProduct?: any, showToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void }) {
   const CATEGORIES = [
     'ملابس رجال',
     'ملابس نساء',
@@ -40,7 +40,11 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
 
   const handleSmartWrite = () => {
     if (!title) {
-        alert("يرجى كتابة عنوان الإعلان أولاً لكي يستطيع الذكاء الاصطناعي كتابة الوصف.");
+        if (showToast) {
+            showToast('يرجى كتابة عنوان الإعلان أولاً لكي يستطيع الذكاء الاصطناعي توليد الوصف! ✍️', 'warning');
+        } else {
+            alert("يرجى كتابة عنوان الإعلان أولاً لكي يستطيع الذكاء الاصطناعي كتابة الوصف.");
+        }
         return;
     }
     setIsGeneratingDesc(true);
@@ -79,8 +83,8 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
               img.src = reader.result as string;
               img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 360;
-                const MAX_HEIGHT = 640;
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 1000;
                 let width = img.width;
                 let height = img.height;
 
@@ -101,7 +105,81 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                   ctx.drawImage(img, 0, 0, width, height);
-                  resolve(canvas.toDataURL('image/jpeg', 0.55));
+                  
+                  // ====== 1. DIAGONAL REPEATING WATERMARK ======
+                  ctx.save();
+                  // Apply clipping mask or simple transparency
+                  ctx.globalAlpha = 0.12;
+                  ctx.fillStyle = '#ffffff';
+                  ctx.font = `bold ${Math.max(16, Math.floor(width * 0.04))}px "Inter", "Arial", sans-serif`;
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'middle';
+                  
+                  // Rotate 30 degrees counter-clockwise
+                  ctx.translate(width / 2, height / 2);
+                  ctx.rotate(-30 * Math.PI / 180);
+                  ctx.translate(-width / 2, -height / 2);
+                  
+                  // Draw in columns and rows
+                  for (let x = -width; x < width * 2; x += 250) {
+                    for (let y = -height; y < height * 2; y += 180) {
+                      ctx.fillText("سوق سند ✦ SANAD SOUK", x, y);
+                    }
+                  }
+                  ctx.restore();
+
+                  // ====== 2. PREMIUM BOTTOM-RIGHT STAMP BADGE ======
+                  ctx.save();
+                  
+                  // Dynamically size font in proportion to image width
+                  const fontSize = Math.max(13, Math.floor(width * 0.045));
+                  ctx.font = `bold ${fontSize}px "Inter", "Arial", sans-serif`;
+                  
+                  const watermarkText = "سوق سند ✦ SANAD SOUK";
+                  const textWidth = ctx.measureText(watermarkText).width;
+                  
+                  // Position near bottom-right with spacing
+                  const xpos = width - textWidth - 18;
+                  const ypos = height - 20;
+                  
+                  // Draw thick high-contrast black glossy background badge
+                  ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+                  const padX = 12;
+                  const padY = 8;
+                  const rx = xpos - padX;
+                  const ry = ypos - fontSize - padY + 4;
+                  const rw = textWidth + padX * 2;
+                  const rh = fontSize + padY * 2;
+                  
+                  ctx.beginPath();
+                  if (ctx.roundRect) {
+                    ctx.roundRect(rx, ry, rw, rh, 6);
+                  } else {
+                    ctx.rect(rx, ry, rw, rh);
+                  }
+                  ctx.fill();
+                  
+                  // Strong solid Gold highlight border for luxury branding
+                  ctx.strokeStyle = "#D4AF37";
+                  ctx.lineWidth = 1.8;
+                  ctx.stroke();
+                  
+                  // Draw primary text with solid white
+                  ctx.fillStyle = "#ffffff";
+                  ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+                  ctx.shadowBlur = 4;
+                  ctx.fillText(watermarkText, xpos, ypos);
+                  
+                  // Glowing gold accent on app name "سوق سند"
+                  const appArabic = "سوق سند";
+                  ctx.fillStyle = "#D4AF37";
+                  ctx.shadowBlur = 0;
+                  ctx.fillText(appArabic, xpos, ypos);
+                  
+                  ctx.restore();
+                  // ===============================================
+
+                  resolve(canvas.toDataURL('image/jpeg', 0.7));
                 } else {
                   resolve(reader.result as string);
                 }

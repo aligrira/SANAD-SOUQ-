@@ -96,7 +96,7 @@ export default function PricingPackages({
 
   return (
     <>
-    <div id="pricing-packages" className="py-2 pb-16 scroll-mt-24" dir="rtl">
+    <div id="pricing-packages" className="py-2 pb-6 scroll-mt-24" dir="rtl">
       <div className="text-center mb-10 px-4 space-y-4">
         <div className="inline-flex items-center gap-1.5 bg-[#D4AF37]/10 text-[#D4AF37] px-5 py-2 rounded-full text-xs font-bold border border-[#D4AF37]/20 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
            <Sparkles className="w-4 h-4 animate-pulse-slow" />

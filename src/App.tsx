@@ -18,16 +18,16 @@ import BroadcastMarquee, { BroadcastMessage } from './components/BroadcastMarque
 import ListingCard from './components/ListingCard';
 
 
-// Lazy load Modals and heavy components
-const AdminPanel = React.lazy(() => import('./components/AdminPanel'));
-const AuthModal = React.lazy(() => import('./components/AuthModal'));
-const WelcomeSplashModal = React.lazy(() => import('./components/WelcomeSplashModal'));
-const AddProductModal = React.lazy(() => import('./components/AddProductModal'));
-const PublishingTransition = React.lazy(() => import('./components/PublishingTransition'));
-const ProductDetailsModal = React.lazy(() => import('./components/ProductDetailsModal'));
-const ProfileModal = React.lazy(() => import('./components/ProfileModal'));
-const Sidebar = React.lazy(() => import('./components/Sidebar'));
-const StoryViewerModal = React.lazy(() => import('./components/StoryViewerModal'));
+// Static imports of Modals and components to guarantee zero fetching delays or dynamic chunk errors
+import AdminPanel from './components/AdminPanel';
+import AuthModal from './components/AuthModal';
+import WelcomeSplashModal from './components/WelcomeSplashModal';
+import AddProductModal from './components/AddProductModal';
+import PublishingTransition from './components/PublishingTransition';
+import ProductDetailsModal from './components/ProductDetailsModal';
+import ProfileModal from './components/ProfileModal';
+import Sidebar from './components/Sidebar';
+import StoryViewerModal from './components/StoryViewerModal';
 import PricingPackages from './components/PricingPackages';
 import PaymentModal from './components/PaymentModal';
 import SplashScreen from './components/SplashScreen';
@@ -86,8 +86,22 @@ export default function App() {
     }
   };
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = safeStorage.getItem('sanad_cached_products');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [productsLoaded, setProductsLoaded] = useState(() => {
+    try {
+      const saved = safeStorage.getItem('sanad_cached_products');
+      return saved ? JSON.parse(saved).length > 0 : false;
+    } catch {
+      return false;
+    }
+  });
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [systemRequests, setSystemRequests] = useState<any[]>(() => {
@@ -114,16 +128,17 @@ export default function App() {
             return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
         });
         
-        // Only set products if real-time listener hasn't already fired
-        setProducts(prev => prev.length > 0 ? prev : sorted);
+        // Always set products to the latest sorted retrieved list to guarantee zero delay and bypass any stale cache
+        setProducts(sorted);
         setProductsLoaded(true);
+        safeStorage.setItem('sanad_cached_products', JSON.stringify(sorted));
 
         const searchParams = new URLSearchParams(window.location.search);
         const initialAdId = searchParams.get('ad');
         if (initialAdId) {
            const ad = sorted.find(p => p.id === initialAdId);
            if (ad) {
-             setSelectedProduct(prev => prev ? prev : ad);
+             setSelectedProduct(ad);
            }
         }
       } catch (err) {
@@ -149,6 +164,7 @@ export default function App() {
       });
       setProducts(sorted);
       setProductsLoaded(true);
+      safeStorage.setItem('sanad_cached_products', JSON.stringify(sorted));
       
       const searchParams = new URLSearchParams(window.location.search);
       const initialAdId = searchParams.get('ad');
@@ -301,7 +317,17 @@ export default function App() {
   }, []);
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [isSplashActive, setIsSplashActive] = useState(true);
+  const [isSplashActive, setIsSplashActive] = useState(() => {
+    try {
+      if (typeof window !== 'undefined' && window.location && window.location.search) {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('ad')) return false;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return true;
+  });
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -1011,12 +1037,36 @@ export default function App() {
     }
   };
 
+  const hasActiveBroadcast = (() => {
+    try {
+      const activeQueue = broadcastQueue.filter(b => !dismissedBroadcastIds.has(b.id));
+      if (activeQueue.length === 0) return false;
+      const saved = localStorage.getItem('sanad_broadcast_views');
+      const viewCounts = saved ? JSON.parse(saved) : {};
+      return activeQueue.some(msg => (viewCounts[msg.id] || 0) < 10);
+    } catch {
+      return broadcastQueue.filter(b => !dismissedBroadcastIds.has(b.id)).length > 0;
+    }
+  })();
+
   return (
-    <div id="app-root" className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#050505] text-white relative" dir="rtl">
+    <div id="app-root" className={`min-h-screen w-full max-w-full overflow-x-hidden bg-[#050505] text-white relative transition-all duration-300 ${hasActiveBroadcast ? 'pt-9' : ''}`} dir="rtl">
       {isSplashActive && <SplashScreen onComplete={() => setIsSplashActive(false)} />}
       
+      <BroadcastMarquee 
+        queue={broadcastQueue.filter(b => !dismissedBroadcastIds.has(b.id))} 
+        onDismiss={(id) => { 
+          setDismissedBroadcastIds(prev => {
+            const updated = new Set(prev);
+            updated.add(id);
+            return updated;
+          });
+          handleDismissBroadcast(id); 
+        }} 
+      />
+      
       {/* Header */}
-      <header className="z-40 bg-[#050505]/75 backdrop-blur-md border-b border-white/5 sticky top-0 shrink-0 w-full shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+      <header className={`z-40 bg-[#050505]/75 backdrop-blur-md border-b border-white/5 sticky ${hasActiveBroadcast ? 'top-[36px]' : 'top-0'} shrink-0 w-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all duration-300`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-[60px]">
             <div className="flex items-center gap-3">
@@ -1237,18 +1287,6 @@ export default function App() {
         </div>
       </header>
 
-      <BroadcastMarquee 
-        queue={broadcastQueue.filter(b => !dismissedBroadcastIds.has(b.id))} 
-        onDismiss={(id) => { 
-          setDismissedBroadcastIds(prev => {
-            const updated = new Set(prev);
-            updated.add(id);
-            return updated;
-          });
-          handleDismissBroadcast(id); 
-        }} 
-      />
-
       {/* Offline Banner */}
       <AnimatePresence>
         {isOffline && (
@@ -1256,9 +1294,9 @@ export default function App() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="bg-red-500/90 text-white text-xs font-medium py-2 px-4 w-full text-center shadow-lg border-b border-red-600 sticky top-[76px] z-30"
+            className={`bg-red-500/95 text-white text-xs font-semibold py-2.5 px-4 w-full text-center shadow-md border-b border-red-600 sticky ${hasActiveBroadcast ? 'top-[112px]' : 'top-[76px]'} z-30 flex items-center justify-center gap-1.5 transition-all duration-300`}
           >
-            أنت حالياً تعمل في وضع عدم الاتصال (Offline). يرجى التحقق من الشبكة الخاصة بك.
+            <span>أنت تتصفح الإعلانات المحفوظة مؤقتاً (وضع أوفلاين) - سنقوم بتحديث البيانات تلقائياً فور استعادة الاتصال 🌐</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1492,39 +1530,7 @@ export default function App() {
            </div>
         </div>
         
-        {/* Display Settings Toolbar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-r from-gray-950 via-black to-gray-950 border border-gray-900 rounded-3xl p-5 mb-10 z-10 relative">
-           <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#D4AF37] animate-pulse" />
-              <span className="text-gray-400 text-sm">تم العثور على <strong className="text-white font-black font-sans mx-1">{filteredProducts.length}</strong> عرض متاح في السوق</span>
-           </div>
-           <div className="flex items-center gap-2 bg-[#050505] p-1 rounded-2xl border border-gray-800 w-full sm:w-auto justify-center">
-              <button
-                 type="button"
-                 onClick={() => setViewMode('list')}
-                 className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    viewMode === 'list'
-                       ? 'bg-[#1a1a1a] text-[#D4AF37] border border-[#D4AF37]/25 shadow-md font-bold scale-102'
-                       : 'text-gray-400 hover:text-white'
-                 }`}
-              >
-                 <List className="w-4 h-4" />
-                 <span>عرض القائمة</span>
-              </button>
-              <button
-                 type="button"
-                 onClick={() => setViewMode('grid')}
-                 className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    viewMode === 'grid'
-                       ? 'bg-[#1a1a1a] text-[#D4AF37] border border-[#D4AF37]/25 shadow-md font-bold scale-102'
-                       : 'text-gray-400 hover:text-white'
-                 }`}
-              >
-                 <Grid className="w-4 h-4" />
-                 <span>عرض الشبكة</span>
-              </button>
-           </div>
-        </div>
+
 
         {/* Section VIP */}
         <div className="mb-16" id="listings-head">
@@ -1775,7 +1781,7 @@ export default function App() {
                    console.error("Failed to edit ad", err);
                    showToast('حدث خطأ أثناء تعديل الإعلان', 'error');
                  }
-             }} currentUserPhone={currentUserPhone} currentUser={loggedUserObj} initialProduct={editingProduct} />}
+             }} currentUserPhone={currentUserPhone} currentUser={loggedUserObj} initialProduct={editingProduct} showToast={showToast} />}
          </Suspense>
          <Suspense key="suspense-details" fallback={<ModalFallback />}>
             {selectedProduct && <ProductDetailsModal 
@@ -1787,7 +1793,7 @@ export default function App() {
                 window.history.pushState(null, '', window.location.pathname);
               }} 
               currentUserPhone={currentUserPhone} 
-              isAdmin={currentUserPhone === '92942482'} 
+              isAdmin={currentUserPhone === '92942482'} showToast={showToast} 
               onDelete={async () => {
                 try {
                   await deleteDoc(doc(db, 'products', selectedProduct!.id));
