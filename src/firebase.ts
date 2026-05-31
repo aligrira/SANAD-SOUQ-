@@ -33,6 +33,29 @@ const maskKey = (key: string) => {
   return key.slice(0, 4) + "..." + key.slice(-4);
 };
 
+// Global diagnostics tracking object
+let initError: any = null;
+if (typeof window !== 'undefined') {
+  (window as any).__sanadDiagnostics = {
+    firebaseInitialized: false,
+    projectId: resolvedProjectId,
+    hasApiKey: !!resolvedApiKey,
+    maskedApiKey: maskKey(resolvedApiKey || ""),
+    firebaseConfigKeys: Object.keys(firebaseConfig).filter(k => !!(firebaseConfig as any)[k]),
+    initError: null,
+    firestoreError: null,
+    permissionError: null,
+    connectionStatus: "Initializing",
+    productsFetchedCount: -1,
+    productsSnapshotCount: -1,
+    vipProductsCount: 0,
+    storiesCount: 0,
+    activeVipBronzeCount: 0,
+    rawVipBronzeCount: 0,
+    lastUpdate: new Date().toISOString()
+  };
+}
+
 console.log("SanadSouq - Firebase Init Diagnostics:", {
   resolvedProjectId,
   hasApiKey: !!resolvedApiKey,
@@ -41,7 +64,22 @@ console.log("SanadSouq - Firebase Init Diagnostics:", {
   firebaseConfigKeys: Object.keys(firebaseConfig).filter(k => !!(firebaseConfig as any)[k])
 });
 
-const app = initializeApp(firebaseConfig);
+let app: any;
+try {
+  app = initializeApp(firebaseConfig);
+  if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+    (window as any).__sanadDiagnostics.firebaseInitialized = true;
+    (window as any).__sanadDiagnostics.connectionStatus = "App Initialized";
+  }
+} catch (e: any) {
+  initError = e;
+  if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+    (window as any).__sanadDiagnostics.initError = e?.message || String(e);
+    (window as any).__sanadDiagnostics.connectionStatus = `App Init Failed: ${e?.message || e}`;
+  }
+  console.error("Firebase initializeApp failure:", e);
+}
+
 setLogLevel('error');
 const config = firebaseConfig as any;
 console.log("SanadSouq: Firebase Initialized with Project ID:", config.projectId);
@@ -52,12 +90,25 @@ try {
   firestoreDb = initializeFirestore(app, {
     localCache: typeof window !== 'undefined' ? persistentLocalCache({ tabManager: persistentMultipleTabManager() }) : memoryLocalCache()
   }, config.firestoreDatabaseId || undefined);
-} catch (e) {
+  if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+    (window as any).__sanadDiagnostics.connectionStatus = "Firestore Initialized";
+  }
+} catch (e: any) {
   console.warn("Firestore initialization with persistence failed/blocked. Using default memory cache.", e);
+  if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+    (window as any).__sanadDiagnostics.firestoreError = `Persistence warning: ${e?.message || e}`;
+  }
   try {
     firestoreDb = getFirestore(app, config.firestoreDatabaseId || undefined);
-  } catch (err) {
+    if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+      (window as any).__sanadDiagnostics.connectionStatus = "Firestore Initialized (Fallback)";
+    }
+  } catch (err: any) {
     console.error("Critical Firestore failure:", err);
+    if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+      (window as any).__sanadDiagnostics.firestoreError = `Critical init error: ${err?.message || err}`;
+      (window as any).__sanadDiagnostics.connectionStatus = "Firestore Critical Failure";
+    }
   }
 }
 

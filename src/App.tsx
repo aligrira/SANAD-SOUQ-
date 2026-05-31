@@ -39,6 +39,7 @@ import confetti from 'canvas-confetti';
 
 import Footer from './components/Footer';
 import { playLoginSound, playListingSound, playSubscriptionClapSound } from './lib/audioEffects';
+import DebugView from './components/DebugView';
 
 // Fallback loader for Suspense
 const ModalFallback = () => (
@@ -77,6 +78,19 @@ const REGIONS = [
 ];
 
 export default function App() {
+  const [showDebugPage, setShowDebugPage] = useState(() => {
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        return window.location.pathname === '/debug' || 
+               window.location.pathname === 'debug' || 
+               new URLSearchParams(window.location.search).get('page') === 'debug';
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
+  });
+
   const triggerHaptic = (pattern: number | number[]) => {
     try {
       if (typeof window !== 'undefined' && navigator && typeof navigator.vibrate === 'function') {
@@ -121,6 +135,12 @@ export default function App() {
       try {
         const prodSnapshot = await getDocs(collection(db, 'products'));
         console.log(`SanadSouq: Fetched ${prodSnapshot.size} products from Firestore in getDocs`);
+        if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+          (window as any).__sanadDiagnostics.productsFetchedCount = prodSnapshot.size;
+          (window as any).__sanadDiagnostics.networkFetchedSuccess = true;
+          (window as any).__sanadDiagnostics.connectionStatus = `Fetched initial products successfully: ${prodSnapshot.size}`;
+          (window as any).__sanadDiagnostics.lastUpdate = new Date().toISOString();
+        }
         let prods: Product[] = [];
         prodSnapshot.forEach(doc => {
           prods.push({ id: doc.id, ...doc.data() } as Product);
@@ -153,6 +173,14 @@ export default function App() {
       } catch (err: any) {
         console.error("SanadSouq: Fast fetch failed with error:", err?.message || err);
         console.error("SanadSouq Error details:", JSON.stringify(err));
+        if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+          (window as any).__sanadDiagnostics.firestoreError = err?.message || String(err);
+          (window as any).__sanadDiagnostics.connectionStatus = `Fast fetch failed: ${err?.message || err}`;
+          if (err?.code === 'permission-denied') {
+            (window as any).__sanadDiagnostics.permissionError = err?.message || String(err);
+          }
+          (window as any).__sanadDiagnostics.lastUpdate = new Date().toISOString();
+        }
       }
     };
     fetchInitialData();
@@ -160,6 +188,12 @@ export default function App() {
     // 2. Attach real-time listener
     const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
       console.log('SanadSouq: Real-time listener received snapshot of products: size', snapshot.size);
+      if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+        (window as any).__sanadDiagnostics.productsSnapshotCount = snapshot.size;
+        (window as any).__sanadDiagnostics.realtimeSyncSuccess = true;
+        (window as any).__sanadDiagnostics.connectionStatus = `Syncing real-time products. Snapshot count: ${snapshot.size}`;
+        (window as any).__sanadDiagnostics.lastUpdate = new Date().toISOString();
+      }
       let prods: Product[] = [];
       if (!snapshot.empty) {
         snapshot.forEach(doc => {
@@ -245,6 +279,14 @@ export default function App() {
     }, (error: any) => {
       console.error("SanadSouq: Failed to sync products via onSnapshot. Error message:", error?.message || error);
       console.error("SanadSouq Error Code:", error?.code || 'unknown');
+      if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+        (window as any).__sanadDiagnostics.firestoreError = error?.message || String(error);
+        (window as any).__sanadDiagnostics.connectionStatus = `Syncing failed: ${error?.message || error}`;
+        if (error?.code === 'permission-denied') {
+          (window as any).__sanadDiagnostics.permissionError = error?.message || String(error);
+        }
+        (window as any).__sanadDiagnostics.lastUpdate = new Date().toISOString();
+      }
       // Auto-recovery retry
       setTimeout(fetchInitialData, 3000);
     });
@@ -1203,6 +1245,17 @@ export default function App() {
         };
      });
 
+    const vipCount = allEnrichedProducts.filter(p => p.plan === 'vip').length;
+    const bronzeCount = allEnrichedProducts.filter(p => p.plan === 'bronze').length;
+    if (typeof window !== 'undefined' && (window as any).__sanadDiagnostics) {
+       (window as any).__sanadDiagnostics.vipProductsCount = vipCount;
+       (window as any).__sanadDiagnostics.bronzeProductsCount = bronzeCount;
+       (window as any).__sanadDiagnostics.rawVipBronzeCount = rawVipAndBronze.length;
+       (window as any).__sanadDiagnostics.activeVipBronzeCount = filtered.length;
+       (window as any).__sanadDiagnostics.storiesCount = result.length;
+       (window as any).__sanadDiagnostics.lastUpdate = new Date().toISOString();
+    }
+
     console.log("SanadSouq Stories Engine: Final mapped stories list length:", result.length, result);
     return result;
   }, [allEnrichedProducts]);
@@ -1240,6 +1293,24 @@ export default function App() {
       return broadcastQueue.filter(b => !dismissedBroadcastIds.has(b.id)).length > 0;
     }
   })();
+
+  if (showDebugPage) {
+    return (
+      <DebugView 
+        onBack={() => {
+          setShowDebugPage(false);
+          try {
+            if (typeof window !== 'undefined') {
+              window.history.pushState(null, '', '/');
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }} 
+        productsCount={products.length} 
+      />
+    );
+  }
 
   return (
     <div id="app-root" className={`min-h-screen w-full max-w-full overflow-x-hidden bg-[#050505] text-white relative transition-all duration-300 ${hasActiveBroadcast ? 'pt-9' : ''}`} dir="rtl">
