@@ -117,17 +117,25 @@ export default function App() {
   useEffect(() => {
     // 1. Instantly fetch using HTTP (getDocs) so WebView shows data immediately even if WebSocket blocks.
     const fetchInitialData = async () => {
+      console.log('SanadSouq: Starting to fetch products from Firestore on mount...');
       try {
         const prodSnapshot = await getDocs(collection(db, 'products'));
+        console.log(`SanadSouq: Fetched ${prodSnapshot.size} products from Firestore in getDocs`);
         let prods: Product[] = [];
         prodSnapshot.forEach(doc => {
           prods.push({ id: doc.id, ...doc.data() } as Product);
         });
+        
+        if (prods.length === 0) {
+           console.log("SanadSouq API Warning: products collection is exactly 0 length! Is the database empty or is it reading the wrong database/projectId?");
+        }
+
         const sorted = prods.sort((a, b) => {
             const tA = new Date(a.createdAt).getTime();
             const tB = new Date(b.createdAt).getTime();
             return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
         });
+        console.log(`SanadSouq: Successfully sorted ${sorted.length} products`);
         
         // Always set products to the latest sorted retrieved list to guarantee zero delay and bypass any stale cache
         setProducts(sorted);
@@ -142,15 +150,16 @@ export default function App() {
              setSelectedProduct(ad);
            }
         }
-      } catch (err) {
-        console.error("Fast fetch failed:", err);
+      } catch (err: any) {
+        console.error("SanadSouq: Fast fetch failed with error:", err?.message || err);
+        console.error("SanadSouq Error details:", JSON.stringify(err));
       }
     };
     fetchInitialData();
 
     // 2. Attach real-time listener
     const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-      console.log('--- PRODUCT LOG: received items ---', snapshot.size);
+      console.log('SanadSouq: Real-time listener received snapshot of products: size', snapshot.size);
       let prods: Product[] = [];
       if (!snapshot.empty) {
         snapshot.forEach(doc => {
@@ -233,8 +242,9 @@ export default function App() {
            setSelectedProduct(prev => prev ? prev : ad);
          }
       }
-    }, (error) => {
-      console.error("Failed to sync products:", error);
+    }, (error: any) => {
+      console.error("SanadSouq: Failed to sync products via onSnapshot. Error message:", error?.message || error);
+      console.error("SanadSouq Error Code:", error?.code || 'unknown');
       // Auto-recovery retry
       setTimeout(fetchInitialData, 3000);
     });
@@ -247,7 +257,7 @@ export default function App() {
       });
       setSystemUsers(prev => prev.length > 0 ? prev : users);
       setUsersLoaded(true);
-    }).catch(e => console.error("Users fast fetch failed:", e));
+    }).catch((e: any) => console.error("SanadSouq: Users fast fetch failed with error:", e?.message || e));
 
     // Listen to users
     const unsubUsers = onSnapshot(collection(db, 'systemUsers'), (snapshot) => {
