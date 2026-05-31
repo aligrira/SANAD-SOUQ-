@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, setLogLevel } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, setLogLevel } from "firebase/firestore";
 import { getMessaging } from "firebase/messaging";
 import firebaseConfig from "../firebase-applet-config.json";
 
@@ -9,16 +9,17 @@ const config = firebaseConfig as any;
 
 let firestoreDb;
 try {
+  // Use a safer initialization that falls back gracefully without double-calling initializeFirestore
   firestoreDb = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: typeof window !== 'undefined' ? persistentLocalCache({ tabManager: persistentMultipleTabManager() }) : memoryLocalCache()
   }, config.firestoreDatabaseId || undefined);
 } catch (e) {
-  console.warn("Firestore persistent offline cache is not supported or was blocked. Falling back to default in-memory behavior.", e);
-  firestoreDb = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-    localCache: memoryLocalCache()
-  }, config.firestoreDatabaseId || undefined);
+  console.warn("Firestore initialization with persistence failed/blocked. Using default memory cache.", e);
+  try {
+    firestoreDb = getFirestore(app, config.firestoreDatabaseId || undefined);
+  } catch (err) {
+    console.error("Critical Firestore failure:", err);
+  }
 }
 
 let messagingInstance: any = null;
