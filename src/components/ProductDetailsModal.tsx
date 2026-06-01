@@ -348,7 +348,7 @@ export default function ProductDetailsModal({
     }
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!commentText.trim() && !commentImage) return;
     
     // Dynamic naming and badge identity determination
@@ -362,6 +362,25 @@ export default function ProductDetailsModal({
       userRole = currentUserPlan || 'free';
     }
 
+    let uploadedImage = commentImage;
+    if (commentImage && commentImage.startsWith('data:image')) {
+      try {
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: commentImage })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.secure_url) {
+            uploadedImage = data.secure_url;
+          }
+        }
+      } catch (err) {
+        console.error("Comment photo upload failed, using fallback:", err);
+      }
+    }
+
     const newComment = { 
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9), 
       userId: currentUserPhone || 'me', 
@@ -369,7 +388,7 @@ export default function ProductDetailsModal({
       userRole: userRole,
       avatar: currentUser?.avatar || '',
       text: commentText, 
-      image: commentImage, // Base64 compressed, watermarked comment photo
+      image: uploadedImage, // Cloudinary secure URL or fallback Base64
       createdAt: 'الآن' 
     };
 

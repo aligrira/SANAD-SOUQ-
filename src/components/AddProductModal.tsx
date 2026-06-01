@@ -210,34 +210,75 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
       }
   };
 
-  const executeSubmit = () => {
+  const executeSubmit = async () => {
       const parsedPrice = Number(price);
       if (!title || !price || isNaN(parsedPrice) || parsedPrice <= 0) return;
       setIsSubmitting(true);
-      setTimeout(() => {
-          setIsSubmitting(false);
-          const productData = {
-              ...initialProduct,
-              id: initialProduct?.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9)),
-              title,
-              price: Number(price),
-              category,
-              location,
-              description,
-              imageUrls: images.length > 0 ? images : ['https://via.placeholder.com/400'],
-              sellerId: phone || initialProduct?.sellerId || currentUserPhone || 'guest',
-              sellerName: initialProduct?.sellerName || currentUser?.name || (currentUserPhone ? `User ${currentUserPhone}` : 'مستخدم'),
-              sellerAvatar: initialProduct?.sellerAvatar || currentUser?.avatar || undefined,
-              createdAt: initialProduct?.createdAt || new Date().toISOString(),
-              status: 'active'
-          };
-          if (initialProduct && onEdit) {
-              onEdit(productData);
+      
+      try {
+        const uploadedUrls: string[] = [];
+        
+        for (const img of images) {
+          if (img.startsWith('http://') || img.startsWith('https://') || img.startsWith('/uploads/')) {
+            uploadedUrls.push(img);
+          } else if (img.startsWith('data:image')) {
+            // Upload base64 image securely to our full-stack endpoint
+            try {
+              const res = await fetch('/api/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: img })
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.secure_url) {
+                  uploadedUrls.push(data.secure_url);
+                } else {
+                  uploadedUrls.push(img);
+                }
+              } else {
+                console.error("Failed to upload image during submission, falling back to Base64:", await res.text());
+                uploadedUrls.push(img);
+              }
+            } catch (err) {
+              console.error("Error calling upload API, falling back to Base64:", err);
+              uploadedUrls.push(img);
+            }
           } else {
-              onAdd(productData);
+            uploadedUrls.push(img);
           }
-          onClose();
-      }, 1500);
+        }
+
+        const productData = {
+            ...initialProduct,
+            id: initialProduct?.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9)),
+            title,
+            price: Number(price),
+            category,
+            location,
+            description,
+            imageUrls: uploadedUrls.length > 0 ? uploadedUrls : ['/icon-512.png'],
+            sellerId: phone || initialProduct?.sellerId || currentUserPhone || 'guest',
+            sellerName: initialProduct?.sellerName || currentUser?.name || (currentUserPhone ? `User ${currentUserPhone}` : 'مستخدم'),
+            sellerAvatar: initialProduct?.sellerAvatar || currentUser?.avatar || undefined,
+            createdAt: initialProduct?.createdAt || new Date().toISOString(),
+            status: 'active'
+        };
+
+        if (initialProduct && onEdit) {
+            onEdit(productData);
+        } else {
+            onAdd(productData);
+        }
+        onClose();
+      } catch (e) {
+        console.error("Error inside Product Submission:", e);
+        if (showToast) {
+          showToast('حدث خطأ غير متوقع أثناء حفظ الإعلان، يرجى المحاولة مرة أخرى.', 'error');
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
   };
 
   return (

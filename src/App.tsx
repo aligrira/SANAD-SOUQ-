@@ -1906,7 +1906,25 @@ export default function App() {
                onSaveProfile={async (name, avatar) => {
                    if (!currentUserPhone) return;
                    try {
-                     await setDoc(doc(db, 'systemUsers', currentUserPhone), { name, avatar }, { merge: true });
+                     let uploadedAvatar = avatar;
+                     if (avatar && avatar.startsWith('data:image')) {
+                       try {
+                         const res = await fetch('/api/upload', {
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json' },
+                           body: JSON.stringify({ image: avatar })
+                         });
+                         if (res.ok) {
+                           const data = await res.json();
+                           if (data.secure_url) {
+                             uploadedAvatar = data.secure_url;
+                           }
+                         }
+                       } catch (err) {
+                         console.error("Avatar upload failed, using fallback:", err);
+                       }
+                     }
+                     await setDoc(doc(db, 'systemUsers', currentUserPhone), { name, avatar: uploadedAvatar }, { merge: true });
                      showToast('تم حفظ الملف الشخصي بنجاح', 'success');
                    } catch (e) {
                      console.error('Error saving profile', e);
