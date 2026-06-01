@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, setLogLevel } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, setLogLevel, getDocFromServer, doc } from "firebase/firestore";
 import { getMessaging } from "firebase/messaging";
 import firebaseConfigJson from "../firebase-applet-config.json";
 
@@ -121,7 +121,57 @@ try {
   console.warn("Firebase Messaging is not supported or blocked in this environment.", e);
 }
 
-export const db = firestoreDb;
+// Live-binding export to support runtime database ID fallback
+export let db = firestoreDb;
 export const messaging = messagingInstance;
 export { app };
+
+// Test connection on boot and fall back to (default) database if the named database is not creation/accessible
+const testFirebaseConnection = async () => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    // Attempt a secure test read from primary DB to check existence and readiness
+    await getDocFromServer(doc(firestoreDb, 'test', 'connection'));
+    console.log("SanadSouq: Successfully connected to primary named database!");
+    if ((window as any).__sanadDiagnostics) {
+      (window as any).__sanadDiagnostics.connectionStatus = "Connected to Primary Database";
+    }
+  } catch (error: any) {
+    const errorMsg = error?.message || String(error);
+    console.warn("SanadSouq: Primary Firestore connection check failed:", errorMsg);
+    
+    // Check if the error indicates database-not-found, invalid database ID, location or private restrictions
+    const isDbNotFound = errorMsg.includes("not found") || 
+                         errorMsg.includes("database") || 
+                         errorMsg.includes("exist") || 
+                         errorMsg.includes("invalid-argument") ||
+                         errorMsg.includes("invalid") ||
+                         errorMsg.includes("location") ||
+                         errorMsg.includes("permission");
+                         
+    if (isDbNotFound) {
+      console.warn("SanadSouq: Primary database not found/accessible. Falling back to (default) database.");
+      try {
+        const fallbackDb = getFirestore(app);
+        db = fallbackDb; // Update live binding!
+        
+        if ((window as any).__sanadDiagnostics) {
+          (window as any).__sanadDiagnostics.connectionStatus = "Connected (Default Fallback)";
+          (window as any).__sanadDiagnostics.firestoreError = `Fell back to default DB due to: ${errorMsg}`;
+        }
+        console.log("SanadSouq: Successfully switched to fallback '(default)' database!");
+      } catch (fallbackErr: any) {
+        console.error("SanadSouq: Fallback database initialization failed:", fallbackErr);
+      }
+    } else {
+      if ((window as any).__sanadDiagnostics) {
+        (window as any).__sanadDiagnostics.firestoreError = errorMsg;
+      }
+    }
+  }
+};
+
+// Execute test and fallback sequence immediately
+testFirebaseConnection();
 

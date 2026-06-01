@@ -146,8 +146,19 @@ export default function App() {
           prods.push({ id: doc.id, ...doc.data() } as Product);
         });
         
-        if (prods.length === 0) {
-           console.log("SanadSouq API Warning: products collection is exactly 0 length! Is the database empty or is it reading the wrong database/projectId?");
+        // Automatically delete and filter any fake/seeded ads from the database for absolute credibility
+        const fakeIds = ["1", "2", "3", "4", "5", "6"];
+        const hasFakeInDb = prods.some(p => fakeIds.includes(p.id) || p.sellerId === "admin");
+        if (hasFakeInDb) {
+          console.log("SanadSouq: Fake ads detected in database. Cleaning up for credibility...");
+          for (const fid of fakeIds) {
+            try {
+              await deleteDoc(doc(db, 'products', fid));
+            } catch (delErr) {
+              console.error(`Failed to delete fake doc ${fid}:`, delErr);
+            }
+          }
+          prods = prods.filter(p => !fakeIds.includes(p.id) && p.sellerId !== "admin");
         }
 
         const sorted = prods.sort((a, b) => {
@@ -201,6 +212,10 @@ export default function App() {
           prods.push({ id: doc.id, ...data } as Product);
         });
       }
+      
+      const fakeIds = ["1", "2", "3", "4", "5", "6"];
+      prods = prods.filter(p => !fakeIds.includes(p.id) && p.sellerId !== "admin");
+
       const sorted = prods.sort((a, b) => {
           const tA = new Date(a.createdAt).getTime();
           const tB = new Date(b.createdAt).getTime();
