@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { safeStorage } from '../lib/safeStorage';
-import { doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, deleteDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../firebase';
 import { playSubscriptionClapSound } from '../lib/audioEffects';
 import { 
@@ -12,6 +12,7 @@ import {
   Award, Calendar, ExternalLink, ArrowDownLeft, FileText, 
   BadgeCheck, Clock, Shield, Star, Crown, ChevronRight, Check
 } from 'lucide-react';
+import { updateUserSubscription, activateSubscription } from '../lib/subscription';
 
 interface AdminPanelProps {
   key?: React.Key;
@@ -153,9 +154,9 @@ export default function AdminPanel({
       if (notificationsCount > 0) setNotificationsCount(prev => Math.max(0, prev - 1));
       
       if (existingUser) {
-          setSystemUsers(prev => prev.map(u => (u.id === existingUser.id || u.phone === phoneStr) ? { ...u, plan: req.plan } : u));
+          setSystemUsers(prev => prev.map(u => (u.id === existingUser.id || u.phone === phoneStr) ? { ...u, subscription: req.plan } : u));
       } else {
-          setSystemUsers(prev => [...prev, { id: phoneStr, name: req.user || `مستخدم ${phoneStr}`, phone: phoneStr, plan: req.plan }]);
+          setSystemUsers(prev => [...prev, { id: phoneStr, name: req.user || `مستخدم ${phoneStr}`, phone: phoneStr, subscription: req.plan }]);
       }
 
       if (onAddUserNotification) {
@@ -172,10 +173,18 @@ export default function AdminPanel({
       // Now run the DB operations in background
       try {
           const targetUserId = existingUser?.id || phoneStr;
+          const subscriptionType = req.plan === 'vip' ? 'vip' : 'bronze';
+          
           if (existingUser) {
-              await setDoc(doc(db, 'systemUsers', targetUserId), { plan: req.plan }, { merge: true });
+              await activateSubscription(targetUserId, subscriptionType, 30);
           } else {
-              await setDoc(doc(db, 'systemUsers', targetUserId), { name: req.user || `مستخدم ${phoneStr}`, phone: phoneStr, plan: req.plan });
+              await setDoc(doc(db, 'systemUsers', targetUserId), { 
+                  name: req.user || `مستخدم ${phoneStr}`, 
+                  phone: phoneStr, 
+                  subscription: subscriptionType,
+                  subscriptionStartDate: new Date().toISOString(),
+                  subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+              });
           }
 
           if (reqIdStr) {
@@ -185,8 +194,8 @@ export default function AdminPanel({
           // Auto-upgrade user's existing products
           const userProducts = products.filter(p => p.sellerId === targetUserId || p.phone === targetUserId || p.sellerId === phoneStr);
           for (const p of userProducts) {
-              if (p.plan !== req.plan) {
-                  await updateDoc(doc(db, 'products', p.id), { plan: req.plan }).catch(e => console.error("Failed to update product plan", e));
+              if (p.subscription !== subscriptionType) {
+                  await updateDoc(doc(db, 'products', p.id), { subscription: subscriptionType }).catch(e => console.error("Failed to update product subscription", e));
               }
           }
 
@@ -198,12 +207,16 @@ export default function AdminPanel({
   };
 
   // Dynamic calculations for luxury dashboard stats
-  const vipCount = systemUsers.filter(u => u.plan === 'vip').length;
-  const bronzeCount = systemUsers.filter(u => u.plan === 'bronze').length;
+  const vipCount = systemUsers.filter(u => u.subscription === 'vip').length;
+  const bronzeCount = systemUsers.filter(u => u.subscription === 'bronze').length;
   
-  // Ad count per user
+  // Ad count per user - Ensure sellerId in products matches user id in systemUsers
   const adCounts = products.reduce((acc: Record<string, number>, p: any) => {
-    acc[p.sellerId] = (acc[p.sellerId] || 0) + 1;
+    // Some products might have sellerId as phone, some as ID. Try to match both.
+    const sellerId = p.sellerId ? String(p.sellerId) : (p.phone ? String(p.phone) : null);
+    if (sellerId) {
+        acc[sellerId] = (acc[sellerId] || 0) + 1;
+    }
     return acc;
   }, {});
   
@@ -379,33 +392,77 @@ export default function AdminPanel({
                         >
                             <h3 className="text-white font-bold text-2xl font-display">قائمة المشتركين ومتابعة الاشتراكات</h3>
                             <div className="bg-[#050505] border border-gray-900 rounded-3xl p-6">
-                                <div className="grid grid-cols-6 gap-4 text-xs text-gray-500 font-bold mb-4 px-4 pb-2 border-b border-gray-900">
-                                    <div className="col-2">اسم المشترك</div>
+                                <div className="grid grid-cols-10 gap-2 text-[10px] text-gray-500 font-bold mb-4 px-4 pb-2 border-b border-gray-900">
+                                    <div>الاسم</div>
+                                    <div>الهاتف</div>
                                     <div>الاعلانات</div>
-                                    <div>العضوية</div>
+                                    <div>نوع الباقة</div>
+                                    <div>الباقة</div>
                                     <div>البداية</div>
                                     <div>الانتهاء</div>
-                                    <div>تنبيه</div>
+                                    <div>المتبقي</div>
+                                    <div>الحالة</div>
+                                    <div>إجراء</div>
                                 </div>
                                 <div className="space-y-2">
-                                  {systemUsers.map((user) => (
-                                     <div key={user.id} className="grid grid-cols-6 gap-4 items-center bg-[#070707] hover:bg-[#0a0a0a] rounded-2xl p-4 border border-gray-900 shadow-sm transition">
-                                        <div className="col-span-2 text-white text-xs font-bold">{user.name}</div>
-                                        <div className="text-white text-xs">{adCounts[user.id] || 0} إعلان</div>
-                                        <div className={`text-[10px] font-black px-2 py-1 rounded-full w-fit ${user.plan === 'vip' ? 'bg-[#D4AF37]/15 text-[#D4AF37]' : 'bg-amber-500/15 text-amber-500'}`}>
-                                            {user.plan === 'vip' ? 'VIP الذهبي' : 'برونزي'}
-                                        </div>
-                                        <div className="text-gray-400 text-xs">{user.subscriptionStartDate || '---'}</div>
-                                        <div className="text-gray-400 text-xs">{user.subscriptionEndDate || '---'}</div>
-                                        <div>
-                                            <button 
-                                              onClick={() => showToast && user.phone ? onAddUserNotification?.(user.phone, 'تنبيه: اشتراكك سينتهي قريباً!') : null}
-                                              className="text-xs bg-[#D4AF37]/10 text-[#D4AF37] px-3 py-1.5 rounded-xl hover:bg-[#D4AF37]/20 font-bold">
-                                               إرسال تنبيه
-                                            </button>
-                                        </div>
-                                     </div>
-                                  ))}
+                                  {systemUsers.map((user) => {
+                                      const now = new Date();
+                                      const endDate = user.subscriptionEndDate ? new Date(user.subscriptionEndDate) : null;
+                                      const daysRemaining = endDate ? Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                                      const isExpired = endDate ? now > endDate : false;
+                                      const status = user.subscription === 'free' || !user.subscription ? 'مجاني' : (isExpired ? 'منتهي' : 'نشط');
+                                      const statusColor = status === 'نشط' ? 'text-[#10B981]' : status === 'منتهي' ? 'text-red-500' : 'text-gray-500';
+
+                                      return (
+                                       <div key={user.id} className="grid grid-cols-10 gap-2 items-center bg-[#070707] hover:bg-[#0a0a0a] rounded-2xl p-4 border border-gray-900 shadow-sm transition">
+                                          <div className="text-white text-[10px] font-bold truncate">{user.name}</div>
+                                          <div className="text-gray-400 text-[10px] truncate">{user.phone}</div>
+                                          <div className="text-white text-[10px]">{adCounts[String(user.id)] || adCounts[String(user.phone)] || 0}</div>
+                                          <div className="text-gray-400 text-[10px] truncate">{user.subscription === 'vip' ? 'VIP ذهبي' : user.subscription === 'bronze' ? 'برونزي' : 'مجاني'}</div>
+                                          <div className="flex gap-1">
+                                            <select 
+                                              value={user.subscription || 'free'}
+                                              onChange={async (e) => {
+                                                  const newSub = e.target.value as 'free' | 'bronze' | 'vip';
+                                                  
+                                                  if (newSub === 'free') {
+                                                      await updateUserSubscription(user.id, { 
+                                                          subscription: 'free', 
+                                                          subscriptionStartDate: null,
+                                                          subscriptionEndDate: null
+                                                      });
+                                                      setSystemUsers(prev => prev.map(u => u.id === user.id ? {...u, subscription: 'free', subscriptionStartDate: null, subscriptionEndDate: null} : u));
+                                                  } else {
+                                                      await activateSubscription(user.id, newSub, 30);
+                                                      const now = new Date();
+                                                      const startDate = now.toISOString();
+                                                      const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                                                      
+                                                      setSystemUsers(prev => prev.map(u => u.id === user.id ? {...u, subscription: newSub, subscriptionStartDate: startDate, subscriptionEndDate: endDate} : u));
+                                                  }
+                                                  if (showToast) showToast('تم تحديث الاشتراك', 'success');
+                                              }}
+                                              className="bg-[#0f0f0f] border border-gray-800 rounded-lg text-[10px] p-1 text-white w-full"
+                                            >
+                                                <option value="free">مجاني</option>
+                                                <option value="bronze">برونزي</option>
+                                                <option value="vip">VIP الذهبي</option>
+                                            </select>
+                                          </div>
+                                          <div className="text-gray-400 text-[10px]">{user.subscriptionStartDate ? new Date(user.subscriptionStartDate).toLocaleDateString('tn-TN') : '---'}</div>
+                                          <div className="text-gray-400 text-[10px]">{user.subscriptionEndDate ? new Date(user.subscriptionEndDate).toLocaleDateString('tn-TN') : '---'}</div>
+                                          <div className={`text-[10px] font-bold ${daysRemaining > 0 ? 'text-white' : 'text-gray-600'}`}>{daysRemaining > 0 ? `${daysRemaining} يوم` : '---'}</div>
+                                          <div className={`text-[10px] font-bold ${statusColor}`}>{status}</div>
+                                          <div>
+                                              <button 
+                                                onClick={() => showToast && user.phone ? onAddUserNotification?.(user.phone, 'تنبيه: اشتراكك سينتهي قريباً!') : null}
+                                                className="text-[10px] bg-[#D4AF37]/10 text-[#D4AF37] px-2 py-1 rounded-lg hover:bg-[#D4AF37]/20 font-bold w-full">
+                                                 تنبيه
+                                              </button>
+                                          </div>
+                                       </div>
+                                      );
+                                  })}
                                 </div>
                             </div>
                         </motion.div>

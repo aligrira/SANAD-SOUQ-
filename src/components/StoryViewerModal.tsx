@@ -254,7 +254,7 @@ export default function StoryViewerModal({ stories, initialStoryId, onClose, onA
               <img 
                 src={storyImages[imageIndex]}
                 alt={currentStory.title || 'Ad Image'}
-                className="w-full h-full object-cover select-none pointer-events-none"
+                className="w-full h-full object-contain bg-black select-none pointer-events-none"
                 referrerPolicy="no-referrer"
               />
               <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/80 via-black/30 to-transparent z-10 pointer-events-none" />

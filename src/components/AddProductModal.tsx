@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Image as ImageIcon, MapPin, Tag, DollarSign, Loader2, Phone, Sparkles, Wand2 } from 'lucide-react';
+import { CATEGORIES_DATA, getSubcategoriesForMain } from '../categoriesData';
 
 const REGIONS = [
   'أريانة', 'باجة', 'بن عروس', 'بنزرت', 'تطاوين', 'توزر', 'تونس', 'جندوبة', 'زغوان', 'سليانة', 
@@ -9,23 +10,7 @@ const REGIONS = [
 ];
 
 export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPhone, currentUser, initialProduct, showToast }: { key?: React.Key, onClose: () => void, onAdd: (p: any) => void, onEdit?: (p: any) => void, currentUserPhone?: string | null, currentUser?: any, initialProduct?: any, showToast?: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void }) {
-  const CATEGORIES = [
-    'ملابس رجال',
-    'ملابس نساء',
-    'ملابس اطفال',
-    'ماكياج و اكسسوارات',
-    'عطورات',
-    'عقارات',
-    'سيارات و دراجات',
-    'إلكترونيات',
-    'أثاث',
-    'أدوات منزلية',
-    'حيوانات',
-    'تحف و هدايا',
-    'اخرى'
-  ];
-
-  const [images, setImages] = useState<string[]>(initialProduct?.imageUrls || []);
+  const [images, setImages] = useState<string[]>(initialProduct?.imageUrls || initialProduct?.images || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmEdit, setShowConfirmEdit] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -33,7 +18,12 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
   const [title, setTitle] = useState(initialProduct?.title || '');
   const [price, setPrice] = useState(initialProduct?.price || '');
   const [phone, setPhone] = useState(initialProduct?.sellerId || currentUserPhone || '');
-  const [category, setCategory] = useState(initialProduct?.category || CATEGORIES[0]);
+  
+  const [mainCategory, setMainCategory] = useState<string>(() => {
+    return initialProduct?.mainCategory || initialProduct?.category || '';
+  });
+  const [subCategory, setSubCategory] = useState<string>(initialProduct?.subCategory || '');
+
   const [location, setLocation] = useState(initialProduct?.location || REGIONS[0]);
   const [description, setDescription] = useState(initialProduct?.description || '');
   const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
@@ -50,9 +40,9 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
     setIsGeneratingDesc(true);
     setTimeout(() => {
         const templates = [
-            `فرصة لا تعوض! نوفر لكم اليوم "${title}" من فئة ${category} المتواجد في ${location} بسعر ممتاز جداً (${price || 'حسب الاتفاق'} د.ت). \n\nالمواصفات:\n- حالة ممتازة وجودة عالية.\n- تسليم فوري ومعاينة متاحة.\n\nلا تضيع هذه الفرصة الذهبية، تواصل معي للمزيد من التفاصيل!`,
-            `لمحبي التميز، أعرض عليكم "${title}". مصنف ضمن ${category} وموجود حالياً في ${location}.\n\nمميزات العرض:\n- جودة لا تضاهى\n- سعر منافس (${price ? price + ' د.ت' : 'قابل للنقاش'})\n- جاهز للتسليم\n\nاضغط على رقم الهاتف للتواصل المباشر.`,
-            `للبيع: "${title}" استثنائي في منطقة ${location}.\nمثالي للباحثين عن أفضل العروض في ${category}.\n\n- السعر: ${price ? price + ' دينار تونسي' : 'اتصل لمعرفة السعر'}\n- الحالة: ممتازة\n- التوفر: فوري\n\nتواصل معي الآن للحصول على هذه الصفقة المميزة.`
+            `فرصة لا تعوض! نوفر لكم اليوم "${title}" من فئة ${mainCategory || 'المنتجات'} الفريدة المتواجد في ${location} بسعر ممتاز جداً (${price || 'حسب الاتفاق'} د.ت). \n\nالمواصفات:\n- حالة ممتازة وجودة عالية.\n- تسليم فوري ومعاينة متاحة.\n\nلا تضيع هذه الفرصة الذهبية، تواصل معي للمزيد من التفاصيل!`,
+            `لمحبي التميز، أعرض عليكم "${title}". مصنف ضمن ${mainCategory || 'المعروضات'} وموجود حالياً في ${location}.\n\nمميزات العرض:\n- جودة لا تضاهى\n- سعر منافس (${price ? price + ' د.ت' : 'قابل للنقاش'})\n- جاهز للتسليم\n\nاضغط على رقم الهاتف للتواصل المباشر.`,
+            `للبيع: "${title}" استثنائي في منطقة ${location}.\nمثالي للباحثين عن أفضل العروض في ${mainCategory || 'الفئات'}.\n\n- السعر: ${price ? price + ' دينار تونسي' : 'اتصل لمعرفة السعر'}\n- الحالة: ممتازة\n- التوفر: فوري\n\nتواصل معي الآن للحصول على هذه الصفقة المميزة.`
         ];
         const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
         setDescription(randomTemplate);
@@ -198,6 +188,18 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
     }
   };
 
+  const moveImage = (index: number, direction: -1 | 1) => {
+    setImages(prev => {
+      const newIndex = index + direction;
+      if (newIndex < 0 || newIndex >= prev.length) return prev;
+      const newArr = [...prev];
+      const temp = newArr[index];
+      newArr[index] = newArr[newIndex];
+      newArr[newIndex] = temp;
+      return newArr;
+    });
+  };
+
   const removeImage = (index: number) => {
       setImages(prev => prev.filter((_, i) => i !== index));
   };
@@ -212,7 +214,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
 
   const executeSubmit = async () => {
       const parsedPrice = Number(price);
-      if (!title || !price || isNaN(parsedPrice) || parsedPrice <= 0) return;
+      if (!title || !price || isNaN(parsedPrice) || parsedPrice <= 0 || !mainCategory || !subCategory) return;
       setIsSubmitting(true);
       
       try {
@@ -249,14 +251,21 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
           }
         }
 
+        const adPlan = initialProduct?.plan || initialProduct?.subscriptionLevel || currentUser?.plan || 'free';
+
         const productData = {
             ...initialProduct,
             id: initialProduct?.id || (Date.now().toString() + Math.random().toString(36).substr(2, 9)),
             title,
             price: Number(price),
-            category,
+            mainCategory,
+            subCategory,
+            category: subCategory || mainCategory, // Backwards-compatible
+            subscriptionLevel: adPlan,
+            plan: adPlan,
             location,
             description,
+            images: uploadedUrls.length > 0 ? uploadedUrls : ['/icon-512.png'],
             imageUrls: uploadedUrls.length > 0 ? uploadedUrls : ['/icon-512.png'],
             sellerId: phone || initialProduct?.sellerId || currentUserPhone || 'guest',
             sellerName: initialProduct?.sellerName || currentUser?.name || (currentUserPhone ? `User ${currentUserPhone}` : 'مستخدم'),
@@ -323,8 +332,8 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
 
               <div className="flex gap-3 overflow-x-auto w-full pb-2 px-2 snap-x snap-mandatory no-scrollbar" dir="rtl">
                 {images.map((img, idx) => (
-                  <div key={idx} className="relative shrink-0 snap-center aspect-[9/16] w-[120px] rounded-2xl overflow-hidden border border-gray-800 group">
-                     <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                  <div key={idx} className="relative shrink-0 snap-center aspect-[9/16] w-[120px] rounded-2xl overflow-hidden border border-gray-800 bg-black group">
+                     <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-contain" />
                      <button 
                        type="button"
                        onClick={(e) => { e.stopPropagation(); removeImage(idx); }} 
@@ -332,6 +341,15 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                      >
                         <X className="w-3.5 h-3.5 text-white" />
                      </button>
+                     {/* Move controls wrapper */}
+                     <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 bg-black/60 backdrop-blur px-2 py-1 rounded-full z-10 opacity-75 group-hover:opacity-100 transition-opacity">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); moveImage(idx, 1); }} disabled={idx === images.length - 1} className="p-0.5 rounded-full hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent">
+                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="m15 18-6-6 6-6"/></svg>
+                        </button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); moveImage(idx, -1); }} disabled={idx === 0} className="p-0.5 rounded-full hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent">
+                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="m9 18 6-6-6-6"/></svg>
+                        </button>
+                     </div>
                   </div>
                 ))}
 
@@ -362,7 +380,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
             </div>
             
             <div className="grid grid-cols-2 gap-4">
-                <div className="relative">
+                <div className="relative col-span-2 sm:col-span-1">
                    <label className="block text-xs font-extrabold text-gray-400 mb-1.5">السعر (د.ت)</label>
                    <div className="relative">
                       <input 
@@ -382,25 +400,69 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                       )}
                    </div>
                 </div>
-                <div className="relative">
-                   <label className="block text-xs font-extrabold text-gray-400 mb-1.5">القسم</label>
+                <div className="relative col-span-2 sm:col-span-1">
+                   <label className="block text-xs font-extrabold text-gray-400 mb-1.5">الموقع (الولاية)</label>
                    <div className="relative">
-                      <select value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none appearance-none transition-colors">
-                          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                      <Tag className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                       <select value={location} onChange={e => setLocation(e.target.value)} className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none appearance-none transition-colors">
+                           {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                       </select>
+                       <MapPin className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                    </div>
                 </div>
             </div>
 
+            {/* Step 1: Main Category Selection */}
             <div className="relative">
-               <label className="block text-xs font-extrabold text-gray-400 mb-1.5">الموقع (الولاية)</label>
+               <label className="block text-xs font-extrabold text-gray-400 mb-1.5 flex items-center justify-between">
+                  <span>القسم الرئيسي (الخطوة 1)</span>
+                  {mainCategory ? (
+                    <span className="text-emerald-400 font-bold text-[10px]">✓ {mainCategory}</span>
+                  ) : (
+                    <span className="text-amber-400 font-bold text-[10px]">⚠️ مطلوب تحديد القسم الرئيسي</span>
+                  )}
+               </label>
                <div className="relative">
-                   <select value={location} onChange={e => setLocation(e.target.value)} className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none appearance-none transition-colors">
-                       {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                   </select>
-                   <MapPin className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <select 
+                     value={mainCategory} 
+                     onChange={e => {
+                        setMainCategory(e.target.value);
+                        setSubCategory(''); // Reset subcategory when main changes
+                     }} 
+                     className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none appearance-none transition-colors"
+                  >
+                      <option value="">-- اختر القسم الرئيسي --</option>
+                      {CATEGORIES_DATA.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                  <Tag className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                </div>
+               {!mainCategory && <p className="text-amber-500/80 text-[10px] mt-1 font-bold">⚠️ يرجى البدء باختيار القسم الرئيسي أولاً لفتح الأقسام الفرعية التابعة له.</p>}
+            </div>
+
+            {/* Step 2: Subcategory Selection */}
+            <div className="relative">
+               <label className="block text-xs font-extrabold text-gray-400 mb-1.5 flex items-center justify-between">
+                  <span>القسم الفرعي (الخطوة 2)</span>
+                  {subCategory ? (
+                    <span className="text-emerald-400 font-bold text-[10px]">✓ {subCategory}</span>
+                  ) : (
+                    <span className="text-amber-400 font-bold text-[10px]">⚠️ مطلوب تحديد القسم الفرعي</span>
+                  )}
+               </label>
+               <div className="relative">
+                  <select 
+                     value={subCategory} 
+                     onChange={e => setSubCategory(e.target.value)} 
+                     disabled={!mainCategory}
+                     className="w-full bg-[#020806] border border-gray-900 focus:border-[#D4AF37] text-sm text-white rounded-2xl py-3 pr-10 pl-4 outline-none appearance-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                      <option value="">-- اختر القسم الفرعي --</option>
+                      {mainCategory && getSubcategoriesForMain(mainCategory).map((sub) => (
+                          <option key={sub} value={sub}>{sub}</option>
+                      ))}
+                  </select>
+                  <Tag className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+               </div>
+               {mainCategory && !subCategory && <p className="text-amber-500/80 text-[10px] mt-1 font-bold">⚠️ يجب اختيار الفرع المناسب لإكمال عملية النشر.</p>}
             </div>
 
             <div className="relative">

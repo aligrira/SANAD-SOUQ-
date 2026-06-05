@@ -16,12 +16,14 @@ const ListingSkeleton: React.FC<{ viewMode?: 'grid' | 'list' }> = ({ viewMode = 
   }
 
   return (
-    <div className="bg-[#121212] border border-gray-800/50 rounded-2xl overflow-hidden relative">
+    <div className="bg-[#121212] border border-gray-800/50 rounded-2xl overflow-hidden relative h-full flex flex-col min-h-0 min-w-0">
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_2s_infinite] z-10 pointer-events-none" />
-      <div className="relative aspect-[4/5] bg-gray-900" />
-      <div className="p-4 space-y-3">
-        <div className="h-4 bg-gray-900 rounded w-3/4" />
-        <div className="h-3 bg-gray-900 rounded w-1/2" />
+      <div className="relative w-full aspect-[9/16] bg-gray-900" />
+      <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+        <div>
+          <div className="h-4 bg-gray-900 rounded w-3/4 mb-2" />
+          <div className="h-3 bg-gray-900 rounded w-1/2" />
+        </div>
         <div className="flex justify-between items-center pt-2">
            <div className="h-5 bg-gray-900 rounded w-1/3" />
            <div className="h-6 w-6 bg-gray-900 rounded-full" />

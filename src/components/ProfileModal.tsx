@@ -104,12 +104,12 @@ export default function ProfileModal({
     }
   };
 
-  const planName = currentUserPlan === 'vip' ? 'عضوية ذهبية VIP' : currentUserPlan === 'bronze' ? 'عضوية برونزية' : 'عضوية مجانية';
+  const planName = currentUser?.subscription === 'vip' ? 'عضوية ذهبية VIP' : currentUser?.subscription === 'bronze' ? 'عضوية برونزية' : 'عضوية مجانية';
 
   // Define colors based on plan
-  const planColor = currentUserPlan === 'vip' ? 'from-[#D4AF37] via-[#FFD700] to-[#F3E5AB]' : currentUserPlan === 'bronze' ? 'from-[#CD7F32] via-[#B87333] to-[#A0522D]' : 'from-gray-700 via-gray-600 to-gray-800';
-  const planGlow = currentUserPlan === 'vip' ? 'shadow-[0_0_20px_rgba(212,175,55,0.4)]' : currentUserPlan === 'bronze' ? 'shadow-[0_0_20px_rgba(205,127,50,0.3)]' : 'shadow-none';
-  const crownColor = currentUserPlan === 'vip' ? 'text-[#D4AF37]' : currentUserPlan === 'bronze' ? 'text-[#CD7F32]' : 'text-gray-500';
+  const planColor = currentUser?.subscription === 'vip' ? 'from-[#D4AF37] via-[#FFD700] to-[#F3E5AB]' : currentUser?.subscription === 'bronze' ? 'from-[#CD7F32] via-[#B87333] to-[#A0522D]' : 'from-gray-700 via-gray-600 to-gray-800';
+  const planGlow = currentUser?.subscription === 'vip' ? 'shadow-[0_0_20px_rgba(212,175,55,0.4)]' : currentUser?.subscription === 'bronze' ? 'shadow-[0_0_20px_rgba(205,127,50,0.3)]' : 'shadow-none';
+  const crownColor = currentUser?.subscription === 'vip' ? 'text-[#D4AF37]' : currentUser?.subscription === 'bronze' ? 'text-[#CD7F32]' : 'text-gray-500';
 
   return (
     <motion.div
@@ -312,6 +312,40 @@ export default function ProfileModal({
                         </motion.div>
                     )}
 
+                    {/* Subscription Details Display */}
+                    <div className="bg-[#050505] rounded-[1.8rem] p-4 border border-[#D4AF37]/30 shadow-inner mt-2">
+                       <div className="flex items-center justify-between mb-2 px-1">
+                          <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">اشتراكي الحالي</span>
+                          <Crown className="w-3.5 h-3.5 text-[#D4AF37]" />
+                       </div>
+                       
+                       {currentUser?.subscription !== 'free' ? (
+                          <div className="space-y-2 text-right">
+                             <p className="text-[10px] text-gray-300">
+                                <span className="text-gray-500">الباقة:</span> 
+                                <span className="font-bold text-white mr-1">{currentUser?.subscription === 'vip' ? 'VIP الذهبي' : 'برونزي'}</span>
+                             </p>
+                             <p className="text-[10px] text-gray-300">
+                                <span className="text-gray-500">تاريخ التفعيل:</span> 
+                                <span className="font-bold text-white mr-1">{currentUser?.subscriptionStartDate || '---'}</span>
+                             </p>
+                             <p className="text-[10px] text-gray-300">
+                                <span className="text-gray-500">تاريخ الانتهاء:</span> 
+                                <span className="font-bold text-white mr-1">{currentUser?.subscriptionEndDate || '---'}</span>
+                             </p>
+                             {currentUser?.subscriptionEndDate && (
+                                <div className="mt-2 pt-2 border-t border-white/5">
+                                   <p className="text-[9px] text-[#10B981] font-black uppercase">
+                                     الأيام المتبقية: {Math.ceil((new Date(currentUser.subscriptionEndDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} يوم
+                                   </p>
+                                </div>
+                             )}
+                          </div>
+                       ) : (
+                          <p className="text-[10px] text-gray-500 text-center font-bold">أنت حالياً على الباقة المجانية</p>
+                       )}
+                    </div>
+                    
                     {/* Favorite Categories / FCM Push Notifications Dashboard */}
                     <div className="bg-[#050505] rounded-[1.8rem] p-4 border border-[#D4AF37]/30 shadow-inner mt-2">
                        <div className="flex items-center justify-between mb-2 px-1">

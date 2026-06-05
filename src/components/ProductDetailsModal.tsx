@@ -606,7 +606,7 @@ export default function ProductDetailsModal({
                       key={idx}
                       src={img} 
                       alt={product.title} 
-                      className="w-full h-full shrink-0 object-cover object-center select-none pointer-events-none block brightness-110 contrast-105 saturate-110 snap-center" 
+                      className="w-full h-full shrink-0 object-contain object-center select-none pointer-events-none block brightness-110 contrast-105 saturate-110 snap-center bg-black" 
                       referrerPolicy="no-referrer" 
                    />
                 ))}
@@ -794,10 +794,10 @@ export default function ProductDetailsModal({
                   </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-3 mt-1">
+              <div className="flex flex-col sm:flex-row gap-3 mt-1 w-full">
                  <a 
                     href={`tel:${product.sellerId}`} 
-                    className="flex items-center justify-center gap-2 bg-[#10B981]/10 hover:bg-[#10B981] text-[#10B981] hover:text-white border border-[#10B981]/20 px-4 py-3 rounded-2xl font-bold transition-all text-xs shadow-sm hover:scale-102 active:scale-98"
+                    className="flex-1 flex items-center justify-center gap-2 bg-[#10B981]/10 hover:bg-[#10B981] text-[#10B981] hover:text-white border border-[#10B981]/20 px-4 py-3.5 sm:py-3 rounded-2xl font-bold transition-all text-sm sm:text-xs shadow-sm hover:scale-102 active:scale-98 text-center"
                  >
                     <Phone className="w-4 h-4 shrink-0" />
                     <span>اتصال ({product.sellerId})</span>
@@ -810,7 +810,7 @@ export default function ProductDetailsModal({
                    }
                    target="_blank" 
                    rel="noreferrer noopener"
-                   className="flex items-center justify-center gap-2 bg-[#25D366]/10 hover:bg-[#25D366] text-[#25D366] hover:text-white border border-[#25D366]/20 px-4 py-3 rounded-2xl font-bold transition-all text-xs shadow-sm hover:scale-102 active:scale-98"
+                   className="flex-1 flex items-center justify-center gap-2 bg-[#25D366]/10 hover:bg-[#25D366] text-[#25D366] hover:text-white border border-[#25D366]/20 px-4 py-3.5 sm:py-3 rounded-2xl font-bold transition-all text-sm sm:text-xs shadow-sm hover:scale-102 active:scale-98 text-center"
                  >
                     <MessageCircle className="w-4 h-4 shrink-0" />
                     <span>واتساب مباشر</span>
