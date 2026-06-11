@@ -29,6 +29,8 @@ export default function Footer() {
             <div className="space-y-4 w-full max-w-sm mx-auto sm:mx-0">
               <a 
                 href="tel:92942482" 
+                target="_self"
+                rel="noopener noreferrer"
                 className="flex items-center justify-center sm:justify-start gap-4 bg-[#111] border border-gray-900 p-4 rounded-xl hover:border-[#D4AF37]/50 transition-colors group"
                 dir="ltr"
               >
@@ -55,6 +57,8 @@ export default function Footer() {
 
               <a 
                 href="mailto:sanadadvertise@gmail.com" 
+                target="_self"
+                rel="noopener noreferrer"
                 className="flex items-center justify-center sm:justify-start gap-4 bg-[#111] border border-gray-900 p-4 rounded-xl hover:border-gray-500 transition-colors group"
                 dir="ltr"
               >

@@ -50,7 +50,7 @@ import {
 } from "lucide-react";
 import { Product, Story } from "./types";
 import { safeStorage } from "./lib/safeStorage";
-import { cleanUndefined } from "./lib/utils";
+import { cleanUndefined, generateUUID } from "./lib/utils";
 import {
   collection,
   onSnapshot,
@@ -92,24 +92,15 @@ const ICON_COMPONENTS: Record<string, React.ComponentType<any>> = {
   ChevronDown,
 };
 
-// Lazy imports for heavy components to improve TTI
-const AdminPanel = React.lazy(() => import("./components/AdminPanel"));
-const ProfileModal = React.lazy(() => import("./components/ProfileModal"));
-const AddProductModal = React.lazy(
-  () => import("./components/AddProductModal"),
-);
-const ProductDetailsModal = React.lazy(
-  () => import("./components/ProductDetailsModal"),
-);
-const PricingPackages = React.lazy(
-  () => import("./components/PricingPackages"),
-);
-const StoryViewerModal = React.lazy(
-  () => import("./components/StoryViewerModal"),
-);
+import AdminPanel from "./components/AdminPanel";
+import ProfileModal from "./components/ProfileModal";
+import AddProductModal from "./components/AddProductModal";
+import ProductDetailsModal from "./components/ProductDetailsModal";
+import PricingPackages from "./components/PricingPackages";
+import StoryViewerModal from "./components/StoryViewerModal";
 
 import AuthModal from "./components/AuthModal";
-import WelcomeSplashModal from "./components/WelcomeSplashModal";
+
 import PublishingTransition from "./components/PublishingTransition";
 import Sidebar from "./components/Sidebar";
 import PaymentModal from "./components/PaymentModal";
@@ -395,7 +386,7 @@ export default function App() {
     );
 
     return () => unsubProducts();
-  }, [selectedCategory, selectedSubCategory]);
+  }, []);
 
   useEffect(() => {
     // Listen to users with cache fallbacks
@@ -474,10 +465,7 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-  const [showWelcomeSplash, setShowWelcomeSplash] = useState(() => {
-    // Show welcome message only after a new login/signup
-    return false;
-  });
+
   const [loggedUserObj, setLoggedUserObj] = useState<any>(() => {
     try {
       const saved = safeStorage.getItem("sanad_current_user_obj");
@@ -563,7 +551,8 @@ export default function App() {
   }, []);
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [isSplashActive, setIsSplashActive] = useState(true);
+  const [isSplashActive, setIsSplashActive] = useState(false);
+  const [showSocialMenu, setShowSocialMenu] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -607,6 +596,9 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [broadcastQueue, setBroadcastQueue] = useState<BroadcastMessage[]>([]);
+  const [activeVipBroadcasts, setActiveVipBroadcasts] = useState<BroadcastMessage[]>([]);
+  const processedBroadcastIds = useRef<Set<string>>(new Set());
+  const sessionStartTime = useRef(Date.now());
   const [dismissedBroadcastIds, setDismissedBroadcastIds] = useState<
     Set<string>
   >(new Set());
@@ -662,6 +654,30 @@ export default function App() {
     }
   };
 
+  // Royal Ads broadcast listener system: shows royal ads (VIP) and lets the marquee dismiss them after 3 full cycles
+  useEffect(() => {
+    const vipMsgs = broadcastQueue.filter((msg) => msg.plan === "vip");
+    
+    vipMsgs.forEach((msg) => {
+      if (!processedBroadcastIds.current.has(msg.id)) {
+        processedBroadcastIds.current.add(msg.id);
+        
+        const msgTime = msg.createdAt ? new Date(msg.createdAt).getTime() : 0;
+        
+        // Show if published within current session (with 5 seconds tolerance buffer)
+        if (msgTime > sessionStartTime.current - 5000) {
+          setActiveVipBroadcasts((prev) => {
+            if (prev.some((p) => p.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+          
+          // Play the signature golden notification chime sound for royal announcements!
+          playPremiumGoldChime();
+        }
+      }
+    });
+  }, [broadcastQueue]);
+
   const triggerBroadcast = async (
     sellerName: string,
     location: string,
@@ -673,9 +689,6 @@ export default function App() {
     const isAdmin = currentUserPhone === "92942482";
     const resolvedPlan = isAdmin ? "vip" : plan;
     if (!forceBroadcast && resolvedPlan !== "vip") return;
-
-    // Play the signature golden notification chime sound!
-    playPremiumGoldChime();
 
     const newMessage = {
       sellerName,
@@ -763,7 +776,7 @@ export default function App() {
       (u) => u.phone === currentUserPhone || u.id === currentUserPhone,
     );
     const isAdmin = currentUserPhone === "92942482";
-    const resolvedPlan = isAdmin ? "vip" : userObj?.plan || "free";
+    const resolvedPlan = isAdmin ? "vip" : userObj?.subscription || userObj?.plan || "free";
     if (userObj && resolvedPlan !== currentUserPlan) {
       setCurrentUserPlan(resolvedPlan);
     }
@@ -887,7 +900,6 @@ export default function App() {
   }, [currentUserPhone]);
   const [selectedRegion, setSelectedRegion] = useState("الكل");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAutoSuggest, setShowAutoSuggest] = useState(false);
   const autoSuggestRef = useRef<HTMLDivElement>(null);
 
@@ -966,32 +978,6 @@ export default function App() {
   const mainRef = useRef<HTMLElement>(null);
   const regionsContainerRef = useRef<HTMLDivElement>(null);
   const regionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const touchStartY = useRef(0);
-
-  // Handle Haptic Pull to Refresh
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (window.scrollY === 0) {
-      touchStartY.current = e.touches[0].clientY;
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (window.scrollY === 0 && touchStartY.current !== 0) {
-      const currentY = e.touches[0].clientY;
-      if (currentY - touchStartY.current > 100 && !isRefreshing) {
-        setIsRefreshing(true);
-        triggerHaptic(50); // Haptic feedback
-        setTimeout(() => {
-          setIsRefreshing(false);
-          triggerHaptic([30, 50, 30]); // Success chime pattern
-        }, 1500);
-      }
-    }
-  };
-
-  const handleTouchEnd = () => {
-    touchStartY.current = 0;
-  };
 
   const pendingRequest = systemRequests.find(
     (r) => r.phone === currentUserPhone && r.status === "pending",
@@ -1038,7 +1024,8 @@ export default function App() {
         (u) => u.phone === currentUserPhone || u.id === currentUserPhone,
       );
       if (user) {
-        setLoggedUserObj(user);
+        const truePlan = user.subscription || user.plan || "free";
+        setLoggedUserObj({ ...user, plan: truePlan });
         if (user.favoriteCategories && Array.isArray(user.favoriteCategories)) {
           setFavoriteCategories(user.favoriteCategories);
           safeStorage.setItem(
@@ -1119,7 +1106,6 @@ export default function App() {
         setShowAuth(false);
         const loggedUser = { ...user, plan: finalPlan, password: code };
         setLoggedUserObj(loggedUser);
-        setShowWelcomeSplash(true);
         try {
           playLoginSound();
         } catch (e) {
@@ -1179,7 +1165,7 @@ export default function App() {
           setShowAuth(false);
           const loggedUser = { ...existingUser, id: existingUser.id || phone };
           setLoggedUserObj(loggedUser);
-          setShowWelcomeSplash(true);
+
           try {
             playLoginSound();
           } catch (e) {
@@ -1217,7 +1203,6 @@ export default function App() {
       setShowAuth(false);
       const loggedUser = { ...newUser, id: phone };
       setLoggedUserObj(loggedUser);
-      setShowWelcomeSplash(true);
       try {
         playLoginSound();
       } catch (e) {
@@ -1307,7 +1292,7 @@ export default function App() {
     // Ensure comments, views and likes are initialized for new products
     const adWithStats = { ...newProduct, comments: [], views: 0, likes: 0 };
     if (!adWithStats.id || adWithStats.id.startsWith("temp-")) {
-      adWithStats.id = crypto.randomUUID(); // ensure clean ID
+      adWithStats.id = generateUUID(); // ensure clean ID
     }
 
     // 1. Activate the majestic full-screen luxury transition scene matching the user's plan
@@ -1486,13 +1471,32 @@ export default function App() {
           (u) => u.phone === p.sellerId || u.id === p.sellerId,
         );
         const isSellerAdmin = p.sellerId === "92942482";
-        const rawPlan = userObj?.plan || userObj?.subscription || p.plan;
-        const resolvedPlan = isSellerAdmin ? "vip" : rawPlan || "free";
+        let resolvedPlan: "free" | "bronze" | "vip" = "free";
+        if (isSellerAdmin) {
+          resolvedPlan = "vip";
+        } else if (
+          userObj?.plan === "vip" || 
+          userObj?.subscription === "vip" || 
+          p.plan === "vip" || 
+          (p as any).subscription === "vip" ||
+          p.isVip
+        ) {
+          resolvedPlan = "vip";
+        } else if (
+          userObj?.plan === "bronze" || 
+          userObj?.subscription === "bronze" || 
+          p.plan === "bronze" || 
+          (p as any).subscription === "bronze"
+        ) {
+          resolvedPlan = "bronze";
+        }
+
         return {
           ...p,
           sellerName: isSellerAdmin ? "المدير" : userObj?.name || p.sellerName,
           sellerAvatar: userObj?.avatar || p.sellerAvatar,
           plan: resolvedPlan,
+          isVip: resolvedPlan === "vip", // ensure boolean flag syncs
         };
       }),
     [products, systemUsers],
@@ -1592,7 +1596,7 @@ export default function App() {
 
       const now = Date.now();
       const diffHours = (now - tA) / (1000 * 60 * 60);
-      return diffHours <= 360; // Keep in stories for 15 days (360 hours) instead of only 48h
+      return diffHours <= 24; // Keep in stories for 24 hours
     });
 
     console.log(
@@ -1600,7 +1604,7 @@ export default function App() {
       filtered.length,
     );
 
-    // Fallback: if there are no VIP or Bronze products in the last 15 days, show all active VIP/Bronze products so the list is never empty
+    // Fallback: if there are no VIP or Bronze products in the last 24 hours, show all active VIP/Bronze products so the list is never empty
     if (filtered.length === 0) {
       console.log(
         "SanadSouq Stories Engine: Active recent list is empty. Triggering non-expiry active VIP/Bronze fallback...",
@@ -1707,22 +1711,8 @@ export default function App() {
     [],
   );
 
-  const hasActiveBroadcast = (() => {
-    try {
-      const activeQueue = broadcastQueue.filter(
-        (b) => !dismissedBroadcastIds.has(b.id),
-      );
-      if (activeQueue.length === 0) return false;
-      const saved = localStorage.getItem("sanad_broadcast_views");
-      const viewCounts = saved ? JSON.parse(saved) : {};
-      return activeQueue.some((msg) => (viewCounts[msg.id] || 0) < 10);
-    } catch {
-      return (
-        broadcastQueue.filter((b) => !dismissedBroadcastIds.has(b.id)).length >
-        0
-      );
-    }
-  })();
+  const hasActiveBroadcast = activeVipBroadcasts.length > 0;
+  const isHomePageActive = activeBottomTab === "home" && !selectedProduct && !showProfile && !showAdmin && !showAddProduct && !showAIChat && !showMenuModal && !storyViewerId;
 
   if (showDebugPage) {
     return (
@@ -1745,24 +1735,57 @@ export default function App() {
   return (
     <div
       id="app-root"
-      className={`min-h-screen w-full max-w-full bg-[#050505] text-white relative transition-all duration-300`}
+      className={`min-h-screen w-full max-w-full text-white relative transition-all duration-300 ${
+        isHomePageActive 
+          ? "bg-gradient-to-b from-[#1C1410] via-[#0A0A0A] to-[#1C1410]" 
+          : "bg-[#000000]"
+      }`}
       dir="rtl"
     >
+      {/* Golden Glowing Ambient Background Orbs */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden select-none">
+        {/* Top center glow */}
+        <div className="absolute top-[-15%] left-[10%] sm:left-[25%] w-[80%] sm:w-[50%] h-[45%] rounded-full bg-[radial-gradient(circle,rgba(212,175,55,0.13)_0%,transparent_75%)] blur-[80px] sm:blur-[120px]" />
+        {/* Middle right glow */}
+        <div className="absolute top-[35%] -right-[10%] w-[60%] sm:w-[40%] h-[45%] rounded-full bg-[radial-gradient(circle,rgba(170,124,17,0.09)_0%,transparent_75%)] blur-[100px] sm:blur-[140px]" />
+        {/* Bottom left glow */}
+        <div className="absolute bottom-[10%] -left-[15%] w-[55%] sm:w-[35%] h-[40%] rounded-full bg-[radial-gradient(circle,rgba(255,243,176,0.08)_0%,transparent_75%)] blur-[90px] sm:blur-[130px]" />
+      </div>
+
+      {/* Watermark Background */}
+      <div className="fixed inset-0 z-[1] pointer-events-none overflow-hidden flex flex-col items-center justify-center opacity-[0.08] select-none">
+        <div className="absolute top-0 w-full h-[100vh] flex flex-col items-center justify-center gap-16 -rotate-12 scale-[1.5] sm:scale-[1.8]">
+           <div className="flex items-center gap-12">
+             <Crown className="w-32 h-32 sm:w-40 sm:h-40 text-[#D4AF37] opacity-80" />
+             <span className="text-8xl sm:text-9xl font-black font-display text-transparent outline-text drop-shadow-[0_0_15px_rgba(212,175,55,0.8)]" style={{ WebkitTextStroke: '2px #D4AF37' }}>سوق سند</span>
+             <Crown className="w-32 h-32 sm:w-40 sm:h-40 text-[#D4AF37] opacity-80" />
+           </div>
+           <div className="flex items-center gap-12 opacity-50 ml-40">
+             <span className="text-8xl sm:text-9xl font-black font-display text-transparent outline-text drop-shadow-[0_0_15px_rgba(212,175,55,0.8)]" style={{ WebkitTextStroke: '2px #D4AF37' }}>سوق سند</span>
+             <Crown className="w-32 h-32 sm:w-40 sm:h-40 text-[#D4AF37] opacity-80" />
+             <span className="text-8xl sm:text-9xl font-black font-display text-transparent outline-text drop-shadow-[0_0_15px_rgba(212,175,55,0.8)]" style={{ WebkitTextStroke: '2px #D4AF37' }}>سوق سند</span>
+           </div>
+           <div className="flex items-center gap-12 mr-40">
+             <Crown className="w-32 h-32 sm:w-40 sm:h-40 text-[#D4AF37] opacity-80" />
+             <span className="text-8xl sm:text-9xl font-black font-display text-transparent outline-text drop-shadow-[0_0_15px_rgba(212,175,55,0.8)]" style={{ WebkitTextStroke: '2px #D4AF37' }}>سوق سند</span>
+             <Crown className="w-32 h-32 sm:w-40 sm:h-40 text-[#D4AF37] opacity-80" />
+           </div>
+           <div className="flex items-center gap-12 opacity-50 -ml-20">
+             <span className="text-8xl sm:text-9xl font-black font-display text-transparent outline-text drop-shadow-[0_0_15px_rgba(212,175,55,0.8)]" style={{ WebkitTextStroke: '2px #D4AF37' }}>سوق سند</span>
+             <Crown className="w-32 h-32 sm:w-40 sm:h-40 text-[#D4AF37] opacity-80" />
+             <span className="text-8xl sm:text-9xl font-black font-display text-transparent outline-text drop-shadow-[0_0_15px_rgba(212,175,55,0.8)]" style={{ WebkitTextStroke: '2px #D4AF37' }}>سوق سند</span>
+           </div>
+        </div>
+      </div>
+
+      {isSplashActive && (
+        <SplashScreen onComplete={() => setIsSplashActive(false)} />
+      )}
+
       {/* Header Container */}
       <div
-        className={`pt-24 sm:pt-32 md:pt-40 lg:pt-48 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full transition-all duration-300 relative z-40 flex flex-col`}
+        className={`pt-4 sm:pt-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full transition-all duration-300 relative z-40 flex flex-col`}
       >
-        <BroadcastMarquee
-          queue={broadcastQueue.filter((b) => !dismissedBroadcastIds.has(b.id))}
-          onDismiss={(id) => {
-            setDismissedBroadcastIds((prev) => {
-              const updated = new Set(prev);
-              updated.add(id);
-              return updated;
-            });
-            handleDismissBroadcast(id);
-          }}
-        />
 
         <header
           className={`bg-[#050505]/75 backdrop-blur-xl border border-white/10 rounded-2xl shrink-0 w-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all duration-300`}
@@ -1849,13 +1872,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Centered Title */}
+              {/* Centered Title replaced with empty spacing to focus on the gold crowns */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-visible">
-                <span className="text-[22px] sm:text-[26px] lg:text-[30px] font-serif font-bold tracking-widest whitespace-nowrap select-none drop-shadow-md">
-                  <span className="bg-gradient-to-b from-[#FAD961] to-[#A07A25] bg-clip-text text-transparent">
-                    سوق سند
-                  </span>
-                </span>
               </div>
 
               <div className="flex items-center gap-3 sm:gap-4 z-10">
@@ -1926,9 +1944,10 @@ export default function App() {
       </div>
 
       {/* Offline Banner */}
-      <AnimatePresence>
+      <AnimatePresence key="offline-banner-presence">
         {isOffline && (
           <motion.div
+            key="offline-banner"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -1942,63 +1961,120 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
+       {/* Main Content */}
       <main
         ref={mainRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        className="max-w-7xl mx-auto px-4.5 sm:px-6 lg:px-8 pt-1 sm:pt-2 pb-28 md:pb-8 relative z-10 w-full overflow-x-hidden"
+        className={`max-w-7xl mx-auto px-4.5 sm:px-6 lg:px-8 pt-2 pb-28 md:pb-8 relative z-10 w-full overflow-x-hidden ${isHomePageActive ? 'bg-gradient-to-b from-[#0A0A0A] to-[#1C1410] rounded-3xl' : ''}`}
       >
-        {isRefreshing && (
-          <div className="flex justify-center mb-6">
-            <div className="w-6 h-6 rounded-full border-2 border-t-[#D4AF37] border-gray-800 animate-spin" />
+        {/* 1. الشعار (The Centered Logo) - Only visible on Home page */}
+        {isHomePageActive && (
+          <div className="w-full flex justify-center items-center py-4 mb-4 select-none animate-fade-in relative z-20">
+            <span
+              className="text-4xl sm:text-5xl font-black font-display tracking-widest text-[#0a0a0a]"
+              style={{
+                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.95)) drop-shadow(0 0 15px rgba(201,168,76,0.5))",
+                WebkitTextStroke: "1.2px #C9A84C",
+                textShadow: "0px 4px 6px rgba(0,0,0,0.8)"
+              }}
+            >
+              سُوق سَنَد
+            </span>
           </div>
         )}
-        {/* VIP Stories Section */}
-        <div className="mt-3 sm:mt-4 mb-6">
-          <VipStoriesRow
-            stories={stories}
-            currentUserObj={currentUserObj}
-            onProfileClick={() => {
-              if (currentUserPhone) {
-                setShowProfile(true);
-              } else {
-                setShowAuth(true);
-              }
-            }}
-            onStoryClick={(id) => {
-              setStoryViewerId(id);
-            }}
-          />
-        </div>
-        {/* Modern Live Search Bar */}
-        <div className="mb-6 relative z-20" id="search-bar-container">
-          <div className="relative max-w-2xl mx-auto">
+
+        {/* 2 & 3. شريط البحث مع الشريط الملكي فوقه بالضبط */}
+        <div className="mb-4 relative z-20 w-full max-w-2xl mx-auto" id="search-and-marquee-container">
+          {isHomePageActive && activeVipBroadcasts.length > 0 && (
+            <div className="w-full mb-3">
+              <BroadcastMarquee
+                queue={activeVipBroadcasts}
+                relative={true}
+                onDismiss={(id) => {
+                  setActiveVipBroadcasts((prev) => prev.filter((b) => b.id !== id));
+                  setDismissedBroadcastIds((prev) => {
+                    const updated = new Set(prev);
+                    updated.add(id);
+                    return updated;
+                  });
+                  handleDismissBroadcast(id);
+                }}
+              />
+            </div>
+          )}
+
+          <div className="relative w-full" id="search-bar-container">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث عن عقارات، سيارات، ملابس، إلكترونيات، أو ولاية..."
-              className="w-full bg-gradient-to-r from-gray-950/95 to-black border border-gray-850 focus:border-[#D4AF37] hover:border-gray-750 outline-none text-sm text-right text-white rounded-2xl py-3.5 pr-11 pl-10 shadow-[0_4px_15px_rgba(0,0,0,0.6)] transition-all duration-300 focus:shadow-[0_0_15px_rgba(212,175,55,0.15)] font-sans"
+              placeholder="ابحث عن..."
+              className="w-full bg-[#000000] border border-[#C9A84C]/50 focus:border-[#C9A84C] outline-none text-sm text-right text-white rounded-2xl py-3.5 pr-11 pl-10 transition-all duration-300 font-sans"
               dir="rtl"
             />
             {/* Search Icon */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-              <Search className="w-4.5 h-4.5 text-[#D4AF37]" />
+              <Search className="w-4.5 h-4.5 text-[#C9A84C]" />
             </div>
             {/* Clear Button */}
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white rounded-full bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 p-1.5 text-[#C9A84C] hover:text-white rounded-full bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
         </div>
+
+        {/* Glowing 3D Golden/Black Baqat Button */}
+        {isHomePageActive && (
+          <div className="mb-4 max-w-[200px] mx-auto px-1 relative z-20">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const targetEl = document.getElementById("paid-packages") || document.getElementById("pricing-packages");
+                if (targetEl) {
+                  targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                  targetEl.classList.add("ring-2", "ring-[#C9A84C]", "scale-[1.02]", "shadow-[0_0_20px_rgba(201,168,76,0.6)]");
+                  setTimeout(() => {
+                    targetEl.classList.remove("ring-2", "ring-[#C9A84C]", "scale-[1.02]", "shadow-[0_0_20px_rgba(201,168,76,0.6)]");
+                  }, 2000);
+                }
+              }}
+              className="w-full relative py-2 rounded-2xl bg-[#000000] border border-[#C9A84C] text-[#C9A84C] font-black text-center text-xs transition-all duration-150 active:translate-y-[2px] cursor-pointer shadow-[0_4px_12px_rgba(201,168,76,0.2)] flex items-center justify-center gap-1.5 overflow-hidden group"
+            >
+              <Crown className="w-3 h-3 text-[#C9A84C]" />
+              <span className="tracking-wide select-none font-bold">
+                الباقات
+              </span>
+              <Sparkles className="w-3 h-3 text-[#C9A84C]" />
+            </button>
+          </div>
+        )}
+
+        {/* 4. قصص VIP Section */}
+        {isHomePageActive && (
+          <div className="mb-4 relative z-20">
+            <VipStoriesRow
+              stories={stories}
+              currentUserObj={currentUserObj}
+              onProfileClick={() => {
+                if (currentUserPhone) {
+                  setShowProfile(true);
+                } else {
+                  setShowAuth(true);
+                }
+              }}
+              onStoryClick={(id) => {
+                setStoryViewerId(id);
+              }}
+            />
+          </div>
+        )}
         �{/* Filters */}
         <div className="space-y-6 mb-12 relative z-10">
           {/* Regions Selector */}
@@ -2017,7 +2093,7 @@ export default function App() {
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   type="button"
-                  key={reg}
+                  key={`region-${reg}-${index}`}
                   ref={(el) => {
                     if (el) regionRefs.current[reg] = el;
                   }}
@@ -2164,7 +2240,7 @@ export default function App() {
                 return (
                   <motion.button
                     type="button"
-                    key={`${catObj.name}-${index}`}
+                    key={`cat-${index}`}
                     onClick={() => setSelectedCategory(catObj.name)}
                     whileHover={{ scale: 1.05, y: -1 }}
                     whileTap={{ scale: 0.95 }}
@@ -2213,11 +2289,11 @@ export default function App() {
                   >
                     الكل في {selectedCategory}
                   </motion.button>
-                  {getSubcategoriesForMain(selectedCategory).map((sub) => (
+                  {getSubcategoriesForMain(selectedCategory).map((sub, index) => (
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       type="button"
-                      key={sub}
+                      key={`sub-${index}`}
                       onClick={() => setSelectedSubCategory(sub)}
                       className={`whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-bold transition-all duration-300 ${
                         selectedSubCategory === sub
@@ -2262,7 +2338,7 @@ export default function App() {
               className={
                 viewMode === "list"
                   ? "grid grid-cols-1 gap-4 max-w-4xl mx-auto"
-                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6"
+                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3"
               }
             >
               {[...Array(5)].map((_, i) => (
@@ -2274,7 +2350,7 @@ export default function App() {
               className={
                 viewMode === "list"
                   ? "grid grid-cols-1 gap-4 max-w-4xl mx-auto"
-                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6"
+                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3"
               }
             >
               <AnimatePresence>
@@ -2319,7 +2395,7 @@ export default function App() {
               className={
                 viewMode === "list"
                   ? "grid grid-cols-1 gap-4 max-w-4xl mx-auto"
-                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6"
+                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3"
               }
             >
               {[...Array(5)].map((_, i) => (
@@ -2331,7 +2407,7 @@ export default function App() {
               className={
                 viewMode === "list"
                   ? "grid grid-cols-1 gap-4 max-w-4xl mx-auto"
-                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6"
+                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3"
               }
             >
               <AnimatePresence>
@@ -2376,7 +2452,7 @@ export default function App() {
               className={
                 viewMode === "list"
                   ? "grid grid-cols-1 gap-4 max-w-4xl mx-auto"
-                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6"
+                  : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3"
               }
             >
               {[...Array(10)].map((_, i) => (
@@ -2389,7 +2465,7 @@ export default function App() {
                 className={
                   viewMode === "list"
                     ? "grid grid-cols-1 gap-4 max-w-4xl mx-auto w-full"
-                    : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6 w-full"
+                    : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 w-full"
                 }
               >
                 <AnimatePresence>
@@ -2511,9 +2587,10 @@ export default function App() {
         )}
 
         {/* Premium Live FCM Notification Popup Card */}
-        <AnimatePresence>
+        <AnimatePresence key="live-alert-presence">
           {liveProductAlert && (
             <motion.div
+              key="live-product-alert"
               initial={{ opacity: 0, y: -50, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.9 }}
@@ -2567,20 +2644,10 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {showWelcomeSplash && (
-          <Suspense key="suspense-welcome" fallback={<ModalFallback />}>
-            <WelcomeSplashModal
-              key="welcome-splash"
-              user={loggedUserObj}
-              onClose={() => {
-                setShowWelcomeSplash(false);
-              }}
-            />
-          </Suspense>
-        )}
+
         {storyViewerId && (
-          <Suspense key="suspense-storyviewer" fallback={<ModalFallback />}>
             <StoryViewerModal
+              key={`story-viewer-${storyViewerId}`}
               stories={stories}
               initialStoryId={storyViewerId}
               onClose={() => setStoryViewerId(null)}
@@ -2592,7 +2659,6 @@ export default function App() {
                 }
               }}
             />
-          </Suspense>
         )}
         {showProfile && (
           <Suspense key="suspense-profile" fallback={<ModalFallback />}>
@@ -2693,8 +2759,8 @@ export default function App() {
           </Suspense>
         )}
         {selectedProduct && (
-          <Suspense key="suspense-details" fallback={<ModalFallback />}>
             <ProductDetailsModal
+              key={`product-details-${selectedProduct.id}`}
               product={
                 products.find((p) => p.id === selectedProduct.id) ||
                 selectedProduct
@@ -2752,7 +2818,6 @@ export default function App() {
                 );
               }}
             />
-          </Suspense>
         )}
         {/* Notifications Modal for Regular Users */}
         {showNotificationsModal && (
@@ -2907,42 +2972,78 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
+      <AnimatePresence key="publishing-transition-presence">
         {isPublishingTransition && (
-          <PublishingTransition plan={transitionPlan} />
+          <PublishingTransition key="publishing-transition" plan={transitionPlan} />
         )}
       </AnimatePresence>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
 
-      {/* Facebook Page Trigger - Replaces the AI Assistant */}
-      <div className="fixed bottom-28 md:bottom-16 right-12 md:right-20 z-40 animate-float-smooth">
-        <div className="absolute inset-0 bg-[#1877F2]/30 rounded-full blur-xl opacity-45 animate-pulse pointer-events-none" />
-        <a
-          href="https://www.facebook.com/share/1ENN1nm6tn/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="relative p-3 bg-gradient-to-tr from-[#1877F2] to-[#3b5998] text-white rounded-2xl shadow-[0_8px_30px_rgba(24,119,242,0.4)] border border-white/20 hover:scale-110 active:scale-95 flex items-center justify-center transition-all duration-300 group"
-          title="صفحة فيسبوك سند"
+      {/* Dynamic Unified ⊕ Contact Trigger (WhatsApp + Facebook Merger) */}
+      <div className="fixed bottom-28 left-6 sm:left-12 z-50">
+        <AnimatePresence key="social-menu-presence">
+          {showSocialMenu && (
+            <motion.div
+              key="social-menu"
+              initial={{ opacity: 0, y: 15, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.8 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="absolute bottom-16 left-0 bg-[#1A1A1A] border border-[#C9A84C]/45 rounded-2xl p-3.5 shadow-[0_10px_35px_rgba(0,0,0,0.85),0_0_20px_rgba(201,168,76,0.15)] flex flex-col gap-2.5 min-w-[210px] z-50"
+            >
+              {/* Facebook Button Option */}
+              <a
+                href="https://www.facebook.com/share/1ENN1nm6tn/"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowSocialMenu(false)}
+                className="flex items-center gap-2.5 px-3 py-2 bg-gradient-to-r from-[#1877F2]/10 to-[#3b5998]/5 hover:from-[#1877F2]/20 hover:to-[#3b5998]/15 text-[#1877F2] font-semibold text-xs border border-[#1877F2]/20 rounded-xl transition-all duration-200"
+              >
+                <div className="p-1 rounded-lg bg-[#1877F2] text-white">
+                  <Facebook className="w-3.5 h-3.5" />
+                </div>
+                <span>صفحة فيسبوك سَنَد</span>
+              </a>
+
+              {/* WhatsApp Button Option */}
+              <a
+                href="https://wa.me/21692942482"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowSocialMenu(false)}
+                className="flex items-center gap-2.5 px-3 py-2 bg-gradient-to-r from-[#25D366]/10 to-[#128C7E]/5 hover:from-[#25D366]/20 hover:to-[#128C7E]/15 text-[#25D366] font-semibold text-xs border border-[#25D366]/20 rounded-xl transition-all duration-200"
+              >
+                <div className="p-1 rounded-lg bg-[#25D366] text-white">
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+                  </svg>
+                </div>
+                <span>تواصل واتساب سَنَد</span>
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main ⊕ core trigger button */}
+        <button
+          onClick={() => setShowSocialMenu(!showSocialMenu)}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 relative select-none hover:scale-110 active:scale-95 shadow-[0_8px_25px_rgba(201,168,76,0.35)] border-2 ${
+            showSocialMenu 
+              ? "bg-[#C9A84C] border-black text-black" 
+              : "bg-[#1A1A1A] border-[#C9A84C] text-[#C9A84C]"
+          }`}
+          title="تواصل معنا"
         >
-          <Facebook className="w-6 h-6 text-white group-hover:scale-110 transition-transform duration-300" />
-        </a>
+          {showSocialMenu ? (
+            <X className="w-5 h-5 font-bold" />
+          ) : (
+            <span className="text-2xl font-bold select-none leading-none pt-0.5">⊕</span>
+          )}
+        </button>
       </div>
 
-      {/* WhatsApp Trigger - Swapped to bottom-left */}
-      <a
-        href="https://wa.me/21692942482"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-28 md:bottom-16 left-12 md:left-20 z-40 p-3 bg-gradient-to-br from-[#25D366] to-[#128C7E] text-white rounded-2xl shadow-[0_8px_30px_rgba(37,211,102,0.4)] border border-white/20 hover:scale-110 transition-all animate-float-smooth"
-        style={{ animationDelay: "1.5s" }}
-      >
-        <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current">
-          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
-        </svg>
-      </a>
-
-      <div className="fixed bottom-4 left-4 right-4 z-40 md:hidden bg-black border border-white/10 rounded-2xl p-2 flex items-center justify-between">
+      <div className="fixed bottom-4 left-4 right-4 z-40 md:hidden bg-black/95 backdrop-blur-xl border border-white/10 rounded-2xl py-2 px-3 grid grid-cols-4 justify-items-center items-center shadow-[0_12px_40px_rgba(0,0,0,0.85)] transform-gpu">
         {/* Tab: Home */}
         <button
           type="button"
@@ -2954,9 +3055,6 @@ export default function App() {
             setShowAuth(false);
             setShowMenuModal(false);
             setStoryViewerId(null);
-            setSelectedCategory("الكل");
-            setSelectedRegion("الكل");
-            setSearchQuery("");
             handleManualTabClick("home");
             window.scrollTo({ top: 0, behavior: "smooth" });
             document.documentElement.scrollTo({ top: 0, behavior: "smooth" });
@@ -2964,60 +3062,58 @@ export default function App() {
               .getElementById("app-root")
               ?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
-          className={`flex flex-col items-center gap-1 p-2 ${activeBottomTab === "home" ? "text-white" : "text-gray-500"}`}
+          className={`w-full flex flex-col items-center justify-center gap-1 py-1.5 transition-colors cursor-pointer ${activeBottomTab === "home" ? "text-[#D4AF37]" : "text-gray-500 hover:text-gray-400"}`}
         >
-          <Home className="w-6 h-6" />
-          <span className="text-[10px]">الرئيسية</span>
+          <Home className={`w-5.5 h-5.5 transition-transform ${activeBottomTab === "home" ? "scale-110 drop-shadow-[0_0_8px_rgba(212,175,55,0.4)]" : ""}`} />
+          <span className="text-[10px] font-bold">الرئيسية</span>
         </button>
 
         {/* Tab: Filter */}
         <button
           type="button"
           onClick={() => {
+            setShowProfile(false);
+            setShowAdmin(false);
+            setShowAddProduct(false);
+            setShowAIChat(false);
+            setShowAuth(false);
+            setShowMenuModal(false);
+            setStoryViewerId(null);
             handleManualTabClick("listings");
-            const targetEl = document.getElementById("listings-head");
-            if (targetEl) targetEl.scrollIntoView({ behavior: "smooth" });
+            setTimeout(() => {
+              const targetEl = document.getElementById("listings-head");
+              if (targetEl) targetEl.scrollIntoView({ behavior: "smooth" });
+            }, 50);
           }}
-          className={`flex flex-col items-center gap-1 p-2 ${activeBottomTab === "listings" ? "text-white" : "text-gray-500"}`}
+          className={`w-full flex flex-col items-center justify-center gap-1 py-1.5 transition-colors cursor-pointer ${activeBottomTab === "listings" ? "text-[#D4AF37]" : "text-gray-500 hover:text-gray-400"}`}
         >
-          <Grid className="w-6 h-6" />
-          <span className="text-[10px]">المعروضات</span>
+          <Grid className={`w-5.5 h-5.5 transition-transform ${activeBottomTab === "listings" ? "scale-110 drop-shadow-[0_0_8px_rgba(212,175,55,0.4)]" : ""}`} />
+          <span className="text-[10px] font-bold">المعروضات</span>
         </button>
 
-        {/* Central Add Button */}
+        {/* Tab: Add */}
         <button
           type="button"
           onClick={() => {
             if (currentUserPhone) setShowAddProduct(true);
             else setShowAuth(true);
           }}
-          className="bg-white text-black p-3 rounded-full"
+          className="w-full flex flex-col items-center justify-center gap-1 py-1 transition-colors cursor-pointer"
         >
-          <PlusCircle className="w-6 h-6" />
-        </button>
-
-        {/* Tab: Memberships */}
-        <button
-          type="button"
-          onClick={() => {
-            handleManualTabClick("memberships");
-            const targetEl = document.getElementById("pricing-packages");
-            if (targetEl) targetEl.scrollIntoView({ behavior: "smooth" });
-          }}
-          className={`flex flex-col items-center gap-1 p-2 ${activeBottomTab === "memberships" ? "text-white" : "text-gray-500"}`}
-        >
-          <Crown className="w-6 h-6" />
-          <span className="text-[10px]">العضويات</span>
+          <div className="bg-gradient-to-tr from-[#D4AF37] to-[#FFF3B0] text-black p-1.5 rounded-xl shadow-md transform hover:scale-105 active:scale-95 transition-all">
+            <PlusCircle className="w-5 h-5 stroke-[2.5]" />
+          </div>
+          <span className="text-[10px] font-bold text-[#D4AF37]/90 leading-none mt-1">إضافة إعلان</span>
         </button>
 
         {/* Menu Toggle */}
         <button
           type="button"
           onClick={() => setShowMenuModal(true)}
-          className="flex flex-col items-center gap-1 p-2 text-gray-500"
+          className="w-full flex flex-col items-center justify-center gap-1 py-1.5 text-gray-500 hover:text-gray-400 transition-colors cursor-pointer"
         >
-          <Menu className="w-6 h-6" />
-          <span className="text-[10px]">القائمة</span>
+          <Menu className="w-5.5 h-5.5" />
+          <span className="text-[10px] font-bold">القائمة</span>
         </button>
       </div>
 

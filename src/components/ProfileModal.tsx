@@ -104,12 +104,39 @@ export default function ProfileModal({
     }
   };
 
-  const planName = currentUser?.subscription === 'vip' ? 'عضوية ذهبية VIP' : currentUser?.subscription === 'bronze' ? 'عضوية برونزية' : 'عضوية مجانية';
+  const isVip = currentUser?.subscription === 'vip';
+  const isBronze = currentUser?.subscription === 'bronze';
+  const isFree = !isVip && !isBronze;
+
+  const planName = isVip ? 'عضوية ذهبية VIP' : isBronze ? 'عضوية برونزية' : 'عضوية مجانية';
 
   // Define colors based on plan
-  const planColor = currentUser?.subscription === 'vip' ? 'from-[#D4AF37] via-[#FFD700] to-[#F3E5AB]' : currentUser?.subscription === 'bronze' ? 'from-[#CD7F32] via-[#B87333] to-[#A0522D]' : 'from-gray-700 via-gray-600 to-gray-800';
-  const planGlow = currentUser?.subscription === 'vip' ? 'shadow-[0_0_20px_rgba(212,175,55,0.4)]' : currentUser?.subscription === 'bronze' ? 'shadow-[0_0_20px_rgba(205,127,50,0.3)]' : 'shadow-none';
-  const crownColor = currentUser?.subscription === 'vip' ? 'text-[#D4AF37]' : currentUser?.subscription === 'bronze' ? 'text-[#CD7F32]' : 'text-gray-500';
+  const planColor = isVip 
+    ? 'from-[#D4AF37] via-[#FFF3C5] to-[#D4AF37]' 
+    : isBronze 
+    ? 'from-[#c0c4c7] via-[#f1f3f4] to-[#a1a5a8]' 
+    : 'from-emerald-400 via-[#a7f3d0] to-emerald-500';
+
+  const planGlow = isVip 
+    ? 'shadow-[0_0_25px_rgba(212,175,55,0.45)]' 
+    : isBronze 
+    ? 'shadow-[0_0_25px_rgba(192,196,199,0.35)]' 
+    : 'shadow-[0_0_25px_rgba(16,185,129,0.3)]';
+
+  const crownColor = isVip ? 'text-[#D4AF37]' : isBronze ? 'text-slate-300' : 'text-emerald-400';
+  const crownBorder = isVip ? 'border-[#D4AF37]/40 text-[#D4AF37]' : isBronze ? 'border-slate-300/40 text-slate-300' : 'border-emerald-400/40 text-emerald-400';
+
+  const wrapperStyle = isVip
+    ? "p-[3px] bg-gradient-to-tr from-[#6B4E0A] via-[#FFF3C5] to-[#D4AF37] shadow-[0_15px_40px_rgba(212,175,55,0.45)] border-none"
+    : isBronze
+    ? "p-[2.5px] bg-gradient-to-tr from-neutral-700 via-neutral-100 to-neutral-800 shadow-[0_15px_35px_rgba(192,196,199,0.35)] border-none"
+    : "p-[2px] bg-gradient-to-tr from-emerald-800 via-[#a7f3d0] to-emerald-950 shadow-[0_10px_30px_rgba(16,185,129,0.3)] border-none";
+
+  const innerBg = isVip
+    ? "bg-gradient-to-b from-[#0f0c05] via-[#050402] to-[#010101] shadow-[inset_0_2px_20px_rgba(212,175,55,0.2)]"
+    : isBronze
+    ? "bg-gradient-to-b from-[#111315] via-[#050607] to-[#010101] shadow-[inset_0_2px_20px_rgba(192,196,199,0.15)]"
+    : "bg-gradient-to-b from-[#02170c] via-[#010603] to-[#010101] shadow-[inset_0_2px_20px_rgba(16,185,129,0.2)]";
 
   return (
     <motion.div
@@ -122,13 +149,17 @@ export default function ProfileModal({
         initial={{ y: 50, scale: 0.95 }}
         animate={{ y: 0, scale: 1 }}
         exit={{ y: 50, scale: 0.95 }}
-        className="bg-[#020806] w-full max-w-sm rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden relative"
+        className={`w-full max-w-sm rounded-[2.5rem] flex flex-col max-h-[85vh] relative ${wrapperStyle}`}
+        style={{ transformStyle: 'preserve-3d', perspective: '1000px' }}
         dir="rtl"
       >
+        {/* Inner Card Background */}
+        <div className={`w-full h-full rounded-[2.35rem] flex flex-col overflow-hidden relative ${innerBg}`}>
+        
         {/* Abstract Background Decoration */}
-        <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+        <div className={`absolute top-0 inset-x-0 h-32 bg-gradient-to-b ${isVip ? 'from-[#D4AF37]/10' : isBronze ? 'from-slate-400/10' : 'from-emerald-400/10'} to-transparent pointer-events-none`} />
 
-        <div className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain scroll-smooth touch-pan-y">
+        <div className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain scroll-smooth touch-pan-y relative z-10">
             {/* Unified Scrollable Container Header */}
             <div className="px-6 pt-4 pb-1 flex justify-between items-center relative z-10 shrink-0">
                <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors">
@@ -258,11 +289,11 @@ export default function ProfileModal({
                         </div>
                     )}
 
-                    {/* ADS DASHBOARD STATISTICS - DEEP BLACK STYLING with Gold Border */}
-                    <div className="bg-[#050505] rounded-[1.8rem] p-4 border border-[#D4AF37]/30 shadow-inner">
+                    {/* ADS DASHBOARD STATISTICS - DEEP BLACK STYLING with Dynamic Border */}
+                    <div className={`bg-[#050505] rounded-[1.8rem] p-4 border ${crownBorder} shadow-inner`}>
                        <div className="flex items-center justify-between mb-3 px-1">
                           <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">إحصائيات إعلاناتك</span>
-                          <Package className="w-3.5 h-3.5 text-[#D4AF37]" />
+                          <Package className={`w-3.5 h-3.5 ${crownColor}`} />
                        </div>
                        <div className="grid grid-cols-3 gap-2">
                            <div className="flex flex-col items-center bg-black rounded-xl p-2.5 border border-white/[0.03]">
@@ -280,9 +311,9 @@ export default function ProfileModal({
                        </div>
                     </div>
 
-                    {/* Info Quick Grid - DEEP BLACK STYLING with Gold Border */}
+                    {/* Info Quick Grid - DEEP BLACK STYLING with Dynamic Border */}
                     <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-[#050505] p-3 rounded-[1.5rem] border border-[#D4AF37]/20 flex items-center gap-2 shadow-inner">
+                        <div className={`bg-[#050505] p-3 rounded-[1.5rem] border ${crownBorder} flex items-center gap-2 shadow-inner`}>
                             <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center border border-white/5">
                                 <Smartphone className="w-3.5 h-3.5 text-gray-400" />
                             </div>
@@ -291,7 +322,7 @@ export default function ProfileModal({
                                 <p className="text-[11px] text-white font-mono font-bold tracking-tight">{phone}</p>
                             </div>
                         </div>
-                        <div className="bg-[#050505] p-3 rounded-[1.5rem] border border-[#D4AF37]/20 flex items-center gap-2 shadow-inner">
+                        <div className={`bg-[#050505] p-3 rounded-[1.5rem] border ${crownBorder} flex items-center gap-2 shadow-inner`}>
                             <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center border border-white/5">
                                 <ShieldCheck className="w-3.5 h-3.5 text-gray-400" />
                             </div>
@@ -313,10 +344,10 @@ export default function ProfileModal({
                     )}
 
                     {/* Subscription Details Display */}
-                    <div className="bg-[#050505] rounded-[1.8rem] p-4 border border-[#D4AF37]/30 shadow-inner mt-2">
+                    <div className={`bg-[#050505] rounded-[1.8rem] p-4 border ${crownBorder} shadow-inner mt-2`}>
                        <div className="flex items-center justify-between mb-2 px-1">
                           <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">اشتراكي الحالي</span>
-                          <Crown className="w-3.5 h-3.5 text-[#D4AF37]" />
+                          <Crown className={`w-3.5 h-3.5 ${crownColor}`} />
                        </div>
                        
                        {currentUser?.subscription !== 'free' ? (
@@ -347,10 +378,10 @@ export default function ProfileModal({
                     </div>
                     
                     {/* Favorite Categories / FCM Push Notifications Dashboard */}
-                    <div className="bg-[#050505] rounded-[1.8rem] p-4 border border-[#D4AF37]/30 shadow-inner mt-2">
+                    <div className={`bg-[#050505] rounded-[1.8rem] p-4 border ${crownBorder} shadow-inner mt-2`}>
                        <div className="flex items-center justify-between mb-2 px-1">
                           <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">تنبيهات الأقسام المفضلة</span>
-                          <Bell className={`w-3.5 h-3.5 ${notificationPermissionStatus === 'granted' ? 'text-[#10B981]' : 'text-[#D4AF37]'}`} />
+                          <Bell className={`w-3.5 h-3.5 ${notificationPermissionStatus === 'granted' ? 'text-[#10B981]' : crownColor.replace('text-', 'text-')}`} />
                        </div>
                        
                        <p className="text-[9.5px] text-gray-400 mb-3 text-right leading-relaxed">
@@ -387,8 +418,8 @@ export default function ProfileModal({
                                onClick={() => onToggleFavoriteCategory(cat)}
                                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-all flex items-center gap-1 cursor-pointer select-none ${
                                  isFav 
-                                   ? 'bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37] shadow-sm' 
-                                   : 'bg-black border-white/5 text-gray-400 hover:text-white hover:border-[#D4AF37]/25'
+                                   ? `bg-black/40 ${crownBorder} shadow-sm` 
+                                   : 'bg-black border-white/5 text-gray-400 hover:text-white hover:border-white/20'
                                }`}
                              >
                                <span className="text-[10px]">{isFav ? '★' : '☆'}</span>
@@ -420,9 +451,9 @@ export default function ProfileModal({
                             </motion.div>
                         ) : (
                             <motion.div key="menu" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
-                                 <button onClick={() => setIsEditing(true)} className="w-full flex items-center gap-4 p-4 rounded-[1.8rem] bg-black border border-[#D4AF37]/60 hover:border-[#10B981]/40 transition-all text-[#10B981] group shadow-2xl">
-                                    <div className="w-10 h-10 rounded-full bg-[#10B981]/10 flex items-center justify-center group-hover:scale-110 transition-transform border border-[#10B981]/20">
-                                        <Settings className="w-5 h-5 text-[#10B981]" />
+                                 <button onClick={() => setIsEditing(true)} className={`w-full flex items-center gap-4 p-4 rounded-[1.8rem] bg-black border ${crownBorder} hover:border-white/40 transition-all ${crownColor} group shadow-2xl`}>
+                                    <div className={`w-10 h-10 rounded-full bg-black/40 flex items-center justify-center group-hover:scale-110 transition-transform border ${crownBorder}`}>
+                                        <Settings className={`w-5 h-5 ${crownColor}`} />
                                     </div>
                                     <div className="flex flex-col items-start text-right">
                                         <span className="font-black text-xs tracking-tight">تعديل الملف الشخصي</span>
@@ -434,6 +465,7 @@ export default function ProfileModal({
                     </AnimatePresence>
                 </div>
             </div>
+        </div>
         </div>
       </motion.div>
     </motion.div>

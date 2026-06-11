@@ -34,9 +34,9 @@ body,
   direction: rtl; 
   margin: 0 !important;
   padding: 0 !important;
-  touch-action: pan-y; /* Prevent two finger horizontal swipes or scrolling gestures */
   scrollbar-width: none !important; /* Hide Firefox scrollbars entirely */
   -ms-overflow-style: none !important;  /* Hide IE scrollbars entirely */
+  -webkit-overflow-scrolling: touch !important; /* Smooth scrolling for webviews without flashing */
 }
 
 /* Force-hide scrollbars globally for a premium native feeling app */
@@ -97,34 +97,49 @@ div, section, header, footer, main, aside {
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 20px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform-style: preserve-3d;
 }
 
 .premium-card.vip-border {
-  border: 2px solid #D4AF37 !important;
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.25) !important;
+  border: 1px solid #D4AF37 !important;
+  border-top-color: #FFF3C5 !important;
+  border-left-color: #FFF3C5 !important;
+  border-bottom-color: #997A15 !important;
+  border-right-color: #997A15 !important;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.6), inset 0 2px 4px rgba(255,243,197,0.3), inset 0 -2px 4px rgba(153,122,21,0.5), 0 0 15px rgba(212, 175, 55, 0.4) !important;
+  background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%) !important;
 }
 .premium-card.vip-border:hover {
-  border-color: #FFF3C5 !important;
-  box-shadow: 0 0 25px rgba(212, 175, 55, 0.45) !important;
+  box-shadow: 0 12px 20px rgba(0,0,0,0.8), inset 0 2px 6px rgba(255,243,197,0.5), inset 0 -2px 6px rgba(153,122,21,0.6), 0 0 25px rgba(212, 175, 55, 0.6) !important;
+  transform: translateY(-4px) scale(1.02);
 }
 
 .premium-card.bronze-border {
-  border: 2px solid #94a3b8 !important;
-  box-shadow: 0 0 12px rgba(148, 163, 184, 0.2) !important;
+  border: 1px solid #94a3b8 !important;
+  border-top-color: #cbd5e1 !important;
+  border-left-color: #cbd5e1 !important;
+  border-bottom-color: #475569 !important;
+  border-right-color: #475569 !important;
+  box-shadow: 0 5px 10px rgba(0,0,0,0.5), inset 0 2px 4px rgba(203,213,225,0.2), inset 0 -2px 4px rgba(71,85,105,0.4), 0 0 12px rgba(148, 163, 184, 0.2) !important;
+  background: linear-gradient(135deg, #111 0%, #050505 100%) !important;
 }
 .premium-card.bronze-border:hover {
-  border-color: #ffffff !important;
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 10px 18px rgba(0,0,0,0.7), inset 0 2px 5px rgba(203,213,225,0.4), inset 0 -2px 5px rgba(71,85,105,0.5), 0 0 20px rgba(255, 255, 255, 0.3) !important;
+  transform: translateY(-3px) scale(1.01);
 }
 
 .premium-card.free-border {
-  border: 2px solid #10B981 !important;
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15) !important;
+  border: 1px solid #10B981 !important;
+  border-top-color: #34d399 !important;
+  border-left-color: #34d399 !important;
+  border-bottom-color: #047857 !important;
+  border-right-color: #047857 !important;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 2px 3px rgba(52,211,153,0.2), inset 0 -2px 3px rgba(4,120,87,0.3), 0 0 10px rgba(16, 185, 129, 0.1) !important;
 }
 .premium-card.free-border:hover {
-  border-color: #34d399 !important;
-  box-shadow: 0 0 18px rgba(16, 185, 129, 0.3) !important;
+  box-shadow: 0 8px 15px rgba(0,0,0,0.6), inset 0 2px 4px rgba(52,211,153,0.3), inset 0 -2px 4px rgba(4,120,87,0.4), 0 0 18px rgba(16, 185, 129, 0.3) !important;
+  transform: translateY(-2px) scale(1.01);
 }
 
 .premium-card:hover {

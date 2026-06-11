@@ -9,14 +9,14 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    // Elegant fast boot duration - 1.0 seconds
+    // Cinematic boot duration - 2.5 seconds
     const timer = setTimeout(() => {
       setIsVisible(false);
       const finishTimer = setTimeout(() => {
         onComplete();
-      }, 500); // Smooth 500ms fade transition
+      }, 800); // Smooth 800ms fade transition
       return () => clearTimeout(finishTimer);
-    }, 1000);
+    }, 2500);
 
     return () => {
       clearTimeout(timer);
@@ -30,14 +30,17 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
           initial={{ opacity: 1 }}
           exit={{
             opacity: 0,
-            transition: { duration: 0.5, ease: "easeInOut" }
+            transition: { duration: 0.8, ease: "easeInOut" }
           }}
           className="fixed inset-0 z-[99999] bg-black flex items-center justify-center m-0 p-0 overflow-hidden select-none w-screen h-screen"
         >
-          <img 
+          <motion.img 
+            initial={{ scale: 1, opacity: 0 }}
+            animate={{ scale: 1.05, opacity: 1 }}
+            transition={{ duration: 2, ease: "easeOut" }}
             src="/souq_sanad_splash.png" 
             alt="سوق سند" 
-            className="w-full h-full object-cover select-none" 
+            className="w-full h-full object-contain select-none" 
             referrerPolicy="no-referrer"
           />
         </motion.div>

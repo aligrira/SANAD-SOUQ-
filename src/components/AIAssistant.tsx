@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Sparkles, X, Send, Bot } from 'lucide-react';
 import { safeStorage } from '../lib/safeStorage';
+import { generateUUID } from '../lib/utils';
 
 export default function AIAssistant({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<{ id: string; role: 'user' | 'model'; text: string }[]>([
@@ -24,7 +25,7 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
 
     const userMessage = input.trim();
     setInput('');
-    const newUserMessage = { id: crypto.randomUUID(), role: 'user' as const, text: userMessage };
+    const newUserMessage = { id: generateUUID(), role: 'user' as const, text: userMessage };
     setMessages(prev => [...prev, newUserMessage]);
     setIsLoading(true);
 
@@ -57,14 +58,14 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
       const text = await response.text();
       try {
         const data = JSON.parse(text);
-        const modelResponse = { id: crypto.randomUUID(), role: 'model' as const, text: data.text || data.error || 'عذراً، حدث خطأ تأكد من إعداد الخادم.' };
+        const modelResponse = { id: generateUUID(), role: 'model' as const, text: data.text || data.error || 'عذراً، حدث خطأ تأكد من إعداد الخادم.' };
         setMessages(prev => [...prev, modelResponse]);
       } catch (e) {
         throw new Error('Received unexpected non-JSON response format.');
       }
     } catch (error: any) {
       console.error('Chat error:', error);
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'model' as const, text: 'حدث خطأ في الاتصال. يرجى التأكد من أن مفتاح API الخاص بـ Gemini تمت إضافته بشكل صحيح وأن الخادم يعمل.' }]);
+      setMessages(prev => [...prev, { id: generateUUID(), role: 'model' as const, text: 'حدث خطأ في الاتصال. يرجى التأكد من أن مفتاح API الخاص بـ Gemini تمت إضافته بشكل صحيح وأن الخادم يعمل.' }]);
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +102,7 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
         {messages.map((msg, index) => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={`msg-${msg.id}-${index}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div 
               className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${
                 msg.role === 'user' 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Story } from '../types';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface VipStoriesRowProps {
   stories: Story[];
@@ -12,6 +12,10 @@ interface VipStoriesRowProps {
 
 const VipStoriesRow: React.FC<VipStoriesRowProps> = ({ stories, onStoryClick }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [startX, setStartX] = React.useState(0);
+  const [scrollLeft, setScrollLeft] = React.useState(0);
+  const dragDistance = React.useRef(0);
 
   React.useEffect(() => {
     if (scrollRef.current && scrollRef.current.children.length > 0) {
@@ -21,10 +25,56 @@ const VipStoriesRow: React.FC<VipStoriesRowProps> = ({ stories, onStoryClick }) 
     }
   }, []);
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollRef.current) return;
+    setIsDragging(true);
+    setStartX(e.pageX - scrollRef.current.offsetLeft);
+    setScrollLeft(scrollRef.current.scrollLeft);
+    dragDistance.current = 0;
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !scrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const walk = (x - startX) * 1.5; // Drag speed multiplier
+    dragDistance.current = Math.abs(x - startX);
+    scrollRef.current.scrollLeft = scrollLeft - walk;
+  };
+
+  const handleStoryCardClick = (storyId: string, e: React.MouseEvent) => {
+    if (dragDistance.current > 8) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (onStoryClick) {
+      onStoryClick(storyId);
+    }
+  };
+
+  const scrollByAmount = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const scrollAmount = 260;
+      scrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   if (!stories.length) return null;
 
   return (
-    <div className="w-full relative bg-black/30 border border-white/5 rounded-3xl py-4 mb-4 select-none">
+    <div className="w-full relative bg-black/30 border border-white/5 rounded-3xl py-3 mb-1 select-none group">
       {/* Small elegant title header */}
       <div className="px-4.5 sm:px-6 mb-3 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
@@ -34,18 +84,41 @@ const VipStoriesRow: React.FC<VipStoriesRowProps> = ({ stories, onStoryClick }) 
         <span className="text-[10px] text-gray-400 font-medium">اسحب لليسار للمزيد ✦</span>
       </div>
 
+      {/* Floating navigation controls for desktop */}
+      <button
+        type="button"
+        onClick={() => scrollByAmount('left')}
+        className="absolute left-3 top-[50%] -translate-y-1/2 z-30 hidden md:flex w-9 h-9 items-center justify-center rounded-full bg-black/70 hover:bg-black/90 text-white border border-white/10 shadow-lg cursor-pointer transition-all opacity-0 group-hover:opacity-100 hover:scale-105 active:scale-95"
+        title="السابق"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => scrollByAmount('right')}
+        className="absolute right-3 top-[50%] -translate-y-1/2 z-30 hidden md:flex w-9 h-9 items-center justify-center rounded-full bg-black/70 hover:bg-black/90 text-white border border-white/10 shadow-lg cursor-pointer transition-all opacity-0 group-hover:opacity-100 hover:scale-105 active:scale-95"
+        title="التالي"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+
       {/* Stories Horizontal Viewport - Added pb-6 padding to ensure text titles are never cutoff */}
       <div 
         ref={scrollRef}
-        className="flex gap-4 overflow-x-auto no-scrollbar px-4.5 sm:px-6 scroll-smooth overscroll-x-contain items-start pb-6" 
-        style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}
+        onMouseDown={handleMouseDown}
+        onMouseLeave={handleMouseLeave}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+        className={`flex gap-4 overflow-x-auto no-scrollbar px-4.5 sm:px-6 scroll-smooth overscroll-x-contain items-start pb-6 ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`} 
+        style={{ touchAction: 'pan-x pan-y', WebkitOverflowScrolling: 'touch' }}
       >
         {stories.map((story, index) => {
           const isFirst = index === 0;
           return (
             <motion.div
-              key={story.id}
-              onClick={() => onStoryClick && onStoryClick(story.id)}
+              key={`${story.id}-${index}`}
+              onClick={(e) => handleStoryCardClick(story.id, e)}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.96 }}
               className="flex flex-col items-center gap-1 cursor-pointer shrink-0 snap-start w-[84px]"

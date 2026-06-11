@@ -16,40 +16,28 @@ export interface BroadcastMessage {
 interface BroadcastMarqueeProps {
   queue: BroadcastMessage[];
   onDismiss: (id: string) => void;
+  relative?: boolean;
 }
 
-export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeProps) {
+export default function BroadcastMarquee({ queue, onDismiss, relative = false }: BroadcastMarqueeProps) {
   const [current, setCurrent] = useState<BroadcastMessage | null>(null);
   const [subState, setSubState] = useState<'brand' | 'ad'>('brand');
   const [iteration, setIteration] = useState(0);
-
-  // Load the view counts from localStorage to persist them across sessions
-  const [viewCounts, setViewCounts] = useState<Record<string, number>>(() => {
-    try {
-      const saved = localStorage.getItem('sanad_broadcast_views');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [loopCount, setLoopCount] = useState(0);
 
   // Sync current message from queue
   useEffect(() => {
     if (queue.length > 0) {
-      // Find the first message that hasn't reached its max views (e.g., 10)
-      const pendingMessage = queue.find(msg => (viewCounts[msg.id] || 0) < 10);
-      if (pendingMessage) {
-        if (current?.id !== pendingMessage.id) {
-          setCurrent(pendingMessage);
-          setSubState('brand');
-        }
-      } else {
-        setCurrent(null);
+      const pendingMessage = queue[0];
+      if (current?.id !== pendingMessage.id) {
+        setCurrent(pendingMessage);
+        setSubState('brand');
+        setLoopCount(0);
       }
     } else {
       setCurrent(null);
     }
-  }, [queue, current?.id, viewCounts]);
+  }, [queue, current?.id]);
 
   // Timed transition for "brand" screen -> "ad" screen
   useEffect(() => {
@@ -65,21 +53,14 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
 
   const handleNext = () => {
     if (current) {
-      const newCount = (viewCounts[current.id] || 0) + 1;
-      const updatedCounts = { ...viewCounts, [current.id]: newCount };
-      
-      setViewCounts(updatedCounts);
-      try {
-        localStorage.setItem('sanad_broadcast_views', JSON.stringify(updatedCounts));
-      } catch (e) {
-        console.error('Failed to save broadcast view count', e);
-      }
-
-      if (newCount >= 10) {
+      const nextCount = loopCount + 1;
+      if (nextCount >= 3) {
+        const idToDismiss = current.id;
         setCurrent(null); // Instantly hide
-        onDismiss(current.id);
+        onDismiss(idToDismiss);
       } else {
-        // Go back to the brand transition, loading the next or repeating
+        setLoopCount(nextCount);
+        // Go back to the brand transition, repeating
         setSubState('brand');
         setIteration(prev => prev + 1);
       }
@@ -94,12 +75,16 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
     <AnimatePresence mode="wait">
       {current && (
         <motion.div
-          key={`stadium-board-${current.id}-${iteration}`}
+          key={`stadium-board-${current.id}`}
           initial={{ opacity: 0, y: -25, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.96 }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="w-[94%] sm:w-[92%] max-w-5xl mx-auto h-[50px] bg-gradient-to-r from-[#4a0000] via-[#9e0505] to-[#4a0000] rounded-full flex items-center overflow-hidden select-none fixed top-[28px] sm:top-[36px] left-0 right-0 z-[99999] shadow-[0_15px_45px_rgba(239,68,68,0.3),0_0_30px_rgba(251,191,36,0.25)] border-2 border-transparent backdrop-blur-xl"
+          className={`h-[50px] bg-gradient-to-r from-[#4a0000] via-[#9e0505] to-[#4a0000] rounded-full flex items-center overflow-hidden select-none border-2 border-transparent backdrop-blur-xl ${
+            relative 
+              ? "relative w-full my-0 shadow-[0_8px_25px_rgba(239,68,68,0.2),0_0_15px_rgba(251,191,36,0.15)] z-10" 
+              : "fixed top-[28px] sm:top-[36px] left-0 right-0 z-[99999] w-[94%] sm:w-[92%] max-w-5xl mx-auto shadow-[0_15px_45px_rgba(239,68,68,0.3),0_0_30px_rgba(251,191,36,0.25)]"
+          }`}
           dir="rtl"
         >
           {/* LED Stadium Board Screen Overlay & Pixels */}
@@ -151,7 +136,7 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
               ) : (
                 /* SCREEN 2: THE CURRENT COMPONENT ADVERTISEMENT TICKER */
                 <motion.div
-                  key="stadium-ad"
+                  key={`stadium-ad-${iteration}`}
                   initial={{ opacity: 0, x: 100 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -100 }}
@@ -164,7 +149,7 @@ export default function BroadcastMarquee({ queue, onDismiss }: BroadcastMarqueeP
                     animate={{ x: '-110%' }}
                     transition={{
                       ease: 'linear',
-                      duration: 11, // Extremely smooth reading speed
+                      duration: 12, // Balanced, highly readable, premium speed
                     }}
                     onAnimationComplete={handleAdFinished}
                     className="absolute whitespace-nowrap text-white text-xs sm:text-xs md:text-sm flex items-center gap-4 pr-3 pl-12"

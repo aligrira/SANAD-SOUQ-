@@ -194,8 +194,12 @@ export default function AdminPanel({
           // Auto-upgrade user's existing products
           const userProducts = products.filter(p => p.sellerId === targetUserId || p.phone === targetUserId || p.sellerId === phoneStr);
           for (const p of userProducts) {
-              if (p.subscription !== subscriptionType) {
-                  await updateDoc(doc(db, 'products', p.id), { subscription: subscriptionType }).catch(e => console.error("Failed to update product subscription", e));
+              if (p.subscription !== subscriptionType || p.plan !== subscriptionType) {
+                  await updateDoc(doc(db, 'products', p.id), { 
+                      subscription: subscriptionType,
+                      plan: subscriptionType,
+                      isVip: subscriptionType === 'vip' 
+                  }).catch(e => console.error("Failed to update product subscription", e));
               }
           }
 
@@ -405,7 +409,7 @@ export default function AdminPanel({
                                     <div>إجراء</div>
                                 </div>
                                 <div className="space-y-2">
-                                  {systemUsers.map((user) => {
+                                  {systemUsers.map((user, index) => {
                                       const now = new Date();
                                       const endDate = user.subscriptionEndDate ? new Date(user.subscriptionEndDate) : null;
                                       const daysRemaining = endDate ? Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0;
@@ -414,7 +418,7 @@ export default function AdminPanel({
                                       const statusColor = status === 'نشط' ? 'text-[#10B981]' : status === 'منتهي' ? 'text-red-500' : 'text-gray-500';
 
                                       return (
-                                       <div key={user.id} className="grid grid-cols-10 gap-2 items-center bg-[#070707] hover:bg-[#0a0a0a] rounded-2xl p-4 border border-gray-900 shadow-sm transition">
+                                       <div key={`user-${user.id || 'no-id'}-${index}`} className="grid grid-cols-10 gap-2 items-center bg-[#070707] hover:bg-[#0a0a0a] rounded-2xl p-4 border border-gray-900 shadow-sm transition">
                                           <div className="text-white text-[10px] font-bold truncate">{user.name}</div>
                                           <div className="text-gray-400 text-[10px] truncate">{user.phone}</div>
                                           <div className="text-white text-[10px]">{adCounts[String(user.id)] || adCounts[String(user.phone)] || 0}</div>
@@ -865,7 +869,7 @@ export default function AdminPanel({
 
                                             return (
                                                 <div 
-                                                  key={`${a.id}-${a.title}-${index}`} 
+                                                 key={`${a.id}-${index}`} 
                                                   className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-[#090909]/40 transition-colors duration-200"
                                                 >
                                                     <div className="flex items-center gap-4">
@@ -963,7 +967,7 @@ export default function AdminPanel({
 
                                             return (
                                                 <div 
-                                                  key={`${u.id}-${u.phone}-${index}`} 
+                                                 key={`${u.id}-${index}`} 
                                                   className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-[#090909]/40 transition-colors duration-200"
                                                 >
                                                     <div className="flex items-center gap-3.5 w-full md:w-5/12">
@@ -1077,7 +1081,7 @@ export default function AdminPanel({
                                            const isVip = r.plan === 'vip';
                                            return (
                                                <div 
-                                                 key={`${r.id}-${r.phone}-${index}`} 
+                                                 key={`req-pending-${r.id}-${index}`} 
                                                  className="bg-[#050505] border border-gray-900 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between hover:border-gray-700 transition-all duration-300"
                                                >
                                                    {isVip && (
@@ -1155,7 +1159,7 @@ export default function AdminPanel({
                                            const isVip = r.plan === 'vip';
                                            return (
                                                <div 
-                                                 key={`${r.id}-${r.phone}-${index}`} 
+                                                 key={`${r.id}-${index}`} 
                                                  className="bg-[#050505] border border-emerald-900/40 rounded-3xl p-5 relative overflow-hidden flex flex-col justify-between"
                                                >
                                                    <div className="space-y-4">

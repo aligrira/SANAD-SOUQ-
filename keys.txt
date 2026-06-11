@@ -1,0 +1,58 @@
+src/components/MenuModal.tsx:            key={section.name} 
+src/components/BroadcastMarquee.tsx:          key={`stadium-board-${current.id}`}
+src/components/BroadcastMarquee.tsx:                  key="stadium-brand"
+src/components/BroadcastMarquee.tsx:                  key={`stadium-ad-${iteration}`}
+src/components/VipStoriesRow.tsx:              key={`${story.id}-${index}`}
+src/components/AdminPanel.tsx:                          key="tab-subscribers"
+src/components/AdminPanel.tsx:                                       <div key={user.id || `user-${index}`} className="grid grid-cols-10 gap-2 items-center bg-[#070707] hover:bg-[#0a0a0a] rounded-2xl p-4 border border-gray-900 shadow-sm transition">
+src/components/AdminPanel.tsx:                          key="tab-dashboard"
+src/components/AdminPanel.tsx:                                         <div key={i} className="border-t border-gray-800/40 w-full h-full" />
+src/components/AdminPanel.tsx:                                           <g key={index} 
+src/components/AdminPanel.tsx:                          key="tab-ads"
+src/components/AdminPanel.tsx:                                                 key={`${a.id}-${index}`} 
+src/components/AdminPanel.tsx:                          key="tab-users"
+src/components/AdminPanel.tsx:                                                 key={`${u.id}-${index}`} 
+src/components/AdminPanel.tsx:                          key="tab-requests"
+src/components/AdminPanel.tsx:                                                 key={`req-pending-${r.id}-${index}`} 
+src/components/AdminPanel.tsx:                                                 key={`${r.id}-${index}`} 
+src/components/AdminPanel.tsx:                          key="tab-settings"
+src/components/AdminPanel.tsx:                 key="receipt-modal"
+src/components/AddProductModal.tsx:                  <div key={idx} className="relative shrink-0 snap-center aspect-[9/16] w-[120px] rounded-2xl overflow-hidden border border-gray-800 bg-black group">
+src/components/AddProductModal.tsx:                           {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+src/components/AddProductModal.tsx:                      {CATEGORIES_DATA.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+src/components/AddProductModal.tsx:                          <option key={sub} value={sub}>{sub}</option>
+src/components/HighlightText.tsx:          <span key={index} className="bg-yellow-400 text-black px-0.5 rounded shadow-[0_0_8px_rgba(250,204,21,0.8)] font-bold transition-all duration-300">
+src/components/ProfileModal.tsx:                               key={cat}
+src/components/ProfileModal.tsx:                              key="edit-actions"
+src/components/ProfileModal.tsx:                            <motion.div key="menu" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
+src/components/Sidebar.tsx:                            key={item.name}
+src/components/PricingPackages.tsx:                key={pkg.id}
+src/components/PricingPackages.tsx:                      <li key={`${pkg.id}-${idx}`} className="flex items-start gap-3 text-xs sm:text-sm text-gray-100 font-medium font-sans">
+src/components/PricingPackages.tsx:              key={pkg.id}
+src/components/PricingPackages.tsx:                    <li key={`${pkg.id}-${idx}`} className="flex items-start gap-2.5 text-[11px] sm:text-[13px] text-gray-300">
+src/components/StoryViewerModal.tsx:            <div key={i} className="h-[2px] flex-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-md">
+src/components/StoryViewerModal.tsx:              key={`${currentIndex}-${imageIndex}`}
+src/components/Toast.tsx:          key="toast-container"
+src/components/AIAssistant.tsx:          <div key={`msg-${msg.id}-${index}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+src/components/ProductDetailsModal.tsx:                      key={idx}
+src/components/ProductDetailsModal.tsx:                          <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentImageIndex ? 'bg-white w-4' : 'bg-white/50 w-1.5'}`} />
+src/components/ProductDetailsModal.tsx:                          key={`${c.id || index}-${index}`} 
+src/App.tsx:                  key={reg}
+src/App.tsx:                    key={`cat-${index}`}
+src/App.tsx:                      key={`sub-${index}`}
+src/App.tsx:                <ListingSkeleton key={`sk-vip-${i}`} viewMode={viewMode} />
+src/App.tsx:                    key={`vip-${product.id}-${index}`}
+src/App.tsx:                <ListingSkeleton key={`sk-bronze-${i}`} viewMode={viewMode} />
+src/App.tsx:                    key={`bronze-${product.id}-${index}`}
+src/App.tsx:                <ListingSkeleton key={`sk-general-${i}`} viewMode={viewMode} />
+src/App.tsx:                      key={`general-${product.id}-${index}`}
+src/App.tsx:                    key={`recent-${p.id}-${index}`}
+src/App.tsx:          <Suspense key="suspense-sidebar" fallback={<ModalFallback />}>
+src/App.tsx:          <Suspense key="suspense-admin" fallback={<ModalFallback />}>
+src/App.tsx:          <Suspense key="suspense-auth" fallback={<ModalFallback />}>
+src/App.tsx:              key="auth"
+src/App.tsx:          <Suspense key="suspense-profile" fallback={<ModalFallback />}>
+src/App.tsx:          <Suspense key="suspense-addproduct" fallback={<ModalFallback />}>
+src/App.tsx:              key="addproduct"
+src/App.tsx:            key="notifications"
+src/App.tsx:                        key={`${n.id}-${index}`}

@@ -606,7 +606,7 @@ export default function ProductDetailsModal({
                       key={idx}
                       src={img} 
                       alt={product.title} 
-                      className="w-full h-full shrink-0 object-contain object-center select-none pointer-events-none block brightness-110 contrast-105 saturate-110 snap-center bg-black" 
+                      className="w-full h-full shrink-0 object-contain object-center select-none pointer-events-none block brightness-110 contrast-105 saturate-110 snap-center bg-zinc-900/50" 
                       referrerPolicy="no-referrer" 
                    />
                 ))}
@@ -796,7 +796,8 @@ export default function ProductDetailsModal({
               
               <div className="flex flex-col sm:flex-row gap-3 mt-1 w-full">
                  <a 
-                    href={`tel:${product.sellerId}`} 
+                    href={`tel:${product.sellerId}`}
+                    target="_self"
                     className="flex-1 flex items-center justify-center gap-2 bg-[#10B981]/10 hover:bg-[#10B981] text-[#10B981] hover:text-white border border-[#10B981]/20 px-4 py-3.5 sm:py-3 rounded-2xl font-bold transition-all text-sm sm:text-xs shadow-sm hover:scale-102 active:scale-98 text-center"
                  >
                     <Phone className="w-4 h-4 shrink-0" />
@@ -808,8 +809,8 @@ export default function ProductDetailsModal({
                        ? 'https://wa.me/21692942482'
                        : `https://wa.me/216${product.sellerId?.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`مرحباً، أود الاستفسار عن إعلانك بـ "سوق سند": "${product.title}" بسعر ${product.price} د.ت`)}`
                    }
-                   target="_blank" 
-                   rel="noreferrer noopener"
+                    target="_blank"
+                    rel="noreferrer noopener"
                    className="flex-1 flex items-center justify-center gap-2 bg-[#25D366]/10 hover:bg-[#25D366] text-[#25D366] hover:text-white border border-[#25D366]/20 px-4 py-3.5 sm:py-3 rounded-2xl font-bold transition-all text-sm sm:text-xs shadow-sm hover:scale-102 active:scale-98 text-center"
                  >
                     <MessageCircle className="w-4 h-4 shrink-0" />
@@ -820,8 +821,8 @@ export default function ProductDetailsModal({
                 onClick={() => {
                    const isAdminProduct = isPhoneAdmin(product.sellerId);
                     if (isAdminProduct) {
-                       window.open('https://wa.me/21692942482', '_blank');
-                       return;
+                        window.open('https://wa.me/21692942482', '_blank');
+                        return;
                     }
                     const templates = [
                        `السلام عليكم ورحمة الله، أعجبني إعلانك لـ "${product.title}" على سوق سند. هل السعر المعروض (${product.price} د.ت) قابل للنقاش البسيط للجادين؟`,
@@ -897,7 +898,7 @@ export default function ProductDetailsModal({
                           initial={{ opacity: 0, y: 15 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.4) }}
-                          key={c.id} 
+                          key={`${c.id || index}-${index}`} 
                           className={`group/comment p-4 rounded-2xl border transition-all duration-300 flex flex-col gap-2 text-right ${
                             normalizedRole === 'admin' 
                               ? 'bg-[#150e02]/70 border-amber-500/20 shadow-[0_4px_15px_rgba(212,175,55,0.04)]'

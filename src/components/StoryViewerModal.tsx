@@ -266,9 +266,9 @@ export default function StoryViewerModal({ stories, initialStoryId, onClose, onA
         <div className="absolute inset-y-0 left-3 z-[60] flex items-center pointer-events-none">
           <button 
             type="button"
+            onTouchStart={(e) => { e.stopPropagation(); }}
+            onTouchEnd={(e) => { e.stopPropagation(); }}
             onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => { e.stopPropagation(); handlePrev(); }}
             className="pointer-events-auto w-8 h-8 rounded-full bg-black/45 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/60 active:scale-95 transition-all opacity-0 sm:opacity-100"
           >
             <ChevronRight className="w-4 h-4 shrink-0" />
@@ -277,9 +277,9 @@ export default function StoryViewerModal({ stories, initialStoryId, onClose, onA
         <div className="absolute inset-y-0 right-3 z-[60] flex items-center pointer-events-none">
           <button 
             type="button"
+            onTouchStart={(e) => { e.stopPropagation(); }}
+            onTouchEnd={(e) => { e.stopPropagation(); }}
             onClick={(e) => { e.stopPropagation(); handleNext(); }}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => { e.stopPropagation(); handleNext(); }}
             className="pointer-events-auto w-8 h-8 rounded-full bg-black/45 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/60 active:scale-95 transition-all opacity-0 sm:opacity-100"
           >
             <ChevronLeft className="w-4 h-4 shrink-0" />
@@ -289,14 +289,14 @@ export default function StoryViewerModal({ stories, initialStoryId, onClose, onA
         {/* Touch/Tap areas for mobile navigation */}
         <div 
           className="absolute inset-y-32 right-0 w-1/3 z-30 sm:hidden" 
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => { e.stopPropagation(); handleNext(); }}
+          onTouchStart={(e) => { e.stopPropagation(); setIsPaused(true); }}
+          onTouchEnd={(e) => { e.stopPropagation(); setIsPaused(false); }}
           onClick={(e) => { e.stopPropagation(); handleNext(); }} 
         />
         <div 
           className="absolute inset-y-32 left-0 w-1/3 z-30 sm:hidden" 
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => { e.stopPropagation(); handlePrev(); }}
+          onTouchStart={(e) => { e.stopPropagation(); setIsPaused(true); }}
+          onTouchEnd={(e) => { e.stopPropagation(); setIsPaused(false); }}
           onClick={(e) => { e.stopPropagation(); handlePrev(); }} 
         />
 
