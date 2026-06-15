@@ -6,6 +6,11 @@ import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
+const aiClient = new GoogleGenAI({ 
+  apiKey: process.env.GEMINI_API_KEY || "",
+  httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+});
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -104,15 +109,9 @@ async function startServer() {
   // AI Assistant Route
   app.post("/api/chat", async (req, res) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-          res.status(500).json({ error: "خادم الذكاء الاصطناعي غير متوفر حالياً (API Key missing)." });
-          return;
-      }
-      const aiClient = new GoogleGenAI({ apiKey });
       const { prompt } = req.body;
       const response = await aiClient.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: `أنت مساعد ذكي لسوق سند (منصة إعلانات في تونس). أجب بلهجة تونسية محترمة أو عربية فصحى. يجب أن تكون إجابتك نصاً واضحاً، مباشراً، وبسيطاً. يمنع منعاً باتاً استخدام الإيموجي (السمايلات) أو النجوم (*) أو أي تنسيق معقد. فقط نص عادي مقروء: ${prompt}`
       });
       res.json({ text: response.text });

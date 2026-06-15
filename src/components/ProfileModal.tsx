@@ -1,472 +1,413 @@
-import React, { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { X, User, Settings, LogOut, Package, Camera, Check, Eye, EyeOff, Crown, MapPin, Calendar, Smartphone, ShieldCheck, Bell } from 'lucide-react';
+import React, { useState, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  X,
+  LogOut,
+  Package,
+  Check,
+  Smartphone,
+  ShieldCheck,
+  Crown,
+  Edit2,
+  Save,
+  Camera
+} from "lucide-react";
 
-export default function ProfileModal({ 
-  onClose, 
-  onOpenAdmin, 
-  phone, 
-  onLogout, 
-  currentUserPlan, 
-  pendingPlan, 
-  currentUser, 
-  onSaveProfile, 
+export default function ProfileModal({
+  onClose,
+  onOpenAdmin,
+  phone,
+  onLogout,
+  currentUserPlan,
+  pendingPlan,
+  currentUser,
   stats,
-  favoriteCategories = [],
-  onToggleFavoriteCategory = () => {},
-  notificationPermissionStatus = 'default',
-  onRequestNotificationPermission = () => {}
-}: { 
-  key?: React.Key, 
-  onClose: () => void, 
-  onOpenAdmin?: () => void, 
-  phone?: string, 
-  onLogout?: () => void, 
-  currentUserPlan?: string, 
-  pendingPlan?: string | null, 
-  currentUser?: any, 
-  onSaveProfile?: (name: string, avatar: string | null) => void, 
-  stats?: { active: number, views: number, sold: number },
-  favoriteCategories?: string[],
-  onToggleFavoriteCategory?: (category: string) => void,
-  notificationPermissionStatus?: string,
-  onRequestNotificationPermission?: () => void
+  favoriteCategories,
+  onToggleFavoriteCategory,
+  onViewPackages,
+  onSaveProfile,
+}: {
+  onClose: () => void;
+  onOpenAdmin?: () => void;
+  phone?: string;
+  onLogout?: () => void;
+  currentUserPlan?: string | null;
+  pendingPlan?: string | null;
+  currentUser?: any;
+  stats?: { active: number; views: number; sold: number };
+  favoriteCategories?: string[];
+  onToggleFavoriteCategory?: (category: string) => void;
+  onViewPackages?: () => void;
+  onSaveProfile?: (name: string, avatar: string | null) => void;
 }) {
+  const displayStats = stats || { active: 2, views: 1, sold: 0 };
+  const userPhone = phone || "92942482";
+  const userName = currentUser?.name || "A D M I N";
+
+  const isVip = currentUserPlan === 'vip' || currentUserPlan === 'gold';
+  const isBronze = currentUserPlan === 'bronze' || currentUserPlan === 'silver';
+  
+  let badgeName = "مجانية";
+  let badgeNameFull = "الباقة المجانية";
+  let badgeColorClass = "text-gray-400";
+  
+  if (isVip) {
+    badgeName = "ذهبية (VIP)";
+    badgeNameFull = "VIP الذهبي الملكي";
+    badgeColorClass = "text-[#D4AF37]";
+  } else if (isBronze) {
+    badgeName = "برونزية مميزة";
+    badgeNameFull = "البرونزية المتميزة";
+    badgeColorClass = "text-amber-500";
+  }
+
+  const crownColor = isVip ? "text-[#D4AF37]" : "text-[#D4AF37]"; // Golden by default based on image
+  const crownBorder = isVip ? "border-[#D4AF37]/50" : "border-[#D4AF37]/50";
 
   const [isEditing, setIsEditing] = useState(false);
-  const [profileName, setProfileName] = useState(currentUser?.name || 'المستخدم الحالي');
-  const [originalName, setOriginalName] = useState(currentUser?.name || 'المستخدم الحالي');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [avatar, setAvatar] = useState<string | null>(currentUser?.avatar || null);
-  const [originalAvatar, setOriginalAvatar] = useState<string | null>(currentUser?.avatar || null);
+  const [editName, setEditName] = useState(userName);
+  const [editPhone, setEditPhone] = useState(userPhone);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const displayStats = stats || { active: 3, views: 124, sold: 1 };
-
-  const handleCancelEntry = () => {
-    setProfileName(originalName);
-    setAvatar(originalAvatar);
-    setPassword('');
-    setIsEditing(false);
-  };
-
   const handleSave = () => {
-    setOriginalName(profileName);
-    setOriginalAvatar(avatar);
-    setIsEditing(false);
-    if (onSaveProfile) onSaveProfile(profileName, avatar);
+    if (onSaveProfile) {
+      onSaveProfile(editName, selectedImage);
+    }
+    setShowSuccess(true);
+    setTimeout(() => {
+      setShowSuccess(false);
+      setIsEditing(false);
+    }, 2000);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const img = new Image();
-        img.src = reader.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_SIZE = 150; // profile image is small
-          let width = img.width;
-          let height = img.height;
-          if (width > height) {
-            if (width > MAX_SIZE) {
-              height *= MAX_SIZE / width;
-              width = MAX_SIZE;
-            }
-          } else {
-            if (height > MAX_SIZE) {
-              width *= MAX_SIZE / height;
-              height = MAX_SIZE;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressed = canvas.toDataURL('image/jpeg', 0.85); // good quality and very small
-            setAvatar(compressed);
-            if (onSaveProfile) {
-              onSaveProfile(profileName, compressed);
-            }
-          } else {
-            const raw = reader.result as string;
-            setAvatar(raw);
-            if (onSaveProfile) {
-              onSaveProfile(profileName, raw);
-            }
-          }
-        };
+        setSelectedImage(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
-
-  const isVip = currentUser?.subscription === 'vip';
-  const isBronze = currentUser?.subscription === 'bronze';
-  const isFree = !isVip && !isBronze;
-
-  const planName = isVip ? 'عضوية ذهبية VIP' : isBronze ? 'عضوية برونزية' : 'عضوية مجانية';
-
-  // Define colors based on plan
-  const planColor = isVip 
-    ? 'from-[#D4AF37] via-[#FFF3C5] to-[#D4AF37]' 
-    : isBronze 
-    ? 'from-[#c0c4c7] via-[#f1f3f4] to-[#a1a5a8]' 
-    : 'from-emerald-400 via-[#a7f3d0] to-emerald-500';
-
-  const planGlow = isVip 
-    ? 'shadow-[0_0_25px_rgba(212,175,55,0.45)]' 
-    : isBronze 
-    ? 'shadow-[0_0_25px_rgba(192,196,199,0.35)]' 
-    : 'shadow-[0_0_25px_rgba(16,185,129,0.3)]';
-
-  const crownColor = isVip ? 'text-[#D4AF37]' : isBronze ? 'text-slate-300' : 'text-emerald-400';
-  const crownBorder = isVip ? 'border-[#D4AF37]/40 text-[#D4AF37]' : isBronze ? 'border-slate-300/40 text-slate-300' : 'border-emerald-400/40 text-emerald-400';
-
-  const wrapperStyle = isVip
-    ? "p-[3px] bg-gradient-to-tr from-[#6B4E0A] via-[#FFF3C5] to-[#D4AF37] shadow-[0_15px_40px_rgba(212,175,55,0.45)] border-none"
-    : isBronze
-    ? "p-[2.5px] bg-gradient-to-tr from-neutral-700 via-neutral-100 to-neutral-800 shadow-[0_15px_35px_rgba(192,196,199,0.35)] border-none"
-    : "p-[2px] bg-gradient-to-tr from-emerald-800 via-[#a7f3d0] to-emerald-950 shadow-[0_10px_30px_rgba(16,185,129,0.3)] border-none";
-
-  const innerBg = isVip
-    ? "bg-gradient-to-b from-[#0f0c05] via-[#050402] to-[#010101] shadow-[inset_0_2px_20px_rgba(212,175,55,0.2)]"
-    : isBronze
-    ? "bg-gradient-to-b from-[#111315] via-[#050607] to-[#010101] shadow-[inset_0_2px_20px_rgba(192,196,199,0.15)]"
-    : "bg-gradient-to-b from-[#02170c] via-[#010603] to-[#010101] shadow-[inset_0_2px_20px_rgba(16,185,129,0.2)]";
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 lg:p-0"
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 py-8"
+      dir="rtl"
+      onClick={onClose}
     >
       <motion.div
-        initial={{ y: 50, scale: 0.95 }}
-        animate={{ y: 0, scale: 1 }}
-        exit={{ y: 50, scale: 0.95 }}
-        className={`w-full max-w-sm rounded-[2.5rem] flex flex-col max-h-[85vh] relative ${wrapperStyle}`}
-        style={{ transformStyle: 'preserve-3d', perspective: '1000px' }}
-        dir="rtl"
+        initial={{ y: 20, scale: 0.95, opacity: 0 }}
+        animate={{ y: 0, scale: 1, opacity: 1 }}
+        exit={{ y: 20, scale: 0.95, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="w-full max-w-[420px] mx-auto bg-[#050505] rounded-[2.5rem] p-5 sm:p-6 border border-[#D4AF37]/40 shadow-[0_10px_50px_rgba(212,175,55,0.15)] relative max-h-[85vh] overflow-y-auto no-scrollbar pb-8 mb-10"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Inner Card Background */}
-        <div className={`w-full h-full rounded-[2.35rem] flex flex-col overflow-hidden relative ${innerBg}`}>
-        
-        {/* Abstract Background Decoration */}
-        <div className={`absolute top-0 inset-x-0 h-32 bg-gradient-to-b ${isVip ? 'from-[#D4AF37]/10' : isBronze ? 'from-slate-400/10' : 'from-emerald-400/10'} to-transparent pointer-events-none`} />
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6 mt-1 px-1 relative">
+          <h2 className="text-[20px] sm:text-2xl font-black text-white flex-1 text-center pr-8 tracking-tight drop-shadow-md">
+            الملف الشخصي
+          </h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all shrink-0 bg-[#000] shadow-[inset_0_1px_2px_rgba(212,175,55,0.2)]"
+          >
+            <X className="w-4 h-4" strokeWidth={3} />
+          </button>
+        </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain scroll-smooth touch-pan-y relative z-10">
-            {/* Unified Scrollable Container Header */}
-            <div className="px-6 pt-4 pb-1 flex justify-between items-center relative z-10 shrink-0">
-               <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors">
-                  <X className="w-5 h-5" />
-               </button>
-               <h2 className="text-lg font-black font-display text-white">الملف الشخصي</h2>
-               <div className="w-10"></div>
+        {/* Actions & Avatar Row */}
+        <div className="flex justify-between items-center px-1 mb-4 mt-1 relative">
+          {/* Admin Button */}
+          {onOpenAdmin ? (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenAdmin();
+              }}
+              className="flex items-center justify-center flex-col gap-1 w-[64px] h-[72px] rounded-[1rem] bg-gradient-to-b from-[#111] to-[#000] border border-[#D4AF37]/20 text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all font-bold z-10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.05),0_4px_8px_rgba(0,0,0,0.5)]"
+            >
+              <div className="w-7 h-7 rounded-full border-t border-t-[#fff2ba] border-x-[#D4AF37]/40 border-b-0 bg-gradient-to-b from-[#f3db8b] to-[#7a5f11] flex items-center justify-center shadow-[inset_0_2px_4px_rgba(255,255,255,0.6),0_2px_4px_rgba(0,0,0,0.8)]">
+                <ShieldCheck className="w-3.5 h-3.5 text-black drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)]" strokeWidth={2.5} />
+              </div>
+              <span className="text-[10px]">إدارة</span>
+            </button>
+          ) : (
+            <div className="w-[64px] z-10"></div>
+          )}
+
+          {/* Avatar Center */}
+          <div className="flex flex-col items-center relative z-20 mx-2">
+            <div className="w-20 h-20 rounded-full border-[1.5px] border-[#D4AF37] p-1 bg-gradient-to-b from-[#1a1505] to-black flex items-center justify-center shadow-[0_4px_20px_rgba(212,175,55,0.3)]">
+              <div className="w-full h-full bg-black rounded-full overflow-hidden border border-[#D4AF37]/30 flex items-center justify-center relative shadow-[inset_0_2px_10px_rgba(255,255,255,0.1)]">
+                {(selectedImage || currentUser?.avatar) ? (
+                  <img
+                    src={selectedImage || currentUser.avatar}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-[#D4AF37] flex flex-col items-center mt-1.5 drop-shadow-[0_2px_4px_rgba(212,175,55,0.4)]">
+                    <Crown className="w-7 h-7 mb-0.5" strokeWidth={2.5}/>
+                    <span className="text-[12px] font-black tracking-widest leading-tight">
+                      سند
+                    </span>
+                    <span className="text-[5px] tracking-[0.2em] opacity-80 uppercase leading-none">
+                      SOUQ SANAD
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Badge */}
+              <div className="absolute -bottom-2 bg-gradient-to-b from-[#1a1505] to-[#0A0A0A] border border-[#D4AF37] text-[#D4AF37] px-4 py-[3px] rounded-full text-[9px] font-black shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-30 tracking-widest leading-none drop-shadow-md">
+                ذهبية
+              </div>
             </div>
+          </div>
 
-            <div className="px-6 pb-6">
-                {/* Drag Handle Indicator */}
-                <div className="flex justify-center pt-1 mb-2">
-                    <div className="w-8 h-1 bg-white/10 rounded-full" />
+          {/* Logout Button */}
+          <button
+            onClick={() => {
+              if (onLogout) onLogout();
+              onClose();
+            }}
+            className="flex items-center justify-center flex-col gap-1 w-[64px] h-[72px] rounded-[1rem] bg-gradient-to-b from-[#1a0505] to-[#050000] border border-red-900/30 text-red-500 hover:bg-red-900/20 transition-all font-bold z-10 shadow-[inset_0_1px_2px_rgba(255,255,255,0.05),0_4px_8px_rgba(0,0,0,0.5)]"
+          >
+            <div className="w-7 h-7 rounded-full border-t border-t-red-400 border-x-red-900/40 border-b-0 flex items-center justify-center bg-gradient-to-b from-red-600 to-red-950 transform rotate-180 shadow-[inset_0_2px_4px_rgba(255,255,255,0.4),0_2px_4px_rgba(0,0,0,0.8)]">
+              <LogOut className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]" strokeWidth={3} />
+            </div>
+            <span className="text-[10px]">خروج</span>
+          </button>
+        </div>
+
+        {/* Username Details */}
+        <div className="flex flex-col items-center mb-4 mt-2">
+          <h3 className="text-[20px] font-black text-white tracking-[0.1em] mb-1 uppercase leading-none drop-shadow-md">
+            {userName}
+          </h3>
+          <div className="flex items-center gap-1 text-emerald-400 bg-emerald-400/5 px-2 py-0.5 rounded-full border border-emerald-400/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
+            <span className="text-[9px] font-black">حساب موثق ونشط</span>
+            <Check className="w-2.5 h-2.5 drop-shadow-[0_1px_2px_rgba(16,185,129,0.8)]" strokeWidth={3} />
+          </div>
+        </div>
+
+        {/* Box 1: Stats */}
+        <div className="bg-gradient-to-br from-[#0A0A0A] to-[#050505] rounded-[1.2rem] p-3 border border-t-white/10 border-x-white/5 border-b-black mb-2 relative overflow-hidden group shadow-[0_4px_8px_rgba(0,0,0,0.6)]">
+          <div className="absolute top-2.5 left-2.5 opacity-40 drop-shadow-[0_2px_4px_rgba(212,175,55,0.5)]">
+            <Package className="w-4 h-4 text-[#D4AF37]" strokeWidth={2.5} />
+          </div>
+          <p className="text-[9px] font-black text-gray-500 text-right mb-2 pr-1 uppercase tracking-[0.1em] drop-shadow-sm">
+            إحصائيات إعلاناتك
+          </p>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-gradient-to-b from-[#111] to-[#000] rounded-xl py-2 flex flex-col items-center justify-center border border-white/5 shadow-[inset_0_1px_2px_rgba(255,255,255,0.05)]">
+               <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">نشطة</span>
+               <span className="text-lg font-black text-white leading-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
+                 {displayStats.active}
+               </span>
+            </div>
+            <div className="bg-gradient-to-b from-[#111] to-[#000] rounded-xl py-2 flex flex-col items-center justify-center border border-white/5 shadow-[inset_0_1px_2px_rgba(255,255,255,0.05)]">
+               <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">مشاهدات</span>
+               <span className="text-lg font-black text-emerald-400 leading-none drop-shadow-[0_2px_4px_rgba(16,185,129,0.4)]">
+                 {displayStats.views}
+               </span>
+            </div>
+            <div className="bg-gradient-to-b from-[#111] to-[#000] rounded-xl py-2 flex flex-col items-center justify-center border border-white/5 shadow-[inset_0_1px_2px_rgba(255,255,255,0.05)]">
+               <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">مباعة</span>
+               <span className="text-lg font-black text-blue-400 leading-none drop-shadow-[0_2px_4px_rgba(96,165,250,0.4)]">
+                 {displayStats.sold}
+               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Box 2 & 3: Phone & Membership */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div className="bg-gradient-to-br from-[#0A0A0A] to-[#000] rounded-[1.2rem] py-2.5 px-2 border border-t-white/10 border-x-white/5 border-b-black flex items-center justify-end gap-2 flex-row-reverse text-right shadow-[0_4px_8px_rgba(0,0,0,0.6)]">
+            <div className="w-7 h-7 rounded-full border-t border-t-gray-400 border-x-gray-700 border-b-0 bg-gradient-to-b from-gray-500 to-black flex items-center justify-center shrink-0 shadow-[inset_0_2px_4px_rgba(255,255,255,0.2),0_2px_4px_rgba(0,0,0,0.8)]">
+              <Smartphone className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]" strokeWidth={2.5} />
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] font-black text-gray-500 mb-0 uppercase tracking-wide">
+                الهاتف
+              </span>
+              <span className="text-[10px] font-black text-white tracking-widest">{userPhone}</span>
+            </div>
+          </div>
+
+          <div className={`bg-gradient-to-br from-[#0A0A0A] to-[#000] rounded-[1.2rem] py-2.5 px-2 border ${isVip ? 'border-[#D4AF37]/20 border-t-[#D4AF37]/40' : isBronze ? 'border-amber-600/20 border-t-amber-500/40' : 'border-white/10'} flex items-center justify-end gap-2 flex-row-reverse text-right shadow-[0_4px_8px_rgba(0,0,0,0.6)]`}>
+            <div className={`w-7 h-7 rounded-full border-t ${isVip ? 'border-t-[#fff2ba] border-x-[#D4AF37]/40 bg-gradient-to-b from-[#f3db8b] to-[#7a5f11]' : isBronze ? 'border-t-amber-300 border-x-amber-600/40 bg-gradient-to-b from-amber-400 to-amber-700' : 'border-t-gray-450 border-x-gray-800 bg-gradient-to-b from-gray-500 to-black'} flex items-center justify-center shrink-0 shadow-[inset_0_2px_4px_rgba(255,255,255,0.6),0_2px_4px_rgba(0,0,0,0.8)]`}>
+              <ShieldCheck className={`w-3.5 h-3.5 ${isVip || isBronze ? 'text-black' : 'text-gray-400'} drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)]`} strokeWidth={2.5} />
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] font-black text-gray-500 mb-0 uppercase tracking-wide">
+                العضوية
+              </span>
+              <span className={`text-[10px] font-black ${badgeColorClass} tracking-widest drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]`}>{badgeName}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Box 4: Subscription */}
+        <div className="bg-gradient-to-br from-[#0A0A0A] to-[#050505] rounded-[1.2rem] p-3 border border-t-white/10 border-x-white/5 border-b-black relative mb-4 shadow-[0_4px_8px_rgba(0,0,0,0.6)]">
+          <div className="absolute top-2.5 left-2.5 opacity-40 drop-shadow-[0_2px_4px_rgba(212,175,55,0.5)]">
+            <Crown className={`w-4 h-4 ${isVip ? 'text-[#D4AF37]' : isBronze ? 'text-amber-500' : 'text-gray-500'}`} strokeWidth={2.5} />
+          </div>
+          <div className="flex items-center justify-end mb-2">
+            <p className="text-[9px] font-black text-gray-500 px-1 uppercase tracking-[0.1em]">
+              اشتراكي الحالي
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center text-xs flex-row-reverse border-b border-white/5 pb-1">
+               <span className="text-gray-500 text-[9px] font-bold">الباقة: </span>
+               <span className={`font-black tracking-[0.05em] text-[10px] ${badgeColorClass} drop-shadow-md`}>{badgeNameFull}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs flex-row-reverse">
+               <span className="text-gray-500 text-[9px] font-bold">تاريخ التفعيل: </span>
+               <span className="font-mono text-[8px] text-gray-300 font-bold bg-[#000] border border-white/5 px-1.5 py-0.5 rounded shadow-inner">
+                 {currentUser?.subscriptionStartDate || "10T15:30:12Z-06-2026"}
+               </span>
+            </div>
+            <div className="flex justify-between items-center text-xs flex-row-reverse">
+               <span className="text-gray-500 text-[9px] font-bold">تاريخ الانتهاء: </span>
+               <span className="font-mono text-[8px] text-gray-300 font-bold bg-[#000] border border-white/5 px-1.5 py-0.5 rounded shadow-inner">
+                 {currentUser?.subscriptionEndDate || "10T15:30:12Z-07-2026"}
+               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Edit Profile Action */}
+        <div className="border-t border-white/5 pt-4">
+          <AnimatePresence mode="wait">
+            {showSuccess ? (
+              <motion.div
+                key="success"
+                initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                className="w-full bg-emerald-500 py-3 rounded-xl flex items-center justify-center gap-2 shadow-[inset_0_2px_4px_rgba(255,255,255,0.4),0_4px_10px_rgba(16,185,129,0.3)]"
+              >
+                <div className="w-6 h-6 rounded-full bg-gradient-to-b from-gray-900 to-black flex items-center justify-center text-emerald-500 shadow-inner">
+                  <Check className="w-3.5 h-3.5 drop-shadow-md" strokeWidth={4} />
+                </div>
+                <span className="font-black text-black text-[12px]">تم حفظ التغييرات</span>
+              </motion.div>
+            ) : !isEditing ? (
+              <motion.button
+                key="edit-button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsEditing(true)}
+                className="w-full bg-gradient-to-b from-[#111] to-[#050505] hover:from-[#1a1a1a] hover:to-[#0a0a0a] p-3 rounded-xl border border-t-white/10 border-x-white/5 border-b-black transition-all flex items-center justify-between group active:scale-[0.98] shadow-[0_4px_8px_rgba(0,0,0,0.6)]"
+              >
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-gray-800 to-black border-t border-t-gray-600 border-x-gray-700 border-b-0 flex items-center justify-center group-hover:border-[#D4AF37]/50 transition-all shadow-[inset_0_2px_4px_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.8)]">
+                  <Edit2 className="w-4 h-4 text-[#D4AF37] drop-shadow-md" strokeWidth={2.5} />
+                </div>
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="font-black text-[12px] text-white tracking-tight drop-shadow-md">تعديل الملف الشخصي</span>
+                  <span className="text-[9px] font-bold uppercase text-gray-500 tracking-wide">تغيير البيانات</span>
+                </div>
+              </motion.button>
+            ) : (
+              <motion.div
+                key="edit-form"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-between mb-1 pb-2 border-b border-white/5">
+                  <button 
+                    onClick={() => setIsEditing(false)}
+                    className="w-7 h-7 flex items-center justify-center bg-white/5 rounded-full text-gray-400 hover:text-white transition-all active:scale-90"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[13px] font-black text-white px-2">تعديل البيانات</span>
                 </div>
 
-                {/* COMPACT HEADER - AVATAR + PRIMARY ACTIONS */}
-                <div className="flex items-center justify-between gap-4 mb-4 mt-0 px-2">
-                    {/* Logout Button Side */}
-                    <button 
-                      onClick={() => { if(onLogout) onLogout(); onClose(); }} 
-                      className="flex flex-col items-center gap-1 p-1.5 rounded-2xl bg-black border border-red-500/20 text-red-500 group active:scale-90 transition-all hover:bg-red-500/10"
-                      title="تسجيل الخروج"
-                    >
-                        <div className="w-10 h-10 rounded-full border border-red-500/20 flex items-center justify-center">
-                            <LogOut className="w-5 h-5" />
-                        </div>
-                        <span className="text-[9px] font-black uppercase tracking-tight">خروج</span>
-                    </button>
-
-                    {/* THE CROWNED AVATAR */}
-                    <div className="relative group shrink-0">
-                        {/* The "Hizam" Belt Ring */}
-                        <div 
-                          className={`w-20 h-20 rounded-full bg-gradient-to-tr ${planColor} p-[2px] cursor-pointer relative transition-all duration-500 ${planGlow} group-hover:scale-105`}
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                            <div className="w-full h-full bg-[#020806] rounded-full flex items-center justify-center overflow-hidden relative border-4 border-[#020806]">
-                                {avatar ? (
-                                    <img src={avatar} alt="Profile" className="w-full h-full object-cover" />
-                                ) : (
-                                    <User className="w-10 h-10 text-gray-600" />
-                                )}
-                                
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 backdrop-blur-[2px]">
-                                    <Camera className="w-5 h-5 text-white" />
-                                </div>
-                            </div>
-                        </div>
-                        <input type="file" ref={fileInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
-
-                        {/* Subscription Crown Badge (The Taj) */}
-                        <motion.div 
-                          initial={{ scale: 0.8, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ delay: 0.3 }}
-                          className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex flex-col items-center z-20"
-                        >
-                          <div className={`bg-gray-950 border border-[#D4AF37]/40 px-2.5 py-0.5 rounded-full shadow-2xl flex items-center gap-1 ${planGlow}`}>
-                            <Crown className={`w-3 h-3 ${crownColor} drop-shadow-[0_0_8px_currentColor]`} />
-                            <span className={`text-[8px] font-black tracking-tight ${crownColor}`}>{planName.split(' ')[1]}</span>
-                          </div>
-                        </motion.div>
-                    </div>
-
-                    {/* Admin/Settings Side */}
-                    {onOpenAdmin ? (
-                       <button 
-                         onClick={() => { onClose(); onOpenAdmin(); }} 
-                         className="flex flex-col items-center gap-1 p-1.5 rounded-2xl bg-black border border-[#D4AF37]/20 text-[#D4AF37] group active:scale-90 transition-all hover:bg-[#D4AF37]/10"
-                         title="لوحة الإدارة"
-                       >
-                           <div className="w-10 h-10 rounded-full border border-[#D4AF37]/20 flex items-center justify-center">
-                               <ShieldCheck className="w-5 h-5" />
-                           </div>
-                           <span className="text-[9px] font-black uppercase tracking-tight">إدارة</span>
-                       </button>
-                    ) : (
-                       <button 
-                         onClick={() => setIsEditing(true)}
-                         className="flex flex-col items-center gap-1 p-1.5 rounded-2xl bg-black border border-blue-500/20 text-blue-400 group active:scale-90 transition-all hover:bg-blue-500/10"
-                         title="تعديل الملف"
-                       >
-                           <div className="w-10 h-10 rounded-full border border-blue-500/20 flex items-center justify-center">
-                               <Settings className="w-5 h-5" />
-                           </div>
-                           <span className="text-[9px] font-black uppercase tracking-tight">تعديل</span>
-                       </button>
-                    )}
-                </div>
-
-                {/* ORGANIZED INFORMATION GRID */}
-                <div className="space-y-2 mb-3">
-                    {isEditing ? (
-                        <div className="space-y-2.5 bg-[#050505] p-4 rounded-[2rem] border border-[#D4AF37]/50 mb-2 shadow-inner">
-                            <div className="space-y-1">
-                                <label className="text-[8px] text-gray-500 mr-2 font-black uppercase tracking-tighter">الاسم الكامل</label>
-                                <input 
-                                  type="text" 
-                                  value={profileName}
-                                  onChange={e => setProfileName(e.target.value)}
-                                  className="w-full bg-black border border-white/10 rounded-xl py-2 px-4 text-white text-xs font-bold focus:border-[#D4AF37] outline-none transition-shadow"
-                                  placeholder="الاسم الكامل"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                               <label className="text-[8px] text-gray-500 mr-2 font-black uppercase tracking-tighter">كلمة المرور الجديدة</label>
-                               <div className="relative">
-                                  <input 
-                                    type={showPassword ? "text" : "password"}
-                                    value={password}
-                                    onChange={e => setPassword(e.target.value)}
-                                    className="w-full bg-black border border-white/10 rounded-xl py-2 px-4 text-white text-xs font-bold focus:border-[#D4AF37] outline-none transition-shadow"
-                                    placeholder="..."
-                                  />
-                                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-3 text-gray-400">
-                                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                  </button>
-                               </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center text-center mb-2">
-                            <h3 className="text-xl font-black text-white mb-0.5 tracking-tight">{profileName}</h3>
-                            <p className="text-[#10B981] text-[9px] font-black flex items-center gap-1 uppercase tracking-widest">
-                              <Check className="w-3 h-3" /> حساب موثق ونشط
-                            </p>
-                        </div>
-                    )}
-
-                    {/* ADS DASHBOARD STATISTICS - DEEP BLACK STYLING with Dynamic Border */}
-                    <div className={`bg-[#050505] rounded-[1.8rem] p-4 border ${crownBorder} shadow-inner`}>
-                       <div className="flex items-center justify-between mb-3 px-1">
-                          <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">إحصائيات إعلاناتك</span>
-                          <Package className={`w-3.5 h-3.5 ${crownColor}`} />
-                       </div>
-                       <div className="grid grid-cols-3 gap-2">
-                           <div className="flex flex-col items-center bg-black rounded-xl p-2.5 border border-white/[0.03]">
-                               <span className="text-base font-black text-white">{displayStats.active}</span>
-                               <span className="text-[7px] text-gray-500 font-black uppercase">نشطة</span>
-                           </div>
-                           <div className="flex flex-col items-center bg-black rounded-xl p-2.5 border border-white/[0.03]">
-                               <span className="text-base font-black text-[#10B981]">{displayStats.views}</span>
-                               <span className="text-[7px] text-gray-500 font-black uppercase">مشاهدات</span>
-                           </div>
-                           <div className="flex flex-col items-center bg-black rounded-xl p-2.5 border border-white/[0.03]">
-                               <span className="text-lg font-black text-blue-400">{displayStats.sold}</span>
-                               <span className="text-[7px] text-gray-500 font-black uppercase">مباعة</span>
-                           </div>
-                       </div>
-                    </div>
-
-                    {/* Info Quick Grid - DEEP BLACK STYLING with Dynamic Border */}
-                    <div className="grid grid-cols-2 gap-2">
-                        <div className={`bg-[#050505] p-3 rounded-[1.5rem] border ${crownBorder} flex items-center gap-2 shadow-inner`}>
-                            <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center border border-white/5">
-                                <Smartphone className="w-3.5 h-3.5 text-gray-400" />
-                            </div>
-                            <div>
-                                <p className="text-[7px] text-gray-500 font-black uppercase tracking-tighter">الهاتف</p>
-                                <p className="text-[11px] text-white font-mono font-bold tracking-tight">{phone}</p>
-                            </div>
-                        </div>
-                        <div className={`bg-[#050505] p-3 rounded-[1.5rem] border ${crownBorder} flex items-center gap-2 shadow-inner`}>
-                            <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center border border-white/5">
-                                <ShieldCheck className="w-3.5 h-3.5 text-gray-400" />
-                            </div>
-                            <div>
-                                <p className="text-[7px] text-gray-500 font-black uppercase tracking-tighter">العضوية</p>
-                                <p className={`text-[10px] font-black ${crownColor}`}>{planName.split(' ')[1]}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {pendingPlan && (
-                        <motion.div 
-                          initial={{ scale: 0.9, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          className="bg-amber-500/10 text-amber-500 border border-amber-500/10 p-2 rounded-xl text-[8px] font-black text-center uppercase tracking-widest"
-                        >
-                            طلب العضوية قيد المراجعة...
-                        </motion.div>
-                    )}
-
-                    {/* Subscription Details Display */}
-                    <div className={`bg-[#050505] rounded-[1.8rem] p-4 border ${crownBorder} shadow-inner mt-2`}>
-                       <div className="flex items-center justify-between mb-2 px-1">
-                          <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">اشتراكي الحالي</span>
-                          <Crown className={`w-3.5 h-3.5 ${crownColor}`} />
-                       </div>
-                       
-                       {currentUser?.subscription !== 'free' ? (
-                          <div className="space-y-2 text-right">
-                             <p className="text-[10px] text-gray-300">
-                                <span className="text-gray-500">الباقة:</span> 
-                                <span className="font-bold text-white mr-1">{currentUser?.subscription === 'vip' ? 'VIP الذهبي' : 'برونزي'}</span>
-                             </p>
-                             <p className="text-[10px] text-gray-300">
-                                <span className="text-gray-500">تاريخ التفعيل:</span> 
-                                <span className="font-bold text-white mr-1">{currentUser?.subscriptionStartDate || '---'}</span>
-                             </p>
-                             <p className="text-[10px] text-gray-300">
-                                <span className="text-gray-500">تاريخ الانتهاء:</span> 
-                                <span className="font-bold text-white mr-1">{currentUser?.subscriptionEndDate || '---'}</span>
-                             </p>
-                             {currentUser?.subscriptionEndDate && (
-                                <div className="mt-2 pt-2 border-t border-white/5">
-                                   <p className="text-[9px] text-[#10B981] font-black uppercase">
-                                     الأيام المتبقية: {Math.ceil((new Date(currentUser.subscriptionEndDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} يوم
-                                   </p>
-                                </div>
-                             )}
-                          </div>
+                {/* Edit Photo */}
+                <div className="flex justify-center py-1">
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+                  <div 
+                    className="relative group cursor-pointer" 
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className="w-20 h-20 rounded-full border-[1.5px] border-dashed border-[#D4AF37]/50 flex items-center justify-center bg-[#080808] overflow-hidden group-hover:border-[#D4AF37] transition-all relative shadow-inner">
+                       {(selectedImage || currentUser?.avatar) ? (
+                         <img src={selectedImage || currentUser.avatar} alt="Avatar" className="w-full h-full object-cover group-hover:opacity-40 transition-all"/>
                        ) : (
-                          <p className="text-[10px] text-gray-500 text-center font-bold">أنت حالياً على الباقة المجانية</p>
+                         <div className="flex flex-col items-center gap-1">
+                            <Camera className="w-6 h-6 text-gray-700 group-hover:text-[#D4AF37]" strokeWidth={1.5} />
+                            <span className="text-[7px] text-gray-700 font-black uppercase tracking-widest leading-none">تغيير الصورة</span>
+                         </div>
                        )}
-                    </div>
-                    
-                    {/* Favorite Categories / FCM Push Notifications Dashboard */}
-                    <div className={`bg-[#050505] rounded-[1.8rem] p-4 border ${crownBorder} shadow-inner mt-2`}>
-                       <div className="flex items-center justify-between mb-2 px-1">
-                          <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">تنبيهات الأقسام المفضلة</span>
-                          <Bell className={`w-3.5 h-3.5 ${notificationPermissionStatus === 'granted' ? 'text-[#10B981]' : crownColor.replace('text-', 'text-')}`} />
-                       </div>
-                       
-                       <p className="text-[9.5px] text-gray-400 mb-3 text-right leading-relaxed">
-                         اختر أقسامك المفضلة لتلقي تنبيهات وإشعارات لحظية مخصصة فور إضافة أي معروضات جديدة من أي بائع آخر بالسوق!
-                       </p>
-
-                       {/* Notification Permission Enabler */}
-                       <div className="mb-3">
-                         {notificationPermissionStatus === 'granted' ? (
-                           <div className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-[10px] font-black">
-                             <Check className="w-3.5 h-3.5" />
-                             <span>نظام التنبيهات الفورية (FCM) نشط الآن 🟢</span>
-                           </div>
-                         ) : (
-                           <button
-                             type="button"
-                             onClick={onRequestNotificationPermission}
-                             className="w-full py-2 px-3 bg-gradient-to-r from-[#D4AF37] to-[#b38f2e] text-black rounded-xl text-[10px] font-black flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-transform"
-                           >
-                             <Bell className="w-3.5 h-3.5" />
-                             <span>تفعيل الإشعارات الفورية بالمتصفح 🔔</span>
-                           </button>
-                         )}
-                       </div>
-
-                       {/* Favorite Category Toggles */}
-                       <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto no-scrollbar pt-1 pr-0.5">
-                         {['ملابس رجال', 'ملابس نساء', 'ملابس اطفال', 'ماكياج و اكسسوارات', 'عطورات', 'عقارات', 'سيارات و دراجات', 'إلكترونيات', 'أثاث', 'أدوات منزلية', 'حيوانات', 'تحف و هدايا'].map((cat) => {
-                           const isFav = favoriteCategories.includes(cat);
-                           return (
-                             <button
-                               key={cat}
-                               type="button"
-                               onClick={() => onToggleFavoriteCategory(cat)}
-                               className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-all flex items-center gap-1 cursor-pointer select-none ${
-                                 isFav 
-                                   ? `bg-black/40 ${crownBorder} shadow-sm` 
-                                   : 'bg-black border-white/5 text-gray-400 hover:text-white hover:border-white/20'
-                               }`}
-                             >
-                               <span className="text-[10px]">{isFav ? '★' : '☆'}</span>
-                               {cat}
-                             </button>
-                           );
-                         })}
+                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <Edit2 className="w-5 h-5 text-white" />
                        </div>
                     </div>
+                    <div className="absolute bottom-0 right-0 bg-gradient-to-br from-[#f3db8b] to-[#b38e20] p-1.5 rounded-full text-black shadow-[inset_0_1px_2px_rgba(255,255,255,0.8),0_2px_4px_rgba(0,0,0,0.8)] border-[1.5px] border-[#050505]">
+                      <Camera className="w-3 h-3 drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)]" />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-2 mt-2">
-                    <AnimatePresence mode="wait">
-                        {isEditing ? (
-                            <motion.div 
-                              key="edit-actions"
-                              initial={{ opacity: 0, y: 10 }} 
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -10 }}
-                              className="flex flex-col gap-2 mb-1"
-                            >
-                                <button 
-                                   onClick={handleSave} 
-                                   className="w-full flex items-center justify-center gap-3 p-3.5 rounded-[1.2rem] bg-[#10B981] text-white font-black transition-all shadow-lg active:scale-95 text-xs"
-                                >
-                                    <Check className="w-4 h-4" />
-                                    <span>تأكيد وحفظ التغييرات</span>
-                                </button>
-                            </motion.div>
-                        ) : (
-                            <motion.div key="menu" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
-                                 <button onClick={() => setIsEditing(true)} className={`w-full flex items-center gap-4 p-4 rounded-[1.8rem] bg-black border ${crownBorder} hover:border-white/40 transition-all ${crownColor} group shadow-2xl`}>
-                                    <div className={`w-10 h-10 rounded-full bg-black/40 flex items-center justify-center group-hover:scale-110 transition-transform border ${crownBorder}`}>
-                                        <Settings className={`w-5 h-5 ${crownColor}`} />
-                                    </div>
-                                    <div className="flex flex-col items-start text-right">
-                                        <span className="font-black text-xs tracking-tight">تعديل الملف الشخصي</span>
-                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">تغيير البيانات والصورة</span>
-                                    </div>
-                                 </button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                <div className="flex flex-col items-end gap-1.5 text-right">
+                   <label className="text-[10px] text-gray-500 font-black px-1 uppercase tracking-wide">الاسم الكامل</label>
+                   <input 
+                     type="text" 
+                     value={editName}
+                     onChange={e => setEditName(e.target.value)}
+                     className="w-full bg-[#000] border border-white/10 rounded-xl p-3 text-white text-right focus:border-[#D4AF37]/40 focus:outline-none transition-all font-bold text-sm shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] placeholder:text-gray-800"
+                     dir="rtl"
+                     placeholder="اسم المستخدم"
+                   />
                 </div>
-            </div>
+
+                <div className="flex flex-col items-end gap-1.5 text-right">
+                   <label className="text-[10px] text-gray-500 font-black px-1 uppercase tracking-wide">رقم الهاتف</label>
+                   <input 
+                     type="tel" 
+                     value={editPhone}
+                     onChange={e => setEditPhone(e.target.value)}
+                     className="w-full bg-[#000] border border-white/10 rounded-xl p-3 text-white text-right focus:border-[#D4AF37]/40 focus:outline-none transition-all font-bold text-sm shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]"
+                     dir="rtl"
+                     disabled
+                   />
+                </div>
+                
+                <button
+                  onClick={handleSave}
+                  className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#f3db8b] border-t border-[#fff2ba] text-black font-black text-sm flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.98] transition-all shadow-[inset_0_1px_2px_rgba(255,255,255,0.6),0_4px_10px_rgba(212,175,55,0.2)] mt-3 group"
+                >
+                  <Save className="w-4 h-4 group-hover:scale-110 transition-transform drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)]" strokeWidth={3} />
+                  <span className="drop-shadow-sm">حفظ التغييرات</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        </div>
+
       </motion.div>
     </motion.div>
   );

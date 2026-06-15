@@ -3,7 +3,7 @@ import { Phone, Mail } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="mt-6 border-t border-gray-900 bg-[#060606] pt-10 pb-8">
+    <footer className="mt-6 border-t border-zinc-900 bg-[#060606] pt-10 pb-28">
       <div className="max-w-6xl mx-auto px-4 md:px-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
           {/* About Section */}
@@ -41,7 +41,7 @@ export default function Footer() {
               </a>
 
               <a 
-                href="https://wa.me/21692942482" 
+                href={`https://wa.me/21692942482?text=${encodeURIComponent('مرحباً إدارة سوق سند، أود الاستفسار والتواصل معكم.')}`} 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center sm:justify-start gap-4 bg-[#111] border border-gray-900 p-4 rounded-xl hover:border-[#25D366]/50 transition-colors group"

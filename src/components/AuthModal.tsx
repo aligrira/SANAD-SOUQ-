@@ -24,16 +24,23 @@ export default function AuthModal({ onClose, onAuth }: AuthModalProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+      className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 py-8"
+      onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-[#050505] rounded-3xl p-6 border border-gray-800 shadow-2xl w-full max-w-sm relative"
+        initial={{ y: 20, scale: 0.95, opacity: 0 }}
+        animate={{ y: 0, scale: 1, opacity: 1 }}
+        exit={{ y: 20, scale: 0.95, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="bg-[#111] rounded-[2.5rem] p-6 border border-white/10 shadow-[0_10px_50px_rgba(0,0,0,0.8)] w-full max-w-[420px] mx-auto relative mb-10 max-h-[85vh] overflow-y-auto no-scrollbar"
+        onClick={(e) => e.stopPropagation()}
       >
-        <button onClick={onClose} className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white transition-colors rounded-full hover:bg-gray-800">
-          <X className="w-5 h-5" />
+        <button 
+          onClick={onClose} 
+          className="absolute top-6 left-6 p-2 bg-slate-950 border border-emerald-500/30 rounded-2xl text-emerald-400 hover:text-white hover:bg-emerald-500 transition-all cursor-pointer shadow-lg active:scale-90"
+          title="إغلاق"
+        >
+          <X className="w-5 h-5" strokeWidth={2.5} />
         </button>
 
         <div className="text-center mb-6 mt-2">

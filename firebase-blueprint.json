@@ -21,12 +21,44 @@
         "likes": { "type": "number" }
       },
       "required": ["title", "description", "category", "location", "price", "sellerId"]
+    },
+    "SystemNotification": {
+      "title": "SystemNotification",
+      "description": "A notification sent to a specific user or admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "productId": { "type": "string" }
+      },
+      "required": ["id", "userPhone", "message", "read", "createdAt"]
+    },
+    "LoginActivity": {
+      "title": "LoginActivity",
+      "description": "Historical log of user logins for social proof.",
+      "type": "object",
+      "properties": {
+        "userName": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["userName", "timestamp"]
     }
   },
   "firestore": {
     "/products/{productId}": {
       "schema": { "$ref": "#/entities/Product" },
       "description": "A collection of product listings."
+    },
+    "/systemNotifications/{notifId}": {
+      "schema": { "$ref": "#/entities/SystemNotification" },
+      "description": "A collection of system or user specific notifications."
+    },
+    "/login_activity/{id}": {
+      "schema": { "$ref": "#/entities/LoginActivity" },
+      "description": "Real-time login events for social notifications."
     }
   }
 }

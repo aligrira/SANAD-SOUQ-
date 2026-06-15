@@ -36,7 +36,7 @@ export default function PublishingTransition({ plan }: PublishingTransitionProps
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center select-none"
+      className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-6 text-center select-none"
     >
       {/* Golden Glowing Ambient Light */}
       <div className={`absolute w-80 h-80 rounded-full blur-[100px] pointer-events-none opacity-40 animate-pulse ${glowColor}`} />
@@ -72,7 +72,7 @@ export default function PublishingTransition({ plan }: PublishingTransitionProps
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.15 }}
-          className={`text-xl sm:text-2xl font-black font-display tracking-wide ${isVip ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-500' : 'text-white'}`}
+          className={`text-xl sm:text-2xl font-black font-display tracking-wide ${isVip ? 'text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] via-[#F5D76E] to-[#B8860B]' : 'text-white'}`}
         >
           {title}
         </motion.h3>

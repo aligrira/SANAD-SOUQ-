@@ -3,30 +3,37 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface SplashScreenProps {
   onComplete: () => void;
+  isReady: boolean;
 }
 
-export default function SplashScreen({ onComplete }: SplashScreenProps) {
+export default function SplashScreen({ onComplete, isReady }: SplashScreenProps) {
   const [isVisible, setIsVisible] = useState(true);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
   useEffect(() => {
-    // Cinematic boot duration - 2.5 seconds
+    // Enforce a minimum splash duration for consistent branding
     const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (minTimeElapsed && isReady) {
       setIsVisible(false);
       const finishTimer = setTimeout(() => {
         onComplete();
-      }, 800); // Smooth 800ms fade transition
+      }, 500); // 500ms fade transition
       return () => clearTimeout(finishTimer);
-    }, 2500);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [onComplete]);
+    }
+  }, [minTimeElapsed, isReady, onComplete]);
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isVisible && (
         <motion.div
+
           initial={{ opacity: 1 }}
           exit={{
             opacity: 0,

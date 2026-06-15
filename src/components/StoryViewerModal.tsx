@@ -171,7 +171,7 @@ export default function StoryViewerModal({ stories, initialStoryId, onClose, onA
   if (!currentStory) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black/95 backdrop-blur-2xl flex items-center justify-center overflow-hidden touch-none selection:bg-transparent" style={{ overscrollBehavior: 'none' }}>
+    <div className="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center overflow-hidden touch-none selection:bg-transparent" style={{ overscrollBehavior: 'none' }}>
       
       <motion.div 
         initial={{ opacity: 0, scale: 0.96 }}
@@ -189,7 +189,7 @@ export default function StoryViewerModal({ stories, initialStoryId, onClose, onA
         {/* Progress Bars (Instagram Style - ultra thin representing current story's slides) */}
         <div className="absolute top-4 inset-x-0 z-[100] flex gap-1.5 px-5 pointer-events-none" dir="ltr">
           {storyImages.map((_, i) => (
-            <div key={i} className="h-[2px] flex-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-md">
+            <div key={i} className="h-[2px] flex-1 bg-white/20 rounded-full overflow-hidden">
               {i < imageIndex && <div className="h-full w-full bg-white/95 transition-all" />}
               {i === imageIndex && (
                 <div 
@@ -233,9 +233,10 @@ export default function StoryViewerModal({ stories, initialStoryId, onClose, onA
             onClick={(e) => { e.stopPropagation(); onClose(); }} 
             onTouchStart={(e) => { e.stopPropagation(); }}
             onTouchEnd={(e) => { e.stopPropagation(); onClose(); }}
-            className="p-2 pointer-events-auto opacity-75 hover:opacity-100 transition-opacity bg-black/25 backdrop-blur-sm rounded-full border border-white/10 active:scale-90"
+            className="p-2 pointer-events-auto bg-black border border-[#FFD700]/40 rounded-full text-[#FFD700] hover:bg-[#FFD700]/15 hover:border-[#FFD700] hover:scale-105 active:scale-95 shadow-[0_0_10px_rgba(255,215,0,0.2)] transition-all cursor-pointer"
+            title="إغلاق"
           >
-            <X className="w-5 h-5 text-white" />
+            <X className="w-5 h-5 text-[#FFD700]" strokeWidth={2.5} />
           </button>
         </div>
 
@@ -269,7 +270,7 @@ export default function StoryViewerModal({ stories, initialStoryId, onClose, onA
             onTouchStart={(e) => { e.stopPropagation(); }}
             onTouchEnd={(e) => { e.stopPropagation(); }}
             onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-            className="pointer-events-auto w-8 h-8 rounded-full bg-black/45 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/60 active:scale-95 transition-all opacity-0 sm:opacity-100"
+            className="pointer-events-auto w-8 h-8 rounded-full bg-black/45 border border-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/60 active:scale-95 transition-all opacity-0 sm:opacity-100"
           >
             <ChevronRight className="w-4 h-4 shrink-0" />
           </button>
@@ -280,7 +281,7 @@ export default function StoryViewerModal({ stories, initialStoryId, onClose, onA
             onTouchStart={(e) => { e.stopPropagation(); }}
             onTouchEnd={(e) => { e.stopPropagation(); }}
             onClick={(e) => { e.stopPropagation(); handleNext(); }}
-            className="pointer-events-auto w-8 h-8 rounded-full bg-black/45 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/60 active:scale-95 transition-all opacity-0 sm:opacity-100"
+            className="pointer-events-auto w-8 h-8 rounded-full bg-black/45 border border-white/10 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/60 active:scale-95 transition-all opacity-0 sm:opacity-100"
           >
             <ChevronLeft className="w-4 h-4 shrink-0" />
           </button>

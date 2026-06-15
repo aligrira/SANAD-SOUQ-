@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Image as ImageIcon, MapPin, Tag, DollarSign, Loader2, Phone, Sparkles, Wand2 } from 'lucide-react';
+import { X, Image as ImageIcon, MapPin, Tag, DollarSign, Loader2, Phone, Wand2 } from 'lucide-react';
 import { CATEGORIES_DATA, getSubcategoriesForMain } from '../categoriesData';
 
 const REGIONS = [
@@ -42,7 +42,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
         const templates = [
             `فرصة لا تعوض! نوفر لكم اليوم "${title}" من فئة ${mainCategory || 'المنتجات'} الفريدة المتواجد في ${location} بسعر ممتاز جداً (${price || 'حسب الاتفاق'} د.ت). \n\nالمواصفات:\n- حالة ممتازة وجودة عالية.\n- تسليم فوري ومعاينة متاحة.\n\nلا تضيع هذه الفرصة الذهبية، تواصل معي للمزيد من التفاصيل!`,
             `لمحبي التميز، أعرض عليكم "${title}". مصنف ضمن ${mainCategory || 'المعروضات'} وموجود حالياً في ${location}.\n\nمميزات العرض:\n- جودة لا تضاهى\n- سعر منافس (${price ? price + ' د.ت' : 'قابل للنقاش'})\n- جاهز للتسليم\n\nاضغط على رقم الهاتف للتواصل المباشر.`,
-            `للبيع: "${title}" استثنائي في منطقة ${location}.\nمثالي للباحثين عن أفضل العروض في ${mainCategory || 'الفئات'}.\n\n- السعر: ${price ? price + ' دينار تونسي' : 'اتصل لمعرفة السعر'}\n- الحالة: ممتازة\n- التوفر: فوري\n\nتواصل معي الآن للحصول على هذه الصفقة المميزة.`
+            `للبيع: "${title}" استثنائي في منطقة ${location}.\nمثالي للباحثين عن أفضل العروض في ${mainCategory || 'الفئات'}.\n\n- السعر: ${price ? price + ' د.ت' : 'اتصل لمعرفة السعر'}\n- الحالة: ممتازة\n- التوفر: فوري\n\nتواصل معي الآن للحصول على هذه الصفقة المميزة.`
         ];
         const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
         setDescription(randomTemplate);
@@ -214,7 +214,12 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
 
   const executeSubmit = async () => {
       const parsedPrice = Number(price);
-      if (!title || !price || isNaN(parsedPrice) || parsedPrice <= 0 || !mainCategory || !subCategory) return;
+      if (!title || !price || isNaN(parsedPrice) || parsedPrice <= 0 || !mainCategory || !subCategory || !phone) {
+         if (showToast) {
+           showToast("الرجاء إكمال جميع الحقوق المطلوبة (العنوان، السعر الصحيح، الرقم، وكل الأقسام)", "warning");
+         }
+         return;
+      }
       setIsSubmitting(true);
       
       try {
@@ -295,7 +300,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md overflow-y-auto flex items-start justify-center p-4 py-8"
+      className="fixed inset-0 z-50 bg-black/85 overflow-y-auto flex items-start justify-center p-4 py-8"
     >
       <motion.div
         initial={{ y: 50, scale: 0.95 }}
@@ -306,8 +311,12 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
       >
          {/* Close button in top corner inside the scroll container */}
          <div className="absolute top-4 left-4 z-10">
-            <button onClick={onClose} className="p-2 hover:bg-gray-800/80 rounded-full text-gray-500 hover:text-white transition-colors cursor-pointer">
-               <X className="w-5 h-5" />
+            <button 
+              onClick={onClose} 
+              className="p-2 bg-black border border-[#FFD700]/40 rounded-full text-[#FFD700] hover:bg-[#FFD700]/15 hover:border-[#FFD700] transition-all cursor-pointer shadow-[0_0_10px_rgba(255,215,0,0.2)]"
+              title="إغلاق"
+            >
+               <X className="w-5 h-5 text-[#FFD700]" strokeWidth={2.5} />
             </button>
          </div>
 
@@ -337,12 +346,14 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                      <button 
                        type="button"
                        onClick={(e) => { e.stopPropagation(); removeImage(idx); }} 
-                       className="absolute top-1.5 left-1.5 bg-black/60 backdrop-blur hover:bg-rose-500 p-1.5 rounded-full shadow-lg transition-colors z-10"
+                       className="absolute top-1.5 left-1.5 bg-black/60 hover:bg-rose-500 p-1.5 rounded-full shadow-lg transition-colors z-10"
+                       title="حذف الصورة"
                      >
                         <X className="w-3.5 h-3.5 text-white" />
                      </button>
+
                      {/* Move controls wrapper */}
-                     <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 bg-black/60 backdrop-blur px-2 py-1 rounded-full z-10 opacity-75 group-hover:opacity-100 transition-opacity">
+                     <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center justify-center gap-2 bg-black/60 px-2 py-1 rounded-full z-10 opacity-75 group-hover:opacity-100 transition-opacity">
                         <button type="button" onClick={(e) => { e.stopPropagation(); moveImage(idx, 1); }} disabled={idx === images.length - 1} className="p-0.5 rounded-full hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent">
                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="m15 18-6-6 6-6"/></svg>
                         </button>
@@ -418,7 +429,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                   {mainCategory ? (
                     <span className="text-emerald-400 font-bold text-[10px]">✓ {mainCategory}</span>
                   ) : (
-                    <span className="text-amber-400 font-bold text-[10px]">⚠️ مطلوب تحديد القسم الرئيسي</span>
+                    <span className="text-[#D4AF37] font-bold text-[10px]">⚠️ مطلوب تحديد القسم الرئيسي</span>
                   )}
                </label>
                <div className="relative">
@@ -435,7 +446,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                   </select>
                   <Tag className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                </div>
-               {!mainCategory && <p className="text-amber-500/80 text-[10px] mt-1 font-bold">⚠️ يرجى البدء باختيار القسم الرئيسي أولاً لفتح الأقسام الفرعية التابعة له.</p>}
+               {!mainCategory && <p className="text-[#D4AF37]/80 text-[10px] mt-1 font-bold">⚠️ يرجى البدء باختيار القسم الرئيسي أولاً لفتح الأقسام الفرعية التابعة له.</p>}
             </div>
 
             {/* Step 2: Subcategory Selection */}
@@ -445,7 +456,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                   {subCategory ? (
                     <span className="text-emerald-400 font-bold text-[10px]">✓ {subCategory}</span>
                   ) : (
-                    <span className="text-amber-400 font-bold text-[10px]">⚠️ مطلوب تحديد القسم الفرعي</span>
+                    <span className="text-[#D4AF37] font-bold text-[10px]">⚠️ مطلوب تحديد القسم الفرعي</span>
                   )}
                </label>
                <div className="relative">
@@ -462,7 +473,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
                   </select>
                   <Tag className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                </div>
-               {mainCategory && !subCategory && <p className="text-amber-500/80 text-[10px] mt-1 font-bold">⚠️ يجب اختيار الفرع المناسب لإكمال عملية النشر.</p>}
+               {mainCategory && !subCategory && <p className="text-[#D4AF37]/80 text-[10px] mt-1 font-bold">⚠️ يجب اختيار الفرع المناسب لإكمال عملية النشر.</p>}
             </div>
 
             <div className="relative">
@@ -508,7 +519,7 @@ export default function AddProductModal({ onClose, onAdd, onEdit, currentUserPho
          </div>
          {/* Confirm Dialog */}
          {showConfirmEdit && (
-             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 text-center">
+             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 text-center">
                  <div className="bg-[#0f0f0f] border border-gray-800 p-6 rounded-3xl w-full max-w-sm">
                      <h3 className="text-white font-bold mb-4">هل أنت متأكد من حفظ التعديلات؟</h3>
                      <div className="flex gap-4">

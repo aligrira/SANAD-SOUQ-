@@ -1,10 +1,10 @@
-import { motion } from 'motion/react';
-import { Product } from '../types';
-import { MapPin, Heart, Crown, Award, Clock } from 'lucide-react';
-import React from 'react';
-import { HighlightText } from './HighlightText';
-import { useInView } from 'react-intersection-observer';
-import ListingSkeleton from './ListingSkeleton';
+import { motion } from "motion/react";
+import { Product } from "../types";
+import { MapPin, Heart, Clock, Bookmark } from "lucide-react";
+import React from "react";
+import { HighlightText } from "./HighlightText";
+import { useInView } from "react-intersection-observer";
+import ListingSkeleton from "./ListingSkeleton";
 
 interface ListingCardProps {
   product: Product;
@@ -12,87 +12,71 @@ interface ListingCardProps {
   searchQuery?: string;
   isFavorite: boolean;
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
-  viewMode?: 'grid' | 'list';
+  isLiked: boolean;
+  onToggleLike: (id: string, e: React.MouseEvent) => void;
+  viewMode?: "grid" | "list";
 }
 
 const getRelativeTime = (isoString?: string) => {
-  if (!isoString) return '';
+  if (!isoString) return "";
   try {
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    if (diffMs < 0) return 'الآن';
+    if (diffMs < 0) return "الآن";
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 60) return `منذ ${diffMins} د`;
     if (diffHours < 24) return `منذ ${diffHours} س`;
-    if (diffDays === 1) return 'أمس';
+    if (diffDays === 1) return "أمس";
     if (diffDays < 30) return `منذ ${diffDays} ي`;
-    return date.toLocaleDateString('ar-TN', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString("ar-TN", { month: "short", day: "numeric" });
   } catch {
-    return '';
+    return "";
   }
 };
 
-const ListingCard: React.FC<ListingCardProps> = ({ 
-  product, 
-  onClick, 
-  searchQuery = '', 
-  isFavorite, 
-  onToggleFavorite, 
-  viewMode = 'grid' 
+const ListingCard: React.FC<ListingCardProps> = ({
+  product,
+  onClick,
+  searchQuery = "",
+  isFavorite,
+  onToggleFavorite,
+  isLiked,
+  onToggleLike,
+  viewMode = "grid",
 }) => {
   const { ref, inView } = useInView({
-    triggerOnce: true, // only render once visible
-    rootMargin: '250px 0px', // load a bit before scrolling into view to avoid blanks
+    triggerOnce: true,
+    rootMargin: "250px 0px",
   });
 
-  const isVip = product.plan === 'vip' || product.isVip;
-  const isBronze = product.plan === 'bronze';
-  const isList = viewMode === 'list';
+  const isVip = product.plan === "vip" || product.isVip;
+  const isBronze = product.plan === "bronze";
+  const isList = viewMode === "list";
 
   // Aesthetic adjustments matching each subscription level
-  const borderClass = isVip 
-    ? 'vip-border' 
-    : isBronze 
-      ? 'bronze-border' 
-      : 'free-border';
-
-  const badgeText = isVip 
-    ? '👑 ذهبي VIP' 
-    : isBronze 
-      ? '🥉 برونزي متميز' 
-      : '🟢 إعلان مجاني';
-
-  const badgeBg = isVip 
-    ? 'bg-gradient-to-r from-[#D4AF37] to-[#B38F1D] text-black border border-yellow-200/50 font-black shadow-[0_2px_8px_rgba(212,175,55,0.4)]' 
-    : isBronze 
-      ? 'bg-gradient-to-r from-gray-400 to-slate-500 text-white border border-slate-300/40 font-bold shadow-[0_2px_6px_rgba(148,163,184,0.3)]' 
-      : 'bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 font-semibold';
-
-  const titleColor = isVip 
-    ? 'text-[#FFF3C5] drop-shadow-[0_0_2px_rgba(212,175,55,0.8)]' 
-    : isBronze 
-      ? 'text-white' 
-      : 'text-white';
-
-  const priceColor = isVip 
-    ? 'text-[#D4AF37] drop-shadow-[0_0_8px_rgba(212,175,55,0.4)]' 
-    : isBronze 
-      ? 'text-slate-300 drop-shadow-[0_0_5px_rgba(148,163,184,0.4)]' 
-      : 'text-emerald-400 drop-shadow-[0_0_5px_rgba(16,185,129,0.4)]';
-
-  const subColor = isVip
-    ? 'text-[#D4AF37]/80 bg-yellow-400/10 border-yellow-200/20'
+  const borderClass = isVip
+    ? "border-[3px] border-[#D4AF37] shadow-[0_8px_20px_rgba(212,175,55,0.15)]"
     : isBronze
-      ? 'text-slate-300/90 bg-slate-400/10 border-slate-300/20'
-      : 'text-emerald-400/80 bg-emerald-400/10 border-emerald-400/20';
+      ? "border-[3px] border-zinc-400 shadow-[0_4px_15px_rgba(212,212,216,0.15)]"
+      : "border border-zinc-800 shadow-[0_4px_15px_rgba(0,0,0,0.3)]";
+
+  const badgeText = isVip ? "إعلان ملكي VIP" : isBronze ? "إعلان مميز" : "";
+
+  const badgeBg = isVip
+    ? "bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-black shadow-md border border-[#F5D76E]/50"
+    : isBronze
+      ? "bg-gradient-to-r from-zinc-300 to-zinc-500 text-black shadow-[0_0_10px_rgba(212,212,216,0.4)]"
+      : "";
+
+  const titleColor = isVip ? "text-[#D4AF37]" : "text-gray-100";
 
   if (!inView) {
     return (
-      <div ref={ref} className={isList ? 'w-full' : 'w-full h-full'}>
+      <div ref={ref} className={isList ? "w-full" : "w-full h-full"}>
         <ListingSkeleton viewMode={viewMode} />
       </div>
     );
@@ -101,93 +85,106 @@ const ListingCard: React.FC<ListingCardProps> = ({
   return (
     <motion.div
       ref={ref}
-      layout
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      whileHover={{ y: -6, scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.3, type: "spring", stiffness: 300 }}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ y: -8, transition: { duration: 0.2 } }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       onClick={() => onClick(product.id, product)}
-      className={`premium-card overflow-hidden transition-all duration-300 cursor-pointer group w-full bg-[#0a0a0a] rounded-3xl relative flex flex-col ${borderClass} ${
-        isList ? 'flex-row max-w-full' : 'h-full min-h-0 min-w-0'
+      className={`group w-full bg-[#181818] rounded-[24px] relative flex flex-col overflow-hidden cursor-pointer ${borderClass} ${
+        isList ? "flex-row max-w-full" : "h-full min-h-0 min-w-0"
       }`}
     >
-      {/* Dynamic Membership Badge Overlay on Product image */}
-      <div className="absolute top-2.5 right-2.5 z-20">
-        <span className={`text-[8.5px] sm:text-[9.5px] px-2.5 py-1 rounded-full whitespace-nowrap shadow-lg tracking-tight leading-none flex items-center gap-1 font-sans ${badgeBg}`}>
-          {badgeText}
-        </span>
+      {/* Dynamic Membership Badge Overlay */}
+      {badgeText && (
+        <div className="absolute top-3 right-3 z-20 select-none">
+          <span
+            className={`text-[10px] px-2.5 py-1 rounded-full whitespace-nowrap font-bold ${badgeBg}`}
+          >
+            {badgeText}
+          </span>
+        </div>
+      )}
+
+      {/* Favorites and Likes Buttons */}
+      <div className="absolute top-3 left-3 z-20 flex flex-col gap-2">
+        {/* Like Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleLike(product.id, e);
+          }}
+          className="w-8 h-8 rounded-full bg-black/70 flex items-center justify-center border border-white/10 hover:bg-black/90 transition-colors"
+        >
+          <Heart
+            className={`w-4 h-4 transition-transform duration-200 ${isLiked ? "fill-red-500 text-red-500 scale-110" : "text-white"}`}
+          />
+        </button>
+
+        {/* Favorite Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite(product.id, e);
+          }}
+          className="w-8 h-8 rounded-full bg-black flex items-center justify-center border border-white/5 hover:border-[#D4AF37]/50 transition-all active:scale-95 shadow-lg"
+        >
+          <Bookmark
+            className={`w-4 h-4 transition-all duration-300 ${isFavorite ? "fill-[#D4AF37] text-[#D4AF37]" : "text-white/80"}`}
+          />
+        </button>
       </div>
 
       {/* Image Container */}
-      <div 
-        className={`relative overflow-hidden shrink-0 flex items-center justify-center bg-black ${
-          isList 
-            ? 'w-28 sm:w-32 h-28 sm:h-32' 
-            : 'w-full aspect-square'
+      <div
+        className={`relative overflow-hidden shrink-0 bg-[#0A0A0A] ${
+          isList ? "w-32 sm:w-40 h-full" : "w-full aspect-square"
         }`}
       >
-        <img 
-          src={product.imageUrls?.[0] || 'https://via.placeholder.com/400'} 
-          alt={product.title} 
+        <img
+          src={product.imageUrls?.[0] || "https://via.placeholder.com/400"}
+          alt={product.title}
           loading="lazy"
-          className="w-full h-full object-contain select-none group-hover:scale-110 transition-transform duration-700 ease-out"
+          className="w-full h-full object-cover select-none transition-transform duration-700 ease-out group-hover:scale-110"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80" />
       </div>
 
       {/* Card Details Content */}
-      <div className="bg-gradient-to-b from-[#0a0a0a] to-[#040404] p-2.5 sm:p-3 flex flex-col justify-between flex-1 gap-1 border-t border-white/[0.05] relative z-10">
-        <div className="flex flex-col gap-1">
-          {/* Ad Title */}
-          <h3 className={`font-bold text-[11.5px] sm:text-[13px] leading-[1.3] line-clamp-2 text-right dir-rtl ${titleColor}`}>
+      <div
+        className={`flex flex-col justify-between flex-1 p-3.5 rtl text-right ${isList ? "w-full" : ""}`}
+      >
+        {/* Title & Price Top Row */}
+        <div className="flex flex-col gap-2 mb-2 w-full">
+          <h3
+            className={`font-black text-[15px] sm:text-[16px] leading-snug line-clamp-2 ${titleColor}`}
+          >
             <HighlightText text={product.title} query={searchQuery} />
           </h3>
-          
-          {/* Price Tag with relative currency symbol formatting */}
-          <div className="flex items-center justify-end gap-1 mt-1">
-            <span className={`${priceColor} opacity-80 text-[9px] font-bold`}>د.ت</span>
-            <span className={`font-black text-[14px] sm:text-[16px] font-display tracking-tight text-right ${priceColor}`}>
-              {Number(product.price).toLocaleString('en-US')}
-            </span>
-          </div>
+
+          <span className="font-black text-[18px] xl:text-[20px] text-white font-sans text-right group-hover:text-[#F5D76E] transition-colors">
+            {Number(product.price).toLocaleString("en-US")}{" "}
+            <span className="text-[14px] text-[#D4AF37] font-bold">د.ت</span>
+          </span>
         </div>
-        
-        {/* Ad Location and Relative Date Display */}
-        <div className="flex flex-col gap-1.5 text-gray-400 text-[8.5px] border-t border-white/[0.08] pt-1.5 mt-1.5">
-          <div className="flex items-center justify-between gap-1 w-full">
-            
-            {/* Location */}
-            <div className="flex items-center gap-1 opacity-90 min-w-0">
-              <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-400 group-hover:text-amber-500 transition-colors" />
-              <span className="font-semibold truncate text-gray-300 group-hover:text-white transition-colors">{product.location}</span>
+
+        {/* Ad Location and Category Bottom Row */}
+        <div className="flex flex-col gap-1.5 mt-auto border-t border-slate-700/50 pt-2.5">
+          <div className="flex items-center justify-between text-zinc-100 font-bold">
+            <div className="flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span className="text-[12px] font-black">
+                {product.location}
+              </span>
             </div>
 
-            {/* Relative Date */}
             {product.createdAt && (
-              <div className="flex items-center gap-1 shrink-0 text-gray-500">
-                <Clock className="w-3 h-3 group-hover:text-gray-400 transition-colors" />
-                <span className="font-medium text-[9px] group-hover:text-gray-300 transition-colors">{getRelativeTime(product.createdAt)}</span>
+              <div className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                <span className="text-[11px] font-bold">
+                  {getRelativeTime(product.createdAt)}
+                </span>
               </div>
             )}
-
-          </div>
-
-          {/* Favorites/Likes Count */}
-          <div className="flex items-center justify-between pt-1">
-            {/* Subcategory Label if available as premium detail */}
-            <span className={`text-[9px] font-bold max-w-[65%] truncate px-2 py-0.5 rounded-md border ${subColor}`}>
-              {product.subCategory || product.category || 'عرض متميز'}
-            </span>
-
-            <button 
-              onClick={(e) => { e.stopPropagation(); onToggleFavorite(product.id, e); }}
-              className="flex items-center gap-1.5 select-none bg-zinc-900/80 hover:bg-zinc-800 border border-white/[0.1] h-6 px-2.5 rounded-full transition-all shrink-0 cursor-pointer shadow-sm hover:shadow-md"
-            >
-              <Heart className={`w-3.5 h-3.5 transition-transform duration-200 ${isFavorite ? 'fill-red-500 text-red-500 scale-110' : 'text-gray-400'}`} />
-              <span className="text-gray-300 font-bold text-[10px]">{product.likes || 0}</span>
-            </button>
           </div>
         </div>
       </div>

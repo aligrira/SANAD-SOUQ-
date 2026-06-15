@@ -1,19 +1,25 @@
-import { useState, useRef, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { Sparkles, X, Send, Bot } from 'lucide-react';
-import { safeStorage } from '../lib/safeStorage';
-import { generateUUID } from '../lib/utils';
+import { useState, useRef, useEffect } from "react";
+import { motion } from "motion/react";
+import { Sparkles, X, Send, Bot } from "lucide-react";
+import { safeStorage } from "../lib/safeStorage";
+import { generateUUID } from "../lib/utils";
 
 export default function AIAssistant({ onClose }: { onClose: () => void }) {
-  const [messages, setMessages] = useState<{ id: string; role: 'user' | 'model'; text: string }[]>([
-    { id: '1', role: 'model', text: 'مرحباً بك في سوق سند! أنا مساعدك الذكي. كيف يمكنني مساعدتك في العثور على ما تبحث عنه اليوم؟' }
+  const [messages, setMessages] = useState<
+    { id: string; role: "user" | "model"; text: string }[]
+  >([
+    {
+      id: "1",
+      role: "model",
+      text: "مرحباً بك في سوق سند! أنا مساعدك الذكي. كيف يمكنني مساعدتك في العثور على ما تبحث عنه اليوم؟",
+    },
   ]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -24,30 +30,36 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
     if (!input.trim()) return;
 
     const userMessage = input.trim();
-    setInput('');
-    const newUserMessage = { id: generateUUID(), role: 'user' as const, text: userMessage };
-    setMessages(prev => [...prev, newUserMessage]);
+    setInput("");
+    const newUserMessage = {
+      id: generateUUID(),
+      role: "user" as const,
+      text: userMessage,
+    };
+    setMessages((prev) => [...prev, newUserMessage]);
     setIsLoading(true);
 
     try {
-      let apiUrl = '/api/chat';
-      if (typeof window !== 'undefined') {
-        const isApk = window.location.protocol === 'file:' || 
-                      window.location.protocol.startsWith('capacitor') || 
-                      window.location.protocol.startsWith('ionic') ||
-                      !window.location.hostname;
+      let apiUrl = "/api/chat";
+      if (typeof window !== "undefined") {
+        const isApk =
+          window.location.protocol === "file:" ||
+          window.location.protocol.startsWith("capacitor") ||
+          window.location.protocol.startsWith("ionic") ||
+          !window.location.hostname;
         if (isApk) {
-          const savedOrigin = safeStorage.getItem('sanad_last_web_origin');
-          const fallbackUrl = 'https://ais-pre-rr564v6vaibnd4puzzxi64-453310219968.europe-west2.run.app';
+          const savedOrigin = safeStorage.getItem("sanad_last_web_origin");
+          const fallbackUrl =
+            "https://ais-pre-rr564v6vaibnd4puzzxi64-453310219968.europe-west2.run.app";
           const baseUrl = savedOrigin || fallbackUrl;
-          apiUrl = `${baseUrl.replace(/\/$/, '')}/api/chat`;
+          apiUrl = `${baseUrl.replace(/\/$/, "")}/api/chat`;
         }
       }
 
       const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMessage })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: userMessage }),
       });
 
       if (!response.ok) {
@@ -58,30 +70,40 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
       const text = await response.text();
       try {
         const data = JSON.parse(text);
-        const modelResponse = { id: generateUUID(), role: 'model' as const, text: data.text || data.error || 'عذراً، حدث خطأ تأكد من إعداد الخادم.' };
-        setMessages(prev => [...prev, modelResponse]);
+        const modelResponse = {
+          id: generateUUID(),
+          role: "model" as const,
+          text:
+            data.text || data.error || "عذراً، حدث خطأ تأكد من إعداد الخادم.",
+        };
+        setMessages((prev) => [...prev, modelResponse]);
       } catch (e) {
-        throw new Error('Received unexpected non-JSON response format.');
+        throw new Error("Received unexpected non-JSON response format.");
       }
     } catch (error: any) {
-      console.error('Chat error:', error);
-      setMessages(prev => [...prev, { id: generateUUID(), role: 'model' as const, text: 'حدث خطأ في الاتصال. يرجى التأكد من أن مفتاح API الخاص بـ Gemini تمت إضافته بشكل صحيح وأن الخادم يعمل.' }]);
+      console.error("Chat error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: generateUUID(),
+          role: "model" as const,
+          text: "حدث خطأ في الاتصال. يرجى التأكد من أن مفتاح API الخاص بـ Gemini تمت إضافته بشكل صحيح وأن الخادم يعمل.",
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div
-      className="w-[350px] max-w-[calc(100vw-48px)] h-[500px] bg-[#050505] rounded-3xl border border-gray-800 shadow-2xl flex flex-col z-50 overflow-hidden"
-    >
+    <div className="w-[350px] max-w-[calc(100vw-48px)] h-[500px] bg-[#050505] rounded-3xl border border-gray-800 shadow-2xl flex flex-col z-50 overflow-hidden">
       {/* Header */}
       <div className="p-4 bg-gray-900 border-b border-gray-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#D4AF37] to-[#10B981] p-[1px]">
-             <div className="w-full h-full bg-[#020806] rounded-full flex items-center justify-center">
-                <Bot className="w-5 h-5 text-[#D4AF37]" />
-             </div>
+            <div className="w-full h-full bg-[#020806] rounded-full flex items-center justify-center">
+              <Bot className="w-5 h-5 text-[#D4AF37]" />
+            </div>
           </div>
           <div>
             <h3 className="text-white font-bold text-sm">مساعد سند الذكي</h3>
@@ -91,23 +113,27 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
             </p>
           </div>
         </div>
-        <button 
+        <button
           onClick={onClose}
-          className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-400 hover:text-white"
+          className="p-2 bg-black border border-[#FFD700]/40 rounded-full text-[#FFD700] hover:bg-[#FFD700]/15 hover:border-[#FFD700] transition-all cursor-pointer shadow-[0_0_10px_rgba(255,215,0,0.2)]"
+          title="إغلاق"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5 text-[#FFD700]" strokeWidth={2.5} />
         </button>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
         {messages.map((msg, index) => (
-          <div key={`msg-${msg.id}-${index}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div 
+          <div
+            key={`msg-${msg.id}-${index}`}
+            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+          >
+            <div
               className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${
-                msg.role === 'user' 
-                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black rounded-tl-sm font-medium' 
-                  : 'bg-gray-800 text-gray-200 border border-gray-700 rounded-tr-sm'
+                msg.role === "user"
+                  ? "bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-black rounded-tl-sm font-medium"
+                  : "bg-gray-800 text-gray-200 border border-gray-700 rounded-tr-sm"
               }`}
             >
               {msg.text}
@@ -117,9 +143,21 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-gray-800 text-gray-400 p-4 rounded-2xl rounded-tr-sm flex gap-2 border border-gray-700">
-              <motion.div className="w-1.5 h-1.5 bg-gray-500 rounded-full" animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0 }} />
-              <motion.div className="w-1.5 h-1.5 bg-gray-500 rounded-full" animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }} />
-              <motion.div className="w-1.5 h-1.5 bg-gray-500 rounded-full" animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }} />
+              <motion.div
+                className="w-1.5 h-1.5 bg-gray-500 rounded-full"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ repeat: Infinity, duration: 0.6, delay: 0 }}
+              />
+              <motion.div
+                className="w-1.5 h-1.5 bg-gray-500 rounded-full"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }}
+              />
+              <motion.div
+                className="w-1.5 h-1.5 bg-gray-500 rounded-full"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }}
+              />
             </div>
           </div>
         )}
@@ -133,12 +171,12 @@ export default function AIAssistant({ onClose }: { onClose: () => void }) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="اسألني عن أي شيء..."
             className="w-full bg-[#020806] text-white border border-gray-700 rounded-full py-3 pr-4 pl-12 focus:outline-none focus:border-[#D4AF37] transition-colors text-sm"
             dir="rtl"
           />
-          <button 
+          <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
             className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-[#D4AF37] text-black rounded-full hover:opacity-90 disabled:opacity-50 transition-opacity"

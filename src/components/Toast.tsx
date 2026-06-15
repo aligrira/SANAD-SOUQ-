@@ -19,7 +19,7 @@ export default function Toast({ toast, onClose }: ToastProps) {
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-sm"
           dir="rtl"
         >
-          <div className={`p-4 rounded-2xl shadow-2xl flex items-center gap-3 backdrop-blur-md border ${
+          <div className={`p-4 rounded-2xl shadow-2xl flex items-center gap-3 border ${
              toast.type === 'success' ? 'bg-[#10B981]/90 border-[#10B981]/20 text-white' :
              toast.type === 'error' ? 'bg-red-500/90 border-red-500/20 text-white' :
              toast.type === 'warning' ? 'bg-yellow-500/90 border-yellow-500/20 text-white' :
